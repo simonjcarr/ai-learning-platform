@@ -93,6 +93,17 @@ export const MarkingResponseSchema = z.object({
   feedback: z.string(),
 });
 
+export const ReorderResultsSchema = z.object({
+  reordered_article_ids: z.array(z.string()),
+  explanation: z.string().optional(),
+});
+
+export const KeywordExtractionSchema = z.object({
+  keywords: z.array(z.string()),
+  search_intent: z.string(),
+  suggested_search_terms: z.array(z.string()),
+});
+
 // AI Service functions
 export const aiService = {
   async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5) {
@@ -103,7 +114,7 @@ IMPORTANT:
 2. Keep category names GENERIC and SIMPLE (e.g., "Docker", "Kubernetes", "Python", NOT "Docker Basics" or "Advanced Python")
 3. Be precise about technology distinctions - Docker and Docker Swarm are different, Kubernetes and OpenShift are different, etc.`;
     
-    const userPrompt = `Search query: "${query}"
+    const userPrompt = `User's search query: "${query}"
     
 ALL EXISTING CATEGORIES in the system (use these whenever possible):
 ${allCategories.map(cat => `- ${cat.categoryName}${cat.description ? `: ${cat.description}` : ''}`).join('\n')}
@@ -111,6 +122,9 @@ ${allCategories.map(cat => `- ${cat.categoryName}${cat.description ? `: ${cat.de
 Existing articles related to this search: ${JSON.stringify(existingArticles)}
 
 Please suggest exactly ${articlesToGenerate} new article titles that would be helpful for this search.
+
+SPECIAL ATTENTION FOR "HOW TO" QUESTIONS:
+If the user's query is a specific "how to" question (like "How to reclaim space used by docker"), prioritize creating articles that DIRECTLY answer that specific question with practical steps and commands.
 
 CRITICAL RULES:
 1. For each article, ALWAYS check if it fits into an existing category first
@@ -122,10 +136,8 @@ CRITICAL RULES:
    - Distinct from related technologies (Docker ≠ Docker Swarm, Kubernetes ≠ OpenShift)
 5. If suggesting a new category, provide a clear description
 6. Don't suggest article titles that already exist
-7. Articles must be SPECIFICALLY about the searched technology:
-   - If searching for "Docker", suggest Docker articles (NOT Docker Swarm)
-   - If searching for "Docker Swarm", suggest Docker Swarm articles specifically
-   - Be precise about technology boundaries
+7. Articles must be SPECIFICALLY about the searched technology and address the user's specific need
+8. For "how to" queries, create titles that directly address the specific task (e.g., "How to Clean Up Docker Storage" for docker space queries)
 
 Your target_category_name for each article MUST match exactly one of the existing category names listed above, unless creating a new category.`;
 
@@ -231,6 +243,74 @@ Evaluate if the answer is correct and provide helpful feedback. For command line
     return result.object;
   },
 
+  async extractSearchKeywords(query: string) {
+    const systemPrompt = `You are an AI assistant that analyzes user search queries to extract relevant keywords and understand search intent. Your goal is to help find the most relevant content by identifying key terms and concepts.`;
+
+    const userPrompt = `User's search query: "${query}"
+
+Analyze this query and provide:
+1. Key technical keywords that should be searched for in content
+2. The overall search intent (what the user is trying to accomplish)
+3. Alternative search terms that might be used in technical documentation
+
+Focus on technical terms, commands, concepts, and tools that would likely appear in IT articles addressing this query.
+
+Examples:
+- "How to reclaim space used by docker" → keywords: ["docker", "prune", "cleanup", "storage", "disk space", "remove", "images", "containers", "volumes"]
+- "Kubernetes troubleshooting" → keywords: ["kubectl", "pods", "services", "debugging", "logs", "events", "status"]`;
+
+    const result = await generateObject({
+      model: getModel(),
+      system: systemPrompt,
+      prompt: userPrompt,
+      schema: KeywordExtractionSchema,
+      temperature: 0.3,
+      maxTokens: 500,
+    });
+
+    return result.object;
+  },
+
+  async reorderSearchResults(query: string, articles: Array<{articleId: string, articleTitle: string, category: {categoryName: string}, isContentGenerated: boolean}>, categories: Array<{categoryId: string, categoryName: string, description: string | null}>) {
+    const systemPrompt = `You are an AI assistant that helps reorder search results based on relevance to the user's query. Your goal is to put the most relevant and helpful content first.
+
+Consider:
+1. Direct relevance to the query
+2. Level of detail appropriate for the query (beginner vs advanced)
+3. Practical usefulness for someone asking this question
+4. Logical learning progression (basics before advanced topics)`;
+
+    const userPrompt = `User's search query: "${query}"
+
+Available articles:
+${articles.map((article, index) => 
+  `${index + 1}. ID: ${article.articleId}
+   Title: ${article.articleTitle}
+   Category: ${article.category.categoryName}
+   Status: ${article.isContentGenerated ? 'Ready' : 'Content pending'}`
+).join('\n\n')}
+
+Available categories:
+${categories.map(cat => 
+  `- ${cat.categoryName}${cat.description ? `: ${cat.description}` : ''}`
+).join('\n')}
+
+Please reorder these articles by relevance to the user's query. Return the article IDs in order from most relevant to least relevant.
+
+Consider what someone searching for "${query}" would most likely want to learn about first.`;
+
+    const result = await generateObject({
+      model: getModel(),
+      system: systemPrompt,
+      prompt: userPrompt,
+      schema: ReorderResultsSchema,
+      temperature: 0.3, // Lower temperature for more consistent ordering
+      maxTokens: 1000,
+    });
+
+    return result.object;
+  },
+
   // Utility function to get current provider and model info
   getProviderInfo() {
     return {
@@ -248,3 +328,5 @@ export type AISearchResponse = z.infer<typeof AISearchResponseSchema>;
 export type InteractiveExampleGeneration = z.infer<typeof InteractiveExampleSchema>;
 export type ExampleGenerationResponse = z.infer<typeof ExampleGenerationResponseSchema>;
 export type MarkingResponse = z.infer<typeof MarkingResponseSchema>;
+export type ReorderResultsResponse = z.infer<typeof ReorderResultsSchema>;
+export type KeywordExtractionResponse = z.infer<typeof KeywordExtractionSchema>;

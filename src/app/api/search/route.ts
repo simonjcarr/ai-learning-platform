@@ -13,28 +13,6 @@ const CONTENT_THRESHOLDS = {
   DEFAULT_PAGE_SIZE: 20,    // Default number of results per page
 };
 
-// Common stop words to filter out
-const STOP_WORDS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'by', 'for', 'from',
-  'has', 'have', 'he', 'how', 'in', 'is', 'it', 'its', 'of', 'on', 'or',
-  'that', 'the', 'to', 'was', 'will', 'with', 'what', 'when', 'where',
-  'which', 'who', 'why', 'can', 'do', 'does', 'did', 'get', 'got', 'has',
-  'had', 'make', 'made', 'see', 'saw', 'come', 'came', 'go', 'went', 'take',
-  'took', 'know', 'knew', 'think', 'thought', 'use', 'used', 'find', 'found',
-  'give', 'gave', 'tell', 'told', 'all', 'also', 'but', 'if', 'into', 'just',
-  'not', 'now', 'only', 'other', 'our', 'out', 'so', 'some', 'still', 'such',
-  'than', 'their', 'them', 'then', 'there', 'these', 'they', 'this', 'those',
-  'through', 'too', 'under', 'up', 'very', 'way', 'we', 'well', 'were', 'while',
-  'would', 'you', 'your', 'about', 'after', 'again', 'any', 'back', 'because',
-  'before', 'being', 'between', 'both', 'could', 'each', 'few', 'first', 'good',
-  'great', 'here', 'him', 'his', 'how', 'i', 'me', 'more', 'most', 'much', 'my',
-  'new', 'no', 'one', 'over', 'own', 'same', 'she', 'should', 'since', 'two',
-  'us', 'want', 'was', 'way', 'we', 'well', 'what', 'when', 'where', 'which',
-  'who', 'will', 'with', 'work', 'year', 'years'
-]);
-
-// Minimum word length for partial matching
-const MIN_WORD_LENGTH_FOR_PARTIAL = 4;
 
 // Environment variables for AI article generation
 const AI_ARTICLES_LOW_RESULTS = parseInt(process.env.AI_ARTICLES_LOW_RESULTS || '5'); // When 2 or fewer results
@@ -87,214 +65,125 @@ export async function POST(request: Request) {
     const pageNumber = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(limit) || CONTENT_THRESHOLDS.DEFAULT_PAGE_SIZE));
 
-    // Split query into individual words for fuzzy search
-    const allQueryWords = query.trim().toLowerCase().split(/\s+/).filter(word => word.length > 0);
+    // STEP 1: Extract keywords using AI
+    console.log("Extracting keywords from query using AI...");
+    let searchKeywords: string[] = [];
+    let searchIntent = '';
     
-    // Filter out stop words for content matching (but keep them for exact phrase matching)
-    const queryWords = allQueryWords.filter(word => !STOP_WORDS.has(word));
+    try {
+      const keywordResponse = await aiService.extractSearchKeywords(query);
+      searchKeywords = keywordResponse.keywords;
+      searchIntent = keywordResponse.search_intent;
+      console.log("AI extracted keywords:", searchKeywords);
+      console.log("Search intent:", searchIntent);
+    } catch (err) {
+      console.error("Keyword extraction failed, falling back to basic parsing:", err);
+      // Fallback to basic keyword extraction
+      searchKeywords = query.trim().toLowerCase().split(/\s+/).filter(word => word.length > 2);
+    }
     
-    // If all words were stop words, use the original query
-    const effectiveQueryWords = queryWords.length > 0 ? queryWords : allQueryWords;
+    // STEP 2: Search database using keywords
+    console.log("Searching database with extracted keywords...");
     
-    console.log("Query words after filtering:", effectiveQueryWords);
-    
-    // Build search conditions for each word
-    const buildWordConditions = (word: string, field: string) => {
-      const conditions = [];
-      
-      // Always include exact word match
-      conditions.push({ [field]: { contains: word, mode: 'insensitive' } });
-      
-      // For longer words, also search for partial matches
-      if (word.length >= MIN_WORD_LENGTH_FOR_PARTIAL) {
-        // Partial match at the beginning of words (with space prefix)
-        conditions.push({ [field]: { contains: ` ${word}`, mode: 'insensitive' } });
-        
-        // Partial match for words that start with our search term
-        const prefix = word.substring(0, Math.max(3, word.length - 2));
-        conditions.push({ [field]: { contains: prefix, mode: 'insensitive' } });
-      }
-      
-      return conditions;
-    };
-
-    // Search local database with improved fuzzy matching
     const [categories, articlesRaw] = await Promise.all([
+      // Search categories
       prisma.category.findMany({
         where: {
           OR: [
-            // Exact substring match (original behavior)
+            // Exact query match
             { categoryName: { contains: query, mode: 'insensitive' } },
             { description: { contains: query, mode: 'insensitive' } },
-            // Flexible fuzzy search: match ANY of the query words
-            ...(effectiveQueryWords.length > 0 ? 
-              effectiveQueryWords.flatMap(word => [
-                ...buildWordConditions(word, 'categoryName'),
-                ...buildWordConditions(word, 'description')
-              ]) : []
-            )
+            // Keyword matches
+            ...searchKeywords.flatMap(keyword => [
+              { categoryName: { contains: keyword, mode: 'insensitive' } },
+              { description: { contains: keyword, mode: 'insensitive' } }
+            ])
           ]
         }
       }),
+      // Search articles
       prisma.article.findMany({
         where: {
           OR: [
-            // Exact substring match (original behavior)
+            // Exact query matches
             { articleTitle: { contains: query, mode: 'insensitive' } },
-            // Flexible fuzzy search: match ANY of the query words
-            ...(effectiveQueryWords.length > 0 ?
-              effectiveQueryWords.flatMap(word => 
-                buildWordConditions(word, 'articleTitle')
-              ) : []
-            )
+            { 
+              AND: [
+                { contentHtml: { not: null } },
+                { contentHtml: { contains: query, mode: 'insensitive' } }
+              ]
+            },
+            // Keyword matches in title and content
+            ...searchKeywords.flatMap(keyword => [
+              { articleTitle: { contains: keyword, mode: 'insensitive' } },
+              {
+                AND: [
+                  { contentHtml: { not: null } },
+                  { contentHtml: { contains: keyword, mode: 'insensitive' } }
+                ]
+              }
+            ])
           ]
         },
         include: { category: true }
       })
     ]);
     
-    // Helper function to check if a word matches (exact or partial)
-    const wordMatches = (text: string, word: string): boolean => {
-      if (text.includes(word)) return true;
-      
-      // For longer words, check partial matches
-      if (word.length >= MIN_WORD_LENGTH_FOR_PARTIAL) {
-        const prefix = word.substring(0, Math.max(3, word.length - 2));
-        // Check if any word in the text starts with our prefix
-        const textWords = text.split(/\s+/);
-        return textWords.some(tw => tw.startsWith(prefix));
-      }
-      
-      return false;
-    };
-
-    // Score and deduplicate articles
+    // STEP 3: Score articles based on keyword relevance
+    console.log("Scoring articles based on keyword matches...");
+    
     const articleScores = new Map<string, { article: any, score: number }>();
     
     articlesRaw.forEach(article => {
       const titleLower = article.articleTitle.toLowerCase();
       const categoryLower = article.category.categoryName.toLowerCase();
+      const contentLower = article.contentHtml?.toLowerCase() || '';
       let score = 0;
       
       // Skip articles from clearly different technology categories
       const queryLower = query.toLowerCase();
       if (queryLower === 'docker' && categoryLower.includes('docker swarm')) {
-        return; // Skip Docker Swarm articles when searching for just Docker
+        return;
       }
       if (queryLower === 'kubernetes' && categoryLower.includes('openshift')) {
-        return; // Skip OpenShift articles when searching for just Kubernetes
+        return;
       }
       if (queryLower === 'git' && (categoryLower.includes('github') || categoryLower.includes('gitlab'))) {
-        return; // Skip GitHub/GitLab articles when searching for just Git
+        return;
       }
       
-      // Exact match gets highest score
-      if (titleLower === query.toLowerCase()) {
-        score = 100;
-      }
-      // Contains exact query gets high score
-      else if (titleLower.includes(query.toLowerCase())) {
-        score = 85;
-        
-        // Penalty for partial matches that might be different technologies
-        // e.g., searching for "Docker" shouldn't rank "Docker Swarm" as highly
-        const queryLower = query.toLowerCase();
-        const titleWords = titleLower.split(/\s+/);
-        const queryWords = queryLower.split(/\s+/);
-        
-        // If the query is a subset of the title (e.g., "Docker" vs "Docker Swarm")
-        // and there are extra words, apply a penalty
-        if (queryWords.length < titleWords.length && titleWords.join(' ').includes(queryLower)) {
-          // Check if it's likely a different technology
-          const extraWords = titleWords.filter(w => !queryWords.includes(w));
-          
-          // Technology-specific distinctions
-          const techDistinctions: Record<string, string[]> = {
-            docker: ['swarm', 'compose', 'machine', 'hub', 'desktop'],
-            kubernetes: ['operator', 'operators'],
-            python: ['jython', 'cpython', 'pypy'],
-            java: ['javascript', 'javaee', 'jakarta'],
-            git: ['github', 'gitlab', 'gitea'],
-            linux: ['alpine', 'arch', 'kali'],
-            apache: ['airflow', 'kafka', 'spark', 'hadoop', 'cassandra'],
-            elastic: ['elasticsearch', 'logstash', 'kibana'],
-          };
-          
-          // Check each query word for technology distinctions
-          queryWords.forEach(queryWord => {
-            const distinctions = techDistinctions[queryWord];
-            if (distinctions && extraWords.some(w => distinctions.includes(w))) {
-              score -= 50; // Stronger penalty for related but different technologies
-            }
-          });
-          
-          // Additional penalty if the category also indicates a different technology
-          if (categoryLower.includes('swarm') && queryLower === 'docker') {
-            score -= 40;
-          }
-          
-          // General penalty for any extra words that might indicate a different tool
-          if (extraWords.length > 0) {
-            score -= 10 * extraWords.length;
-          }
-        }
-      }
-      // Score based on how many words match (not requiring all)
-      else {
-        const matchedWords = effectiveQueryWords.filter(word => wordMatches(titleLower, word));
-        const matchRatio = matchedWords.length / Math.max(1, effectiveQueryWords.length);
-        
-        // Base score based on match ratio (0-60 points)
-        score = Math.round(matchRatio * 60);
-        
-        // Bonus for matching all words (20 points)
-        if (matchedWords.length === effectiveQueryWords.length && effectiveQueryWords.length > 0) {
-          score += 20;
-        }
-        
-        // Bonus if words appear in the same order (10 points)
-        if (matchedWords.length > 1) {
-          const titleWords = titleLower.split(/\s+/);
-          let lastIndex = -1;
-          let inOrder = true;
-          
-          for (const matchedWord of matchedWords) {
-            const index = titleWords.findIndex(w => wordMatches(w, matchedWord));
-            if (index !== -1) {
-              if (index <= lastIndex) {
-                inOrder = false;
-                break;
-              }
-              lastIndex = index;
-            }
-          }
-          
-          if (inOrder) score += 10;
-        }
-        
-        // Penalty for very long titles (they might be less relevant)
-        const wordCount = titleLower.split(/\s+/).length;
-        if (wordCount > 10) {
-          score -= Math.min(10, wordCount - 10);
-        }
-        
-        // Bonus for matching important (non-stop) words
-        const importantMatches = queryWords.filter(word => wordMatches(titleLower, word));
-        if (importantMatches.length > 0) {
-          score += Math.min(10, importantMatches.length * 3);
-        }
+      // Scoring based on matches
+      // Exact query match in title = highest score
+      if (titleLower.includes(query.toLowerCase())) {
+        score += 100;
       }
       
-      // Bonus for exact category match
-      if (categoryLower === query.toLowerCase()) {
-        score += 15;
-      }
-      // Bonus for category containing the exact query
-      else if (categoryLower.includes(query.toLowerCase())) {
-        score += 10;
+      // Exact query match in content = very high score
+      if (contentLower && contentLower.includes(query.toLowerCase())) {
+        score += 80;
       }
       
-      // Ensure score is at least 1 if there's any match
+      // Keyword matches in title
+      const titleKeywordMatches = searchKeywords.filter(keyword => 
+        titleLower.includes(keyword.toLowerCase())
+      ).length;
+      score += titleKeywordMatches * 10;
+      
+      // Keyword matches in content (with bonus for having content)
+      if (contentLower) {
+        const contentKeywordMatches = searchKeywords.filter(keyword => 
+          contentLower.includes(keyword.toLowerCase())
+        ).length;
+        score += contentKeywordMatches * 15; // Higher value for content matches
+        score += 5; // Bonus for having content at all
+      }
+      
+      // Category relevance bonus
+      if (categoryLower.includes(query.toLowerCase())) {
+        score += 20;
+      }
+      
+      // Ensure minimum score for any match
       if (score > 0) {
         score = Math.max(1, score);
       }
@@ -316,36 +205,44 @@ export async function POST(request: Request) {
       articlesFound: articles.length 
     });
 
-    // Check if we already have sufficient content
-    const hasSufficientContent = 
-      categories.length >= CONTENT_THRESHOLDS.MIN_CATEGORIES || 
-      articles.length >= CONTENT_THRESHOLDS.MIN_ARTICLES;
-
-    // Prepare context for AI
-    const existingCategoryNames = categories.map(c => c.categoryName);
-    const existingArticleTitles = articles.map(a => a.articleTitle);
+    // STEP 4: Determine if we need AI-generated content
+    const hasSufficientContent = articles.length >= CONTENT_THRESHOLDS.MIN_ARTICLES;
+    
+    // Check if articles with content actually address the keywords
+    const hasRelevantContent = articles.some(article => {
+      const content = article.contentHtml?.toLowerCase() || '';
+      const title = article.articleTitle.toLowerCase();
+      
+      if (!content) return false; // No content to check
+      
+      // Check if the article addresses at least 60% of the extracted keywords
+      const keywordMatches = searchKeywords.filter(keyword => 
+        content.includes(keyword.toLowerCase()) || title.includes(keyword.toLowerCase())
+      ).length;
+      
+      return keywordMatches >= Math.max(1, searchKeywords.length * 0.6);
+    });
 
     let aiResponse: AISearchResponse = {
       suggested_new_categories: [],
       suggested_new_article_titles: []
     };
 
-    // Only call AI if we don't have sufficient content
-    if (!hasSufficientContent) {
-      console.log("Insufficient content found, calling AI for suggestions");
+    const shouldCallAI = !hasSufficientContent || !hasRelevantContent;
+    
+    if (shouldCallAI) {
+      console.log(`Need AI content generation. Sufficient articles: ${hasSufficientContent}, Relevant content: ${hasRelevantContent}`);
       
-      // Calculate how many more articles we should generate based on current results
       const articlesNeeded = articles.length <= LOW_RESULTS_THRESHOLD 
         ? AI_ARTICLES_LOW_RESULTS 
         : AI_ARTICLES_HIGH_RESULTS;
       
-      console.log(`Found ${articles.length} articles. Will generate ${articlesNeeded} new articles.`);
+      console.log(`Will generate ${articlesNeeded} new articles targeting keywords: ${searchKeywords.join(', ')}`);
 
-      // Call AI for suggestions
       try {
         console.log(`Calling AI (${aiService.getProviderInfo().provider})...`);
         
-        // Fetch ALL categories from the database to give AI full context
+        // Fetch ALL categories for AI context
         const allCategories = await prisma.category.findMany({
           select: {
             categoryName: true,
@@ -353,19 +250,20 @@ export async function POST(request: Request) {
           }
         });
         
-        console.log(`Fetched ${allCategories.length} total categories for AI context`);
-        
         const existingContent = {
-          categories: existingCategoryNames,
+          categories: categories.map(c => c.categoryName),
           articles: articles.map(a => ({ 
             title: a.articleTitle, 
             category: a.category.categoryName 
           }))
         };
 
+        // Enhanced query with keywords for better AI suggestions
+        const enhancedQuery = `${query} (related keywords: ${searchKeywords.join(', ')})`;
+
         aiResponse = await aiService.generateSearchSuggestions(
-          query, 
-          allCategories, // Pass all categories with descriptions
+          enhancedQuery, 
+          allCategories,
           existingContent.articles,
           articlesNeeded
         );
@@ -376,10 +274,9 @@ export async function POST(request: Request) {
         });
       } catch (aiError) {
         console.error("AI call failed:", aiError);
-        // Continue with database results only
       }
     } else {
-      console.log("Sufficient content found in database, skipping AI call");
+      console.log("Sufficient relevant content found, skipping AI call");
     }
 
     // Persist new categories and articles
@@ -457,15 +354,47 @@ export async function POST(request: Request) {
     // Combine all results
     const allCategories = [...categories, ...newCategories];
     const allArticles = [...articles, ...newArticles];
+
+    // AI reordering of results based on query relevance
+    let finalArticles = allArticles;
+    if (allArticles.length > 1) {
+      try {
+        console.log("Calling AI to reorder search results for better relevance...");
+        const reorderResponse = await aiService.reorderSearchResults(query, allArticles, allCategories);
+        
+        // Create a map for quick lookup
+        const articleMap = new Map(allArticles.map(article => [article.articleId, article]));
+        
+        // Reorder articles based on AI response
+        const reorderedArticles = reorderResponse.reordered_article_ids
+          .map(id => articleMap.get(id))
+          .filter(article => article !== undefined);
+        
+        // Add any articles not in the AI response (fallback)
+        const reorderedIds = new Set(reorderResponse.reordered_article_ids);
+        const remainingArticles = allArticles.filter(article => !reorderedIds.has(article.articleId));
+        
+        finalArticles = [...reorderedArticles, ...remainingArticles];
+        
+        console.log("AI reordering completed", {
+          originalOrder: allArticles.map(a => a.articleTitle).slice(0, 3),
+          newOrder: finalArticles.map(a => a.articleTitle).slice(0, 3),
+          explanation: reorderResponse.explanation
+        });
+      } catch (reorderError) {
+        console.error("AI reordering failed, using original order:", reorderError);
+        // Continue with original order if AI reordering fails
+      }
+    }
     
-    // Calculate pagination
-    const totalArticles = allArticles.length;
+    // Calculate pagination using finalArticles (AI reordered)
+    const totalArticles = finalArticles.length;
     const totalPages = Math.ceil(totalArticles / pageSize);
     const startIndex = (pageNumber - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     
     // Apply pagination to articles
-    const paginatedArticles = allArticles.slice(startIndex, endIndex);
+    const paginatedArticles = finalArticles.slice(startIndex, endIndex);
     
     // Prepare pagination metadata
     const pagination = {

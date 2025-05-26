@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Loader2, Folder, FileText, Sparkles } from "lucide-react";
 
@@ -35,19 +36,40 @@ interface SearchResults {
 }
 
 export default function SearchPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isRestoringFromURL, setIsRestoringFromURL] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent, page: number = 1) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  // Initialize state from URL parameters on component mount
+  useEffect(() => {
+    const urlQuery = searchParams.get('q');
+    const urlPage = searchParams.get('page');
+    
+    if (urlQuery) {
+      setQuery(urlQuery);
+      const pageNum = urlPage ? parseInt(urlPage, 10) : 1;
+      setCurrentPage(pageNum);
+      
+      // Show loading state immediately when restoring from URL
+      setIsRestoringFromURL(true);
+      setLoading(true);
+      setError(null);
+      
+      // Perform search if we have a query from URL
+      performSearch(urlQuery, pageNum);
+    }
+  }, [searchParams]);
+
+  const performSearch = async (searchQuery: string, page: number = 1) => {
+    if (!searchQuery.trim()) return;
 
     setLoading(true);
     setError(null);
-    setCurrentPage(page);
 
     try {
       const response = await fetch("/api/search", {
@@ -55,7 +77,7 @@ export default function SearchPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query, page, limit: 20 }),
+        body: JSON.stringify({ query: searchQuery, page, limit: 20 }),
       });
 
       if (!response.ok) {
@@ -71,12 +93,33 @@ export default function SearchPage() {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+      setIsRestoringFromURL(false);
     }
   };
 
+  const updateURL = (searchQuery: string, page: number = 1) => {
+    const params = new URLSearchParams();
+    params.set('q', searchQuery);
+    if (page > 1) {
+      params.set('page', page.toString());
+    }
+    router.replace(`/search?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSearch = async (e: React.FormEvent, page: number = 1) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setCurrentPage(page);
+    updateURL(query, page);
+    await performSearch(query, page);
+  };
+
   const handlePageChange = (page: number) => {
-    if (results) {
-      handleSearch({ preventDefault: () => {} } as React.FormEvent, page);
+    if (results && query) {
+      setCurrentPage(page);
+      updateURL(query, page);
+      performSearch(query, page);
     }
   };
 
@@ -119,6 +162,26 @@ export default function SearchPage() {
       {error && (
         <div className="mb-8 bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">Error: {error}</p>
+        </div>
+      )}
+
+      {/* Loading state when restoring from URL */}
+      {isRestoringFromURL && (
+        <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <Loader2 className="h-5 w-5 text-blue-600 mr-2 animate-spin" />
+            <p className="text-blue-800">Restoring your search results...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Regular loading state for new searches */}
+      {loading && !isRestoringFromURL && !results && (
+        <div className="mb-8 bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <Loader2 className="h-5 w-5 text-gray-600 mr-2 animate-spin" />
+            <p className="text-gray-700">Searching...</p>
+          </div>
         </div>
       )}
 
