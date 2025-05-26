@@ -24,6 +24,14 @@ interface SearchResults {
     newCategoriesAdded: number;
     newArticlesAdded: number;
   };
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
 }
 
 export default function SearchPage() {
@@ -31,13 +39,15 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent, page: number = 1) => {
     e.preventDefault();
     if (!query.trim()) return;
 
     setLoading(true);
     setError(null);
+    setCurrentPage(page);
 
     try {
       const response = await fetch("/api/search", {
@@ -45,7 +55,7 @@ export default function SearchPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, page, limit: 20 }),
       });
 
       if (!response.ok) {
@@ -61,6 +71,12 @@ export default function SearchPage() {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    if (results) {
+      handleSearch({ preventDefault: () => {} } as React.FormEvent, page);
     }
   };
 
@@ -182,6 +198,64 @@ export default function SearchPage() {
               <p className="text-gray-600">
                 No results found for &ldquo;{results.query}&rdquo;. Try searching for a different topic!
               </p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {results.pagination && results.pagination.totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {((results.pagination.page - 1) * results.pagination.limit) + 1}-
+                {Math.min(results.pagination.page * results.pagination.limit, results.pagination.total)} of {results.pagination.total} results
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handlePageChange(results.pagination!.page - 1)}
+                  disabled={!results.pagination.hasPreviousPage || loading}
+                  className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                >
+                  Previous
+                </button>
+                
+                {/* Page numbers */}
+                <div className="flex space-x-1">
+                  {Array.from({ length: Math.min(5, results.pagination.totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (results.pagination!.totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (results.pagination!.page <= 3) {
+                      pageNum = i + 1;
+                    } else if (results.pagination!.page >= results.pagination!.totalPages - 2) {
+                      pageNum = results.pagination!.totalPages - 4 + i;
+                    } else {
+                      pageNum = results.pagination!.page - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={loading}
+                        className={`px-3 py-1 text-sm font-medium border rounded-md transition-colors ${
+                          pageNum === results.pagination!.page
+                            ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 hover:cursor-pointer'
+                            : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:cursor-pointer'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(results.pagination!.page + 1)}
+                  disabled={!results.pagination.hasNextPage || loading}
+                  className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
