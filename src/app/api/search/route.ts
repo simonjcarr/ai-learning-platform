@@ -173,7 +173,20 @@ export async function POST(request: Request) {
     
     articlesRaw.forEach(article => {
       const titleLower = article.articleTitle.toLowerCase();
+      const categoryLower = article.category.categoryName.toLowerCase();
       let score = 0;
+      
+      // Skip articles from clearly different technology categories
+      const queryLower = query.toLowerCase();
+      if (queryLower === 'docker' && categoryLower.includes('docker swarm')) {
+        return; // Skip Docker Swarm articles when searching for just Docker
+      }
+      if (queryLower === 'kubernetes' && categoryLower.includes('openshift')) {
+        return; // Skip OpenShift articles when searching for just Kubernetes
+      }
+      if (queryLower === 'git' && (categoryLower.includes('github') || categoryLower.includes('gitlab'))) {
+        return; // Skip GitHub/GitLab articles when searching for just Git
+      }
       
       // Exact match gets highest score
       if (titleLower === query.toLowerCase()) {
@@ -182,6 +195,49 @@ export async function POST(request: Request) {
       // Contains exact query gets high score
       else if (titleLower.includes(query.toLowerCase())) {
         score = 85;
+        
+        // Penalty for partial matches that might be different technologies
+        // e.g., searching for "Docker" shouldn't rank "Docker Swarm" as highly
+        const queryLower = query.toLowerCase();
+        const titleWords = titleLower.split(/\s+/);
+        const queryWords = queryLower.split(/\s+/);
+        
+        // If the query is a subset of the title (e.g., "Docker" vs "Docker Swarm")
+        // and there are extra words, apply a penalty
+        if (queryWords.length < titleWords.length && titleWords.join(' ').includes(queryLower)) {
+          // Check if it's likely a different technology
+          const extraWords = titleWords.filter(w => !queryWords.includes(w));
+          
+          // Technology-specific distinctions
+          const techDistinctions: Record<string, string[]> = {
+            docker: ['swarm', 'compose', 'machine', 'hub', 'desktop'],
+            kubernetes: ['operator', 'operators'],
+            python: ['jython', 'cpython', 'pypy'],
+            java: ['javascript', 'javaee', 'jakarta'],
+            git: ['github', 'gitlab', 'gitea'],
+            linux: ['alpine', 'arch', 'kali'],
+            apache: ['airflow', 'kafka', 'spark', 'hadoop', 'cassandra'],
+            elastic: ['elasticsearch', 'logstash', 'kibana'],
+          };
+          
+          // Check each query word for technology distinctions
+          queryWords.forEach(queryWord => {
+            const distinctions = techDistinctions[queryWord];
+            if (distinctions && extraWords.some(w => distinctions.includes(w))) {
+              score -= 50; // Stronger penalty for related but different technologies
+            }
+          });
+          
+          // Additional penalty if the category also indicates a different technology
+          if (categoryLower.includes('swarm') && queryLower === 'docker') {
+            score -= 40;
+          }
+          
+          // General penalty for any extra words that might indicate a different tool
+          if (extraWords.length > 0) {
+            score -= 10 * extraWords.length;
+          }
+        }
       }
       // Score based on how many words match (not requiring all)
       else {
@@ -227,6 +283,15 @@ export async function POST(request: Request) {
         if (importantMatches.length > 0) {
           score += Math.min(10, importantMatches.length * 3);
         }
+      }
+      
+      // Bonus for exact category match
+      if (categoryLower === query.toLowerCase()) {
+        score += 15;
+      }
+      // Bonus for category containing the exact query
+      else if (categoryLower.includes(query.toLowerCase())) {
+        score += 10;
       }
       
       // Ensure score is at least 1 if there's any match
@@ -280,6 +345,16 @@ export async function POST(request: Request) {
       try {
         console.log(`Calling AI (${aiService.getProviderInfo().provider})...`);
         
+        // Fetch ALL categories from the database to give AI full context
+        const allCategories = await prisma.category.findMany({
+          select: {
+            categoryName: true,
+            description: true
+          }
+        });
+        
+        console.log(`Fetched ${allCategories.length} total categories for AI context`);
+        
         const existingContent = {
           categories: existingCategoryNames,
           articles: articles.map(a => ({ 
@@ -290,7 +365,7 @@ export async function POST(request: Request) {
 
         aiResponse = await aiService.generateSearchSuggestions(
           query, 
-          existingCategoryNames,
+          allCategories, // Pass all categories with descriptions
           existingContent.articles,
           articlesNeeded
         );

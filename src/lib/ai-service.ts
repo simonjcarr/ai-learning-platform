@@ -95,15 +95,39 @@ export const MarkingResponseSchema = z.object({
 
 // AI Service functions
 export const aiService = {
-  async generateSearchSuggestions(query: string, existingCategories: string[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5) {
-    const systemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. Ensure suggestions are practical and relevant to IT professionals.`;
+  async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5) {
+    const systemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. 
+
+IMPORTANT: 
+1. When suggesting articles, you MUST prefer using existing categories whenever possible. Only suggest new categories if none of the existing categories are appropriate.
+2. Keep category names GENERIC and SIMPLE (e.g., "Docker", "Kubernetes", "Python", NOT "Docker Basics" or "Advanced Python")
+3. Be precise about technology distinctions - Docker and Docker Swarm are different, Kubernetes and OpenShift are different, etc.`;
     
     const userPrompt = `Search query: "${query}"
     
-Existing categories: ${JSON.stringify(existingCategories)}
-Existing articles: ${JSON.stringify(existingArticles)}
+ALL EXISTING CATEGORIES in the system (use these whenever possible):
+${allCategories.map(cat => `- ${cat.categoryName}${cat.description ? `: ${cat.description}` : ''}`).join('\n')}
 
-Please suggest exactly ${articlesToGenerate} new article titles that would be helpful for this search. Also suggest 1-2 new categories if appropriate. Don't suggest existing items.`;
+Existing articles related to this search: ${JSON.stringify(existingArticles)}
+
+Please suggest exactly ${articlesToGenerate} new article titles that would be helpful for this search.
+
+CRITICAL RULES:
+1. For each article, ALWAYS check if it fits into an existing category first
+2. Use the exact category name from the list above when assigning articles
+3. Only suggest a new category if absolutely none of the existing categories are appropriate
+4. NEW CATEGORY NAMES MUST BE:
+   - Generic and simple (e.g., "Docker Swarm" not "Docker Swarm Basics")
+   - Just the technology/tool name without qualifiers
+   - Distinct from related technologies (Docker ≠ Docker Swarm, Kubernetes ≠ OpenShift)
+5. If suggesting a new category, provide a clear description
+6. Don't suggest article titles that already exist
+7. Articles must be SPECIFICALLY about the searched technology:
+   - If searching for "Docker", suggest Docker articles (NOT Docker Swarm)
+   - If searching for "Docker Swarm", suggest Docker Swarm articles specifically
+   - Be precise about technology boundaries
+
+Your target_category_name for each article MUST match exactly one of the existing category names listed above, unless creating a new category.`;
 
     const result = await generateObject({
       model: getModel(),
