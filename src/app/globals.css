@@ -177,10 +177,10 @@ textarea::placeholder {
 .prose h2 {
   color: #111827 !important; /* gray-900 */
   font-weight: 700;
-  font-size: 1.875rem !important; /* 30px - equivalent to text-3xl */
-  line-height: 2.25rem !important;
-  margin-top: 1.5rem !important;
-  margin-bottom: 0.75rem !important;
+  font-size: 2rem !important; /* 32px - equivalent to text-3xl */
+  line-height: 2.5rem !important;
+  margin-top: 2rem !important;
+  margin-bottom: 1rem !important;
 }
 
 .prose h3 {
