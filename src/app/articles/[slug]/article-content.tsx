@@ -7,6 +7,8 @@ import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
 import CommentsList from "@/components/comments/comments-list";
+import LikeButton from "@/components/like-button";
+import AddToListButton from "@/components/add-to-list-button";
 
 interface Article {
   articleId: string;
@@ -136,20 +138,29 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
           {article.articleTitle}
         </h1>
-        <div className="flex items-center text-gray-600">
-          <BookOpen className="h-5 w-5 mr-2" />
-          <span>
-            {article.stream 
-              ? `${article.stream.channel.channelName} / ${article.stream.streamName}`
-              : article.category?.categoryName || 'Uncategorized'
-            }
-          </span>
-          {article.createdBy?.username && (
-            <>
-              <span className="mx-2">•</span>
-              <span>by {article.createdBy.username}</span>
-            </>
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center text-gray-600">
+            <BookOpen className="h-5 w-5 mr-2" />
+            <span>
+              {article.stream 
+                ? `${article.stream.channel.channelName} / ${article.stream.streamName}`
+                : article.category?.categoryName || 'Uncategorized'
+              }
+            </span>
+            {article.createdBy?.username && (
+              <>
+                <span className="mx-2">•</span>
+                <span>by {article.createdBy.username}</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <LikeButton articleId={article.articleId} />
+            <AddToListButton 
+              articleId={article.articleId} 
+              articleTitle={article.articleTitle}
+            />
+          </div>
         </div>
       </header>
 

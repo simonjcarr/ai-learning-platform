@@ -27,6 +27,8 @@ model User {
   userResponses       UserResponse[]
   comments            Comment[]
   chatMessages        ChatMessage[]
+  likedArticles       ArticleLike[]
+  curatedLists        CuratedList[]
   
   @@map("users")
 }
@@ -62,6 +64,8 @@ model Article {
   interactiveExamples  InteractiveExample[]
   comments             Comment[]
   chatMessages         ChatMessage[]
+  likes                ArticleLike[]
+  curatedListItems     CuratedListItem[]
   
   @@index([categoryId])
   @@index([streamId])
@@ -183,4 +187,53 @@ model ChatMessage {
 enum ChatRole {
   USER
   ASSISTANT
+}
+
+model ArticleLike {
+  likeId      String   @id @default(cuid())
+  articleId   String
+  clerkUserId String
+  createdAt   DateTime @default(now())
+  
+  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  
+  @@unique([articleId, clerkUserId])
+  @@index([clerkUserId])
+  @@index([articleId])
+  @@map("article_likes")
+}
+
+model CuratedList {
+  listId      String   @id @default(cuid())
+  clerkUserId String
+  listName    String
+  description String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  items       CuratedListItem[]
+  
+  @@index([clerkUserId])
+  @@index([isPublic])
+  @@map("curated_lists")
+}
+
+model CuratedListItem {
+  itemId      String   @id @default(cuid())
+  listId      String
+  articleId   String
+  order       Int
+  notes       String?  @db.Text
+  addedAt     DateTime @default(now())
+  
+  list        CuratedList @relation(fields: [listId], references: [listId], onDelete: Cascade)
+  article     Article     @relation(fields: [articleId], references: [articleId])
+  
+  @@unique([listId, articleId])
+  @@index([listId])
+  @@index([articleId])
+  @@map("curated_list_items")
 }
