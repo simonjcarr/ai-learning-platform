@@ -118,18 +118,23 @@ Suggest new categories and article titles that would be helpful for this search.
   },
 
   async generateArticleContent(title: string, categoryName: string) {
-    const systemPrompt = `You are an expert IT technical writer. Create comprehensive, detailed articles in Markdown format with proper headings, code examples, and clear explanations. Include practical examples and real-world scenarios.`;
+    const systemPrompt = `You are an expert IT technical writer. Create comprehensive, detailed articles in Markdown format with proper headings, code examples, and clear explanations. Include practical examples and real-world scenarios. 
+
+IMPORTANT: Output pure Markdown content only. Do NOT wrap the entire response in code blocks. Start directly with the article title using # heading.`;
     
     const userPrompt = `Write a comprehensive IT article about "${title}" in the category "${categoryName}".
 
 Requirements:
-1. Use proper Markdown formatting with # for h1, ## for h2, etc.
-2. Include code examples with proper syntax highlighting (use triple backticks with language specification)
-3. Add practical examples and real-world use cases
-4. Structure with clear sections: Introduction, Key Concepts, Examples, Best Practices, Common Issues, Conclusion
-5. Make it educational and practical for IT professionals
-6. Include command-line examples where relevant
-7. Aim for 1500-2500 words of high-quality content`;
+1. Start directly with the title using # (h1 heading)
+2. Use proper Markdown formatting with # for h1, ## for h2, etc.
+3. Include code examples with proper syntax highlighting (use triple backticks with language specification for code blocks ONLY)
+4. Add practical examples and real-world use cases
+5. Structure with clear sections: Introduction, Key Concepts, Examples, Best Practices, Common Issues, Conclusion
+6. Make it educational and practical for IT professionals
+7. Include command-line examples where relevant
+8. Aim for 1500-2500 words of high-quality content
+
+Remember: Output raw Markdown text, NOT wrapped in any code blocks.`;
 
     const result = await generateText({
       model: getModel(),
@@ -139,9 +144,17 @@ Requirements:
       maxTokens: 4000,
     });
 
+    // Clean up any accidental code block wrappers
+    let content = result.text.trim();
+    if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
+      content = content.slice(12, -4).trim();
+    } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
+      content = content.slice(4, -4).trim();
+    }
+
     return {
       title,
-      content: result.text,
+      content,
       metaDescription: `Learn about ${title} in ${categoryName}. Comprehensive guide with examples and best practices.`
     };
   },
