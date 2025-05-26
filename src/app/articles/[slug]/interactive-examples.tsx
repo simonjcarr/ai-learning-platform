@@ -154,9 +154,10 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
                   <input
                     type="radio"
                     name={`question-${example.exampleId}`}
-                    value={option.id}
+                    value={option.text}
                     onChange={(e) => setAnswers({ ...answers, [example.exampleId]: e.target.value })}
                     disabled={!!submitted}
+                    checked={answers[example.exampleId] === option.text}
                     className="h-4 w-4 text-blue-600"
                   />
                   <span className="text-gray-700">{option.text}</span>
