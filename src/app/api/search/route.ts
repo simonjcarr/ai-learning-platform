@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { openai, AISearchResponse } from "@/lib/openai";
+import { aiService, type AISearchResponse } from "@/lib/ai-service";
 import { slugify } from "@/lib/utils";
 
 // Configuration for content generation thresholds
@@ -107,55 +107,23 @@ export async function POST(request: Request) {
       );
 
       // Call AI for suggestions
-      const aiPrompt = `Analyze this search query: "${query}"
-
-IMPORTANT: First determine if this query is related to IT/technology/programming/computing. If it's NOT related to technology (e.g., adult content, non-tech topics), return empty arrays.
-
-Current database content:
-- Categories: ${JSON.stringify(existingCategoryNames)} (${categories.length} found)
-- Articles: ${JSON.stringify(existingArticleTitles)} (${articles.length} found)
-
-We need approximately ${articlesNeeded} more articles to provide comprehensive coverage.
-
-If the query IS technology-related, suggest NEW categories and article titles that would help users learn about this topic. Don't repeat existing content.
-
-IMPORTANT: 
-- Suggest only 1-2 new categories if none exist
-- Suggest exactly ${articlesNeeded} new article titles (no more, no less)
-- Focus on quality over quantity - only suggest highly relevant content
-- Avoid creating duplicate or overly similar articles
-
-Response format:
-{
-  "suggested_new_categories": [
-    {"name": "Category Name", "description": "Brief description"}
-  ],
-  "suggested_new_article_titles": [
-    {"title": "Article Title", "target_category_name": "Category Name"}
-  ]
-}`;
-
       try {
-        console.log("Calling OpenAI...");
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4-0125-preview",
-          messages: [
-            {
-              role: "system",
-              content: "You are an IT learning platform assistant. Only suggest content for technology, programming, IT, and computing topics. For non-tech queries, return empty arrays. Always respond in valid JSON format with the exact structure requested. Be conservative with suggestions - quality over quantity."
-            },
-            {
-              role: "user",
-              content: aiPrompt
-            }
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.7,
-          max_tokens: 1000
-        });
+        console.log(`Calling AI (${aiService.getProviderInfo().provider})...`);
+        
+        const existingContent = {
+          categories: existingCategoryNames,
+          articles: articles.map(a => ({ 
+            title: a.articleTitle, 
+            category: a.category.categoryName 
+          }))
+        };
 
-        console.log("OpenAI response received");
-        aiResponse = JSON.parse(completion.choices[0].message.content || "{}");
+        aiResponse = await aiService.generateSearchSuggestions(
+          query, 
+          existingCategoryNames,
+          existingContent.articles
+        );
+        
         console.log("AI suggestions:", {
           categoriesCount: aiResponse.suggested_new_categories?.length || 0,
           articlesCount: aiResponse.suggested_new_article_titles?.length || 0

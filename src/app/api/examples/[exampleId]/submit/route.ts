@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { openai, MarkingResponse } from "@/lib/openai";
+import { aiService, type MarkingResponse } from "@/lib/ai-service";
 
 export async function POST(
   request: Request,
@@ -43,41 +43,14 @@ export async function POST(
     // For multiple choice, we'll use AI to determine correctness
     // The correct answer handling will be done by the AI marking system
 
-    // Use AI to mark the answer
-    const markingPrompt = `Evaluate the user's answer for this IT question.
-
-Question Type: ${example.questionType}
-Question: ${example.scenarioOrQuestionText}
-${example.optionsJson ? `Options: ${JSON.stringify(example.optionsJson)}` : ''}
-User's Answer: ${userAnswer}
-Correct Answer Description: ${example.correctAnswerDescription}
-Marking Hint: ${example.aiMarkingPromptHint || 'None'}
-
-Determine if the user's answer is correct. For text or command inputs, allow for minor syntactic variations if they achieve the same semantic result. Provide concise, helpful feedback explaining why the answer is correct or incorrect.
-
-Respond in JSON format with:
-- is_correct: boolean
-- feedback: string (constructive feedback)`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-0125-preview",
-      messages: [
-        {
-          role: "system",
-          content: "You are an IT education expert marking student answers. Be fair but thorough. Accept reasonable variations for command-line and text answers. Always provide constructive feedback."
-        },
-        {
-          role: "user",
-          content: markingPrompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
-      max_tokens: 500
-    });
-
-    const markingResult: MarkingResponse = JSON.parse(
-      completion.choices[0].message.content || "{}"
+    // Use AI service to mark the answer
+    console.log(`Marking answer with ${aiService.getProviderInfo().provider}...`);
+    
+    const markingResult = await aiService.markUserAnswer(
+      example.scenarioOrQuestionText,
+      userAnswer,
+      example.questionType,
+      example.aiMarkingPromptHint || undefined
     );
 
     // Save the user's response

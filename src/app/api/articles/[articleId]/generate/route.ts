@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { openai } from "@/lib/openai";
+import { aiService } from "@/lib/ai-service";
 
 export async function POST(
   request: Request,
@@ -36,38 +36,15 @@ export async function POST(
       });
     }
 
-    // Generate content using OpenAI
-    const prompt = `Generate a comprehensive, high-quality tutorial or blog post for an IT professional on the topic: "${article.articleTitle}" within the broader context of "${article.category.categoryName}". 
+    // Generate content using AI service
+    console.log(`Generating content with ${aiService.getProviderInfo().provider}...`);
+    
+    const result = await aiService.generateArticleContent(
+      article.articleTitle,
+      article.category.categoryName
+    );
 
-The content should be:
-- Informative, accurate, practical, and well-structured
-- Include headings using markdown (##, ###), subheadings, paragraphs, bullet points/lists
-- Include code examples with proper markdown code blocks with language specification (e.g., \`\`\`bash, \`\`\`python, \`\`\`javascript)
-- Have clear explanations with inline code using backticks
-- Be professional yet accessible
-- Up-to-date and relevant for an IT audience
-- At least 1000 words
-
-The output must be in Markdown format. Use proper markdown syntax throughout.
-Include practical examples, best practices, and common pitfalls to avoid.`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-0125-preview",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert IT instructor creating comprehensive learning materials. Generate well-structured Markdown content with proper syntax, code blocks, and formatting."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 4000
-    });
-
-    const generatedContent = completion.choices[0].message.content;
+    const generatedContent = result.content;
 
     // Update the article with generated content
     const updatedArticle = await prisma.article.update({

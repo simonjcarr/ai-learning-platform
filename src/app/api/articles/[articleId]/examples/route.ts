@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { openai, ExampleGenerationResponse } from "@/lib/openai";
+import { aiService, type ExampleGenerationResponse } from "@/lib/ai-service";
 
 export async function GET(
   request: Request,
@@ -58,47 +58,13 @@ export async function POST(
 
     const existingQuestions = existingExamples.map(e => e.scenarioOrQuestionText);
 
-    const prompt = `Based on the IT article titled "${article.articleTitle}" in the category "${article.category.categoryName}", generate 3-5 unique interactive examples to test understanding. 
-
-${existingQuestions.length > 0 ? `Avoid these existing questions: ${JSON.stringify(existingQuestions)}` : ''}
-
-For each example, provide:
-1. question_type: Choose intelligently from 'multiple_choice', 'text_input', or 'command_line'
-2. scenario_or_question_text: The scenario, problem, or question
-3. options_json (if 'multiple_choice'): An array of 3-5 plausible options, each with format: {"id": "a", "text": "Option text here"}
-4. correct_answer_key_or_text: The correct answer (for multiple choice, use the option id like "a", "b", etc.)
-5. correct_answer_description: Clear explanation of why the answer is correct
-6. ai_marking_prompt_hint: Keywords or concepts for marking
-
-Example format for multiple choice options_json:
-[
-  {"id": "a", "text": "Start the ZFS daemon"},
-  {"id": "b", "text": "Create a storage pool"},
-  {"id": "c", "text": "Format the disk"},
-  {"id": "d", "text": "Install additional drivers"}
-]
-
-Focus on practical, real-world scenarios that IT professionals would encounter.`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-0125-preview",
-      messages: [
-        {
-          role: "system",
-          content: "You are an IT education expert creating interactive examples. Generate diverse, practical questions that test real understanding. Respond in valid JSON format."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.8,
-      max_tokens: 2000
-    });
-
-    const response: ExampleGenerationResponse = JSON.parse(
-      completion.choices[0].message.content || "{}"
+    // Generate examples using AI service
+    console.log(`Generating examples with ${aiService.getProviderInfo().provider}...`);
+    
+    const response = await aiService.generateInteractiveExamples(
+      article.articleTitle,
+      article.category.categoryName,
+      existingQuestions
     );
 
     // Save generated examples
