@@ -41,14 +41,14 @@ export async function POST(
 
 The content should be:
 - Informative, accurate, practical, and well-structured
-- Include headings (H2, H3), subheadings, paragraphs, bullet points/lists
-- Include code examples where relevant (using markdown for code blocks with language specification)
-- Have clear explanations
+- Include headings using markdown (##, ###), subheadings, paragraphs, bullet points/lists
+- Include code examples with proper markdown code blocks with language specification (e.g., \`\`\`bash, \`\`\`python, \`\`\`javascript)
+- Have clear explanations with inline code using backticks
 - Be professional yet accessible
 - Up-to-date and relevant for an IT audience
 - At least 1000 words
 
-The output must be in well-formed HTML. Use semantic HTML tags appropriately.
+The output must be in Markdown format. Use proper markdown syntax throughout.
 Include practical examples, best practices, and common pitfalls to avoid.`;
 
     const completion = await openai.chat.completions.create({
@@ -56,7 +56,7 @@ Include practical examples, best practices, and common pitfalls to avoid.`;
       messages: [
         {
           role: "system",
-          content: "You are an expert IT instructor creating comprehensive learning materials. Generate well-structured HTML content with proper semantic tags."
+          content: "You are an expert IT instructor creating comprehensive learning materials. Generate well-structured Markdown content with proper syntax, code blocks, and formatting."
         },
         {
           role: "user",

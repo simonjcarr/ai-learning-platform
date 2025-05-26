@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { Loader2, BookOpen, Sparkles } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
+import MarkdownViewer from "@/components/markdown-viewer";
 
 interface Article {
   articleId: string;
@@ -122,10 +123,9 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         </div>
       ) : article.contentHtml ? (
         <>
-          <article 
-            className="prose prose-lg prose-gray max-w-none mb-12 prose-headings:text-gray-900 prose-p:text-gray-800 prose-strong:text-gray-900 prose-code:text-gray-800 prose-pre:bg-gray-100 prose-pre:text-gray-800"
-            dangerouslySetInnerHTML={{ __html: article.contentHtml }}
-          />
+          <div className="mb-12">
+            <MarkdownViewer content={article.contentHtml} />
+          </div>
           
           {/* Interactive Examples Section */}
           {isSignedIn && (

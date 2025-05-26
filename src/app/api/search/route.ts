@@ -58,8 +58,8 @@ export async function POST(request: Request) {
       prisma.article.findMany({
         where: {
           OR: [
-            { articleTitle: { contains: query, mode: 'insensitive' } },
-            { contentHtml: { contains: query, mode: 'insensitive' } }
+            { articleTitle: { contains: query, mode: 'insensitive' } }
+            // Removed contentHtml search as it may be too heavy on the database
           ]
         },
         include: { category: true }
