@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  clerkUserId         String   @id @unique
+  email               String   @unique
+  username            String?  @unique
+  appSpecificCreatedAt DateTime @default(now())
+  lastLoginToApp      DateTime?
+  
+  articles            Article[]
+  userResponses       UserResponse[]
+  
+  @@map("users")
+}
+
+model Category {
+  categoryId   String   @id @default(cuid())
+  categoryName String   @unique
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  articles     Article[]
+  
+  @@index([categoryName])
+  @@map("categories")
+}
+
+model Article {
+  articleId            String   @id @default(cuid())
+  categoryId           String
+  articleTitle         String
+  articleSlug          String   @unique
+  contentHtml          String?  @db.Text
+  isContentGenerated   Boolean  @default(false)
+  createdByClerkUserId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  category             Category @relation(fields: [categoryId], references: [categoryId])
+  createdBy            User?    @relation(fields: [createdByClerkUserId], references: [clerkUserId])
+  interactiveExamples  InteractiveExample[]
+  
+  @@index([categoryId])
+  @@index([articleSlug])
+  @@index([articleTitle])
+  @@index([isContentGenerated])
+  @@index([createdByClerkUserId])
+  @@map("articles")
+}
+
+model InteractiveExample {
+  exampleId                String   @id @default(cuid())
+  articleId                String
+  questionType             QuestionType
+  scenarioOrQuestionText   String   @db.Text
+  optionsJson              Json?
+  correctAnswerDescription String   @db.Text
+  aiMarkingPromptHint      String?  @db.Text
+  createdAt                DateTime @default(now())
+  
+  article                  Article  @relation(fields: [articleId], references: [articleId])
+  userResponses            UserResponse[]
+  
+  @@index([articleId])
+  @@map("interactive_examples")
+}
+
+model UserResponse {
+  responseId     String   @id @default(cuid())
+  clerkUserId    String
+  exampleId      String
+  userAnswerText String   @db.Text
+  isCorrect      Boolean
+  aiFeedback     String   @db.Text
+  submittedAt    DateTime @default(now())
+  
+  user           User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  example        InteractiveExample @relation(fields: [exampleId], references: [exampleId])
+  
+  @@index([clerkUserId])
+  @@index([exampleId])
+  @@map("user_responses")
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TEXT_INPUT
+  COMMAND_LINE
+}
