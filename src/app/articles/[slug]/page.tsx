@@ -12,6 +12,11 @@ export default async function ArticlePage({ params }: PageProps) {
     where: { articleSlug: slug },
     include: {
       category: true,
+      stream: {
+        include: {
+          channel: true
+        }
+      },
       createdBy: true,
     }
   });

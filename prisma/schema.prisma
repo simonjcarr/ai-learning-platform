@@ -17,11 +17,15 @@ model User {
   clerkUserId         String   @id @unique
   email               String   @unique
   username            String?  @unique
+  firstName           String?
+  lastName            String?
+  imageUrl            String?
   appSpecificCreatedAt DateTime @default(now())
   lastLoginToApp      DateTime?
   
   articles            Article[]
   userResponses       UserResponse[]
+  comments            Comment[]
   
   @@map("users")
 }
@@ -41,7 +45,8 @@ model Category {
 
 model Article {
   articleId            String   @id @default(cuid())
-  categoryId           String
+  categoryId           String?
+  streamId             String?
   articleTitle         String
   articleSlug          String   @unique
   contentHtml          String?  @db.Text
@@ -50,11 +55,14 @@ model Article {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   
-  category             Category @relation(fields: [categoryId], references: [categoryId])
-  createdBy            User?    @relation(fields: [createdByClerkUserId], references: [clerkUserId])
+  category             Category? @relation(fields: [categoryId], references: [categoryId])
+  stream               Stream?   @relation(fields: [streamId], references: [streamId])
+  createdBy            User?     @relation(fields: [createdByClerkUserId], references: [clerkUserId])
   interactiveExamples  InteractiveExample[]
+  comments             Comment[]
   
   @@index([categoryId])
+  @@index([streamId])
   @@index([articleSlug])
   @@index([articleTitle])
   @@index([isContentGenerated])
@@ -100,4 +108,55 @@ enum QuestionType {
   MULTIPLE_CHOICE
   TEXT_INPUT
   COMMAND_LINE
+}
+
+model Channel {
+  channelId    String   @id @default(cuid())
+  channelName  String   @unique
+  description  String?
+  icon         String?  // Optional icon identifier
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  streams      Stream[]
+  
+  @@index([channelName])
+  @@map("channels")
+}
+
+model Stream {
+  streamId     String   @id @default(cuid())
+  streamName   String
+  description  String?
+  channelId    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  channel      Channel  @relation(fields: [channelId], references: [channelId])
+  articles     Article[]
+  
+  @@unique([channelId, streamName])
+  @@index([streamName])
+  @@index([channelId])
+  @@map("streams")
+}
+
+model Comment {
+  commentId    String   @id @default(cuid())
+  articleId    String
+  clerkUserId  String
+  content      String   @db.Text
+  parentId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  article      Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user         User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  parent       Comment? @relation("CommentReplies", fields: [parentId], references: [commentId], onDelete: Cascade)
+  replies      Comment[] @relation("CommentReplies")
+  
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@index([parentId])
+  @@map("comments")
 }

@@ -6,6 +6,7 @@ import { Loader2, BookOpen, Sparkles } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
+import CommentsList from "@/components/comments/comments-list";
 
 interface Article {
   articleId: string;
@@ -16,7 +17,15 @@ interface Article {
   category: {
     categoryId: string;
     categoryName: string;
-  };
+  } | null;
+  stream: {
+    streamId: string;
+    streamName: string;
+    channel: {
+      channelId: string;
+      channelName: string;
+    };
+  } | null;
   createdBy: {
     username: string | null;
   } | null;
@@ -72,20 +81,50 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             </Link>
           </li>
           <li>/</li>
-          <li>
-            <Link href="/categories" className="hover:text-gray-900">
-              Categories
-            </Link>
-          </li>
-          <li>/</li>
-          <li>
-            <Link 
-              href={`/categories/${article.category.categoryId}`} 
-              className="hover:text-gray-900"
-            >
-              {article.category.categoryName}
-            </Link>
-          </li>
+          {article.stream ? (
+            <>
+              <li>
+                <Link href="/channels" className="hover:text-gray-900">
+                  Channels
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link 
+                  href={`/channels#${article.stream.channel.channelId}`} 
+                  className="hover:text-gray-900"
+                >
+                  {article.stream.channel.channelName}
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link 
+                  href={`/search/v2?channel=${article.stream.channel.channelId}&stream=${article.stream.streamId}`} 
+                  className="hover:text-gray-900"
+                >
+                  {article.stream.streamName}
+                </Link>
+              </li>
+            </>
+          ) : article.category ? (
+            <>
+              <li>
+                <Link href="/categories" className="hover:text-gray-900">
+                  Categories
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link 
+                  href={`/categories/${article.category.categoryId}`} 
+                  className="hover:text-gray-900"
+                >
+                  {article.category.categoryName}
+                </Link>
+              </li>
+            </>
+          ) : null}
           <li>/</li>
           <li className="text-gray-900 font-medium">{article.articleTitle}</li>
         </ol>
@@ -98,7 +137,12 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         </h1>
         <div className="flex items-center text-gray-600">
           <BookOpen className="h-5 w-5 mr-2" />
-          <span>{article.category.categoryName}</span>
+          <span>
+            {article.stream 
+              ? `${article.stream.channel.channelName} / ${article.stream.streamName}`
+              : article.category?.categoryName || 'Uncategorized'
+            }
+          </span>
           {article.createdBy?.username && (
             <>
               <span className="mx-2">•</span>
@@ -131,6 +175,9 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           {isSignedIn && (
             <InteractiveExamples articleId={article.articleId} />
           )}
+          
+          {/* Comments Section */}
+          <CommentsList articleId={article.articleId} />
         </>
       ) : (
         <div className="text-center py-20">
