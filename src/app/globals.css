@@ -165,14 +165,58 @@ textarea::placeholder {
   color: #1f2937 !important; /* gray-800 */
 }
 
-.prose h1,
-.prose h2,
-.prose h3,
-.prose h4,
-.prose h5,
+.prose h1 {
+  color: #111827 !important; /* gray-900 */
+  font-weight: 700;
+  font-size: 2.25rem !important; /* 36px - equivalent to text-4xl */
+  line-height: 2.5rem !important;
+  margin-top: 2rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.prose h2 {
+  color: #111827 !important; /* gray-900 */
+  font-weight: 700;
+  font-size: 1.875rem !important; /* 30px - equivalent to text-3xl */
+  line-height: 2.25rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.prose h3 {
+  color: #111827 !important; /* gray-900 */
+  font-weight: 700;
+  font-size: 1.5rem !important; /* 24px - equivalent to text-2xl */
+  line-height: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.prose h4 {
+  color: #111827 !important; /* gray-900 */
+  font-weight: 700;
+  font-size: 1.25rem !important; /* 20px - equivalent to text-xl */
+  line-height: 1.75rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.prose h5 {
+  color: #111827 !important; /* gray-900 */
+  font-weight: 700;
+  font-size: 1.125rem !important; /* 18px - equivalent to text-lg */
+  line-height: 1.75rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
 .prose h6 {
   color: #111827 !important; /* gray-900 */
   font-weight: 700;
+  font-size: 1rem !important; /* 16px - equivalent to text-base */
+  line-height: 1.5rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
 }
 
 .prose p {

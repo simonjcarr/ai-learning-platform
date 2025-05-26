@@ -124,7 +124,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       ) : article.contentHtml ? (
         <>
           <div className="mb-12">
-            <MarkdownViewer content={article.contentHtml} />
+            <MarkdownViewer content={article.contentHtml} removeFirstHeading={true} />
           </div>
           
           {/* Interactive Examples Section */}

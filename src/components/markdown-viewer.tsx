@@ -9,9 +9,10 @@ import 'highlight.js/styles/github-dark.css';
 
 interface MarkdownViewerProps {
   content: string;
+  removeFirstHeading?: boolean;
 }
 
-export default function MarkdownViewer({ content }: MarkdownViewerProps) {
+export default function MarkdownViewer({ content, removeFirstHeading = false }: MarkdownViewerProps) {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const copyToClipboard = async (code: string) => {
@@ -19,6 +20,13 @@ export default function MarkdownViewer({ content }: MarkdownViewerProps) {
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
+
+  // Remove the first H1 heading if requested
+  let processedContent = content;
+  if (removeFirstHeading) {
+    // Match the first H1 heading (# Title at the beginning of a line)
+    processedContent = content.replace(/^#\s+[^\n]+\n/, '');
+  }
 
   return (
     <div className="prose prose-lg max-w-none
@@ -87,7 +95,7 @@ export default function MarkdownViewer({ content }: MarkdownViewerProps) {
         },
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );
