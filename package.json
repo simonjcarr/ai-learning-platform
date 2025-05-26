@@ -24,6 +24,7 @@
     "@prisma/client": "^6.8.2",
     "ai": "^4.3.16",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.511.0",
     "next": "15.3.2",

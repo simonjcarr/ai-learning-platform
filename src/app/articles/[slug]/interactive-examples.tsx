@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, RefreshCw, CheckCircle, XCircle, Lightbulb } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle, XCircle, Lightbulb, MessageCircle } from "lucide-react";
+import { ChatInterface } from "@/components/chat/chat-interface";
 
 interface Option {
   id: string;
@@ -32,6 +33,7 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
     correctAnswerDescription: string;
   }>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [focusedExampleId, setFocusedExampleId] = useState<string | undefined>(undefined);
 
   const fetchExamples = useCallback(async () => {
     try {
@@ -114,15 +116,24 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
               {example.questionType === "TEXT_INPUT" && "Text Answer"}
               {example.questionType === "COMMAND_LINE" && "Command Line"}
             </h3>
-            {submitted && (
-              <div className="flex items-center">
-                {submitted.isCorrect ? (
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                ) : (
-                  <XCircle className="h-5 w-5 text-red-600" />
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {submitted && (
+                <div className="flex items-center">
+                  {submitted.isCorrect ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-600" />
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => setFocusedExampleId(focusedExampleId === example.exampleId ? undefined : example.exampleId)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+                title="Ask AI about this question"
+              >
+                <MessageCircle className="h-5 w-5" />
+              </button>
+            </div>
           </div>
           <p className="text-gray-700">{example.scenarioOrQuestionText}</p>
         </div>
@@ -228,27 +239,28 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
   }
 
   return (
-    <section className="border-t pt-12">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Test Your Knowledge</h2>
-        <button
-          onClick={generateExamples}
-          disabled={generating}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-        >
-          {generating ? (
-            <>
-              <Loader2 className="animate-spin h-4 w-4 mr-2" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Generate More Examples
-            </>
-          )}
-        </button>
-      </div>
+    <>
+      <section className="border-t pt-12">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Test Your Knowledge</h2>
+          <button
+            onClick={generateExamples}
+            disabled={generating}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Generate More Examples
+              </>
+            )}
+          </button>
+        </div>
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -273,5 +285,9 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
         </div>
       )}
     </section>
+    
+    {/* Pass focused example ID to chat interface */}
+    <ChatInterface articleId={articleId} currentExampleId={focusedExampleId} />
+    </>
   );
 }

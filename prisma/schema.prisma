@@ -26,6 +26,7 @@ model User {
   articles            Article[]
   userResponses       UserResponse[]
   comments            Comment[]
+  chatMessages        ChatMessage[]
   
   @@map("users")
 }
@@ -60,6 +61,7 @@ model Article {
   createdBy            User?     @relation(fields: [createdByClerkUserId], references: [clerkUserId])
   interactiveExamples  InteractiveExample[]
   comments             Comment[]
+  chatMessages         ChatMessage[]
   
   @@index([categoryId])
   @@index([streamId])
@@ -159,4 +161,26 @@ model Comment {
   @@index([clerkUserId])
   @@index([parentId])
   @@map("comments")
+}
+
+model ChatMessage {
+  messageId       String   @id @default(cuid())
+  articleId       String
+  clerkUserId     String
+  role            ChatRole
+  content         String   @db.Text
+  exampleId       String?  // Reference to specific quiz question if applicable
+  createdAt       DateTime @default(now())
+  
+  article         Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user            User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  
+  @@index([articleId, clerkUserId])
+  @@index([exampleId])
+  @@map("chat_messages")
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
 }
