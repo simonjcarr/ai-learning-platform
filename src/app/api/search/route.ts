@@ -12,6 +12,11 @@ const CONTENT_THRESHOLDS = {
   MAX_NEW_ARTICLES_PER_CALL: 5, // Maximum new articles to create per AI call
 };
 
+// Environment variables for AI article generation
+const AI_ARTICLES_LOW_RESULTS = parseInt(process.env.AI_ARTICLES_LOW_RESULTS || '5'); // When 2 or fewer results
+const AI_ARTICLES_HIGH_RESULTS = parseInt(process.env.AI_ARTICLES_HIGH_RESULTS || '2'); // When more than 2 results
+const LOW_RESULTS_THRESHOLD = 2; // Threshold for switching between low/high generation counts
+
 export async function POST(request: Request) {
   console.log("Search endpoint hit");
   
@@ -97,14 +102,12 @@ export async function POST(request: Request) {
     if (!hasSufficientContent) {
       console.log("Insufficient content found, calling AI for suggestions");
       
-      // Calculate how many more articles we should generate
-      const articlesNeeded = Math.max(
-        1, // At least 1
-        Math.min(
-          CONTENT_THRESHOLDS.MAX_NEW_ARTICLES_PER_CALL,
-          CONTENT_THRESHOLDS.MIN_ARTICLES - articles.length
-        )
-      );
+      // Calculate how many more articles we should generate based on current results
+      const articlesNeeded = articles.length <= LOW_RESULTS_THRESHOLD 
+        ? AI_ARTICLES_LOW_RESULTS 
+        : AI_ARTICLES_HIGH_RESULTS;
+      
+      console.log(`Found ${articles.length} articles. Will generate ${articlesNeeded} new articles.`);
 
       // Call AI for suggestions
       try {
@@ -121,7 +124,8 @@ export async function POST(request: Request) {
         aiResponse = await aiService.generateSearchSuggestions(
           query, 
           existingCategoryNames,
-          existingContent.articles
+          existingContent.articles,
+          articlesNeeded
         );
         
         console.log("AI suggestions:", {

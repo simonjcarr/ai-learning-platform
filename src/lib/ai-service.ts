@@ -95,7 +95,7 @@ export const MarkingResponseSchema = z.object({
 
 // AI Service functions
 export const aiService = {
-  async generateSearchSuggestions(query: string, existingCategories: string[], existingArticles: { title: string; category: string }[]) {
+  async generateSearchSuggestions(query: string, existingCategories: string[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5) {
     const systemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. Ensure suggestions are practical and relevant to IT professionals.`;
     
     const userPrompt = `Search query: "${query}"
@@ -103,7 +103,7 @@ export const aiService = {
 Existing categories: ${JSON.stringify(existingCategories)}
 Existing articles: ${JSON.stringify(existingArticles)}
 
-Suggest new categories and article titles that would be helpful for this search. Don't suggest existing items.`;
+Please suggest exactly ${articlesToGenerate} new article titles that would be helpful for this search. Also suggest 1-2 new categories if appropriate. Don't suggest existing items.`;
 
     const result = await generateObject({
       model: getModel(),
