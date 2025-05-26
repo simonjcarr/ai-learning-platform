@@ -65,10 +65,18 @@ ${existingQuestions.length > 0 ? `Avoid these existing questions: ${JSON.stringi
 For each example, provide:
 1. question_type: Choose intelligently from 'multiple_choice', 'text_input', or 'command_line'
 2. scenario_or_question_text: The scenario, problem, or question
-3. options_json (if 'multiple_choice'): An array of 3-5 plausible options
-4. correct_answer_key_or_text: The correct answer
+3. options_json (if 'multiple_choice'): An array of 3-5 plausible options, each with format: {"id": "a", "text": "Option text here"}
+4. correct_answer_key_or_text: The correct answer (for multiple choice, use the option id like "a", "b", etc.)
 5. correct_answer_description: Clear explanation of why the answer is correct
 6. ai_marking_prompt_hint: Keywords or concepts for marking
+
+Example format for multiple choice options_json:
+[
+  {"id": "a", "text": "Start the ZFS daemon"},
+  {"id": "b", "text": "Create a storage pool"},
+  {"id": "c", "text": "Format the disk"},
+  {"id": "d", "text": "Install additional drivers"}
+]
 
 Focus on practical, real-world scenarios that IT professionals would encounter.`;
 
@@ -96,12 +104,29 @@ Focus on practical, real-world scenarios that IT professionals would encounter.`
     // Save generated examples
     const createdExamples = [];
     for (const example of response.examples || []) {
+      // Validate and format options for multiple choice questions
+      let formattedOptions = undefined;
+      if (example.question_type === 'multiple_choice' && example.options_json) {
+        // Ensure options have the correct format
+        formattedOptions = example.options_json.map((opt, index) => {
+          if (typeof opt === 'string') {
+            // If options are strings, convert to proper format
+            return { id: String.fromCharCode(97 + index), text: opt };
+          }
+          // Ensure id and text exist
+          return {
+            id: opt.id || String.fromCharCode(97 + index),
+            text: opt.text || 'Option ' + (index + 1)
+          };
+        });
+      }
+
       const created = await prisma.interactiveExample.create({
         data: {
           articleId,
           questionType: example.question_type.toUpperCase().replace(' ', '_') as "MULTIPLE_CHOICE" | "TEXT_INPUT" | "COMMAND_LINE",
           scenarioOrQuestionText: example.scenario_or_question_text,
-          optionsJson: example.options_json || undefined,
+          optionsJson: formattedOptions,
           correctAnswerDescription: example.correct_answer_description,
           aiMarkingPromptHint: example.ai_marking_prompt_hint
         }

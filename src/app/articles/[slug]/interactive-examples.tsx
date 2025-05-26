@@ -12,7 +12,7 @@ interface Example {
   exampleId: string;
   questionType: "MULTIPLE_CHOICE" | "TEXT_INPUT" | "COMMAND_LINE";
   scenarioOrQuestionText: string;
-  optionsJson: Option[] | null;
+  optionsJson: any;
   correctAnswerDescription: string;
 }
 
@@ -38,6 +38,7 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
       const response = await fetch(`/api/articles/${articleId}/examples`);
       if (!response.ok) throw new Error("Failed to fetch examples");
       const data = await response.json();
+      console.log("Fetched examples:", data);
       setExamples(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -128,22 +129,40 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
 
         {example.questionType === "MULTIPLE_CHOICE" && example.optionsJson && (
           <div className="space-y-2 mb-4">
-            {example.optionsJson.map((option) => (
-              <label
-                key={option.id}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
-              >
-                <input
-                  type="radio"
-                  name={`question-${example.exampleId}`}
-                  value={option.id}
-                  onChange={(e) => setAnswers({ ...answers, [example.exampleId]: e.target.value })}
-                  disabled={!!submitted}
-                  className="h-4 w-4 text-blue-600"
-                />
-                <span className="text-gray-700">{option.text}</span>
-              </label>
-            ))}
+            {(() => {
+              // Parse optionsJson if it's a string or ensure it's properly formatted
+              let options: Option[] = [];
+              try {
+                if (typeof example.optionsJson === 'string') {
+                  options = JSON.parse(example.optionsJson);
+                } else if (Array.isArray(example.optionsJson)) {
+                  options = example.optionsJson;
+                } else {
+                  console.error('Invalid optionsJson format:', example.optionsJson);
+                  return null;
+                }
+              } catch (error) {
+                console.error('Error parsing optionsJson:', error);
+                return null;
+              }
+
+              return options.map((option) => (
+                <label
+                  key={option.id}
+                  className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name={`question-${example.exampleId}`}
+                    value={option.id}
+                    onChange={(e) => setAnswers({ ...answers, [example.exampleId]: e.target.value })}
+                    disabled={!!submitted}
+                    className="h-4 w-4 text-blue-600"
+                  />
+                  <span className="text-gray-700">{option.text}</span>
+                </label>
+              ));
+            })()}
           </div>
         )}
 
