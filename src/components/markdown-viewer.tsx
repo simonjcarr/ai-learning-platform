@@ -16,9 +16,30 @@ export default function MarkdownViewer({ content, removeFirstHeading = false }: 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const copyToClipboard = async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy code to clipboard:', error);
+      // Fallback for older browsers or when clipboard API is not available
+      const textArea = document.createElement('textarea');
+      textArea.value = code;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopiedCode(code);
+        setTimeout(() => setCopiedCode(null), 2000);
+      } catch (fallbackError) {
+        console.error('Fallback copy method also failed:', fallbackError);
+      }
+      document.body.removeChild(textArea);
+    }
   };
 
   // Remove the first H1 heading if requested
@@ -52,9 +73,21 @@ export default function MarkdownViewer({ content, removeFirstHeading = false }: 
         rehypePlugins={[rehypeHighlight]}
         components={{
         pre: ({ children, ...props }) => {
-          const codeElement = children as any;
-          const code = codeElement?.props?.children?.[0];
-          const codeString = typeof code === 'string' ? code : '';
+          // Extract text content from the code element
+          const extractTextContent = (element: any): string => {
+            if (typeof element === 'string') {
+              return element;
+            }
+            if (Array.isArray(element)) {
+              return element.map(extractTextContent).join('');
+            }
+            if (element?.props?.children) {
+              return extractTextContent(element.props.children);
+            }
+            return '';
+          };
+          
+          const codeString = extractTextContent(children);
           
           return (
             <div className="relative group">

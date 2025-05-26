@@ -1,6 +1,145 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { BookOpen, Trophy, Clock, TrendingUp } from "lucide-react";
+import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle } from "lucide-react";
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+
+interface DashboardStats {
+  articlesRead: number;
+  quizzesTaken: number;
+  correctAnswers: number;
+  learningStreak: number;
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    description: string;
+    articleTitle: string;
+    articleSlug: string;
+    timestamp: Date;
+    isCorrect: boolean;
+  }>;
+}
+
+async function getDashboardStats(userId: string): Promise<DashboardStats> {
+  try {
+    // Get user stats
+    const [
+      totalResponses,
+      correctResponses,
+      uniqueArticlesAnswered,
+      recentActivity
+    ] = await Promise.all([
+      // Total quiz responses
+      prisma.userResponse.count({
+        where: { clerkUserId: userId }
+      }),
+      
+      // Correct responses
+      prisma.userResponse.count({
+        where: { 
+          clerkUserId: userId,
+          isCorrect: true 
+        }
+      }),
+      
+      // Count unique articles where user has answered questions
+      prisma.userResponse.findMany({
+        where: { clerkUserId: userId },
+        select: {
+          example: {
+            select: {
+              articleId: true
+            }
+          }
+        },
+        distinct: ['exampleId']
+      }),
+      
+      // Recent activity (last 10 responses)
+      prisma.userResponse.findMany({
+        where: { clerkUserId: userId },
+        include: {
+          example: {
+            include: {
+              article: {
+                select: {
+                  articleTitle: true,
+                  articleSlug: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { submittedAt: 'desc' },
+        take: 10
+      })
+    ]);
+
+    // Count unique articles
+    const uniqueArticleIds = new Set(
+      uniqueArticlesAnswered.map(response => response.example.articleId)
+    );
+
+    // Calculate learning streak (simplified - consecutive days with activity)
+    const today = new Date();
+    const recentDays = [];
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      recentDays.push({
+        date: date.toDateString(),
+        hasActivity: false
+      });
+    }
+
+    // Mark days with activity
+    recentActivity.forEach(response => {
+      const responseDate = response.submittedAt.toDateString();
+      const dayIndex = recentDays.findIndex(day => day.date === responseDate);
+      if (dayIndex !== -1) {
+        recentDays[dayIndex].hasActivity = true;
+      }
+    });
+
+    // Calculate streak from today backwards
+    let learningStreak = 0;
+    for (const day of recentDays) {
+      if (day.hasActivity) {
+        learningStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // Format recent activity for display
+    const formattedActivity = recentActivity.map(response => ({
+      id: response.responseId,
+      type: response.isCorrect ? 'correct_answer' : 'incorrect_answer',
+      description: `${response.isCorrect ? 'Correctly answered' : 'Answered'} question in "${response.example.article.articleTitle}"`,
+      articleTitle: response.example.article.articleTitle,
+      articleSlug: response.example.article.articleSlug,
+      timestamp: response.submittedAt,
+      isCorrect: response.isCorrect
+    }));
+
+    return {
+      articlesRead: uniqueArticleIds.size,
+      quizzesTaken: totalResponses,
+      correctAnswers: correctResponses,
+      learningStreak: learningStreak,
+      recentActivity: formattedActivity
+    };
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return {
+      articlesRead: 0,
+      quizzesTaken: 0,
+      correctAnswers: 0,
+      learningStreak: 0,
+      recentActivity: []
+    };
+  }
+}
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -9,13 +148,7 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  // In a real app, you would fetch user-specific data here
-  const stats = {
-    articlesRead: 0,
-    quizzesTaken: 0,
-    correctAnswers: 0,
-    learningStreak: 0,
-  };
+  const stats = await getDashboardStats(userId);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -67,9 +200,43 @@ export default async function DashboardPage() {
       {/* Recent Activity */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
-        <div className="text-center py-8 text-gray-500">
-          <p>No recent activity yet. Start learning to see your progress here!</p>
-        </div>
+        {stats.recentActivity.length > 0 ? (
+          <div className="space-y-4">
+            {stats.recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                <div className="flex items-center space-x-3">
+                  {activity.isCorrect ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-500" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {activity.description}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {activity.timestamp.toLocaleDateString()} at{' '}
+                      {activity.timestamp.toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/articles/${activity.articleSlug}`}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  View Article
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>No recent activity yet. Start learning to see your progress here!</p>
+          </div>
+        )}
       </div>
     </div>
   );
