@@ -216,6 +216,12 @@ export default function AdminCategoriesPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <Link
+                    href={`/admin/categories/${category.categoryId}/articles`}
+                    className="text-blue-600 hover:text-blue-900 mr-4"
+                  >
+                    View Articles
+                  </Link>
+                  <Link
                     href={`/admin/categories/${category.categoryId}/edit`}
                     className="text-orange-600 hover:text-orange-900 mr-4"
                   >
