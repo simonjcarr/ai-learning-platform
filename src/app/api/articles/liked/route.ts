@@ -26,7 +26,11 @@ export async function GET() {
       include: {
         article: {
           include: {
-            category: true,
+            categories: {
+              include: {
+                category: true
+              }
+            },
             _count: {
               select: {
                 comments: true,

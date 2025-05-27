@@ -14,9 +14,13 @@ export default async function CategoryDetailPage({ params }: PageProps) {
     include: {
       articles: {
         include: {
-          createdBy: true,
-          _count: {
-            select: { interactiveExamples: true }
+          article: {
+            include: {
+              createdBy: true,
+              _count: {
+                select: { interactiveExamples: true }
+              }
+            }
           }
         },
         orderBy: { createdAt: 'desc' }
@@ -28,8 +32,9 @@ export default async function CategoryDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const publishedArticles = category.articles.filter(a => a.isContentGenerated);
-  const pendingArticles = category.articles.filter(a => !a.isContentGenerated);
+  const allArticles = category.articles.map(ac => ac.article);
+  const publishedArticles = allArticles.filter(a => a.isContentGenerated);
+  const pendingArticles = allArticles.filter(a => !a.isContentGenerated);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -60,7 +65,7 @@ export default async function CategoryDetailPage({ params }: PageProps) {
         )}
         <div className="mt-4 flex items-center text-sm text-gray-500">
           <FileText className="h-4 w-4 mr-1" />
-          <span>{category.articles.length} total articles</span>
+          <span>{allArticles.length} total articles</span>
           <span className="mx-2">•</span>
           <span>{publishedArticles.length} published</span>
           <span className="mx-2">•</span>
@@ -139,7 +144,7 @@ export default async function CategoryDetailPage({ params }: PageProps) {
         </section>
       )}
 
-      {category.articles.length === 0 && (
+      {allArticles.length === 0 && (
         <div className="text-center py-12">
           <FileText className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No articles yet</h3>

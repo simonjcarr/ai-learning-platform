@@ -152,7 +152,11 @@ export async function POST(request: Request) {
           ]
         },
         include: { 
-          category: true,
+          categories: {
+            include: {
+              category: true
+            }
+          },
           tags: {
             include: {
               tag: true
@@ -169,20 +173,21 @@ export async function POST(request: Request) {
     
     articlesRaw.forEach(article => {
       const titleLower = article.articleTitle.toLowerCase();
-      const categoryLower = article.category.categoryName.toLowerCase();
+      const categoryNames = article.categories?.map(c => c.category.categoryName.toLowerCase()) || [];
       const contentLower = article.contentHtml?.toLowerCase() || '';
       const tagNames = article.tags?.map(t => t.tag.tagName.toLowerCase()) || [];
       let score = 0;
       
       // Skip articles from clearly different technology categories
       const queryLower = query.toLowerCase();
-      if (queryLower === 'docker' && categoryLower.includes('docker swarm')) {
-        return;
-      }
-      if (queryLower === 'kubernetes' && categoryLower.includes('openshift')) {
-        return;
-      }
-      if (queryLower === 'git' && (categoryLower.includes('github') || categoryLower.includes('gitlab'))) {
+      const hasConflictingCategory = categoryNames.some(catName => {
+        if (queryLower === 'docker' && catName.includes('docker swarm')) return true;
+        if (queryLower === 'kubernetes' && catName.includes('openshift')) return true;
+        if (queryLower === 'git' && (catName.includes('github') || catName.includes('gitlab'))) return true;
+        return false;
+      });
+      
+      if (hasConflictingCategory) {
         return;
       }
       
@@ -213,9 +218,10 @@ export async function POST(request: Request) {
       }
       
       // Category relevance bonus
-      if (categoryLower.includes(query.toLowerCase())) {
-        score += 20;
-      }
+      const categoryMatches = categoryNames.filter(catName => 
+        catName.includes(query.toLowerCase())
+      ).length;
+      score += categoryMatches * 20;
 
       // Tag-based scoring (very high value for tag matches)
       if (query.startsWith('#')) {
@@ -302,7 +308,7 @@ export async function POST(request: Request) {
           categories: categories.map(c => c.categoryName),
           articles: articles.map(a => ({ 
             title: a.articleTitle, 
-            category: a.category.categoryName 
+            category: a.categories?.[0]?.category?.categoryName || 'No category'
           }))
         };
 
@@ -351,18 +357,26 @@ export async function POST(request: Request) {
 
     // Add new articles
     for (const suggestedArticle of aiResponse.suggested_new_article_titles || []) {
-      // Find or create the category
-      let category = await prisma.category.findUnique({
-        where: { categoryName: suggestedArticle.target_category_name }
-      });
-
-      if (!category) {
-        category = await prisma.category.create({
-          data: {
-            categoryName: suggestedArticle.target_category_name,
-            description: `Category for ${suggestedArticle.target_category_name}`
-          }
+      // Find or create all categories for this article
+      const categories = [];
+      const categoryIds = [];
+      
+      for (const categoryName of suggestedArticle.target_category_names || []) {
+        let category = await prisma.category.findUnique({
+          where: { categoryName }
         });
+
+        if (!category) {
+          category = await prisma.category.create({
+            data: {
+              categoryName,
+              description: `Category for ${categoryName}`
+            }
+          });
+        }
+        
+        categories.push(category);
+        categoryIds.push(category.categoryId);
       }
 
       const articleSlug = slugify(suggestedArticle.title);
@@ -375,7 +389,13 @@ export async function POST(request: Request) {
       // Also check for similar titles to avoid near-duplicates
       const similarArticles = await prisma.article.findMany({
         where: {
-          categoryId: category.categoryId,
+          categories: {
+            some: {
+              categoryId: {
+                in: categoryIds
+              }
+            }
+          },
           articleTitle: {
             contains: suggestedArticle.title.split(' ').slice(0, 3).join(' '),
             mode: 'insensitive'
@@ -386,16 +406,36 @@ export async function POST(request: Request) {
       const hasSimilarArticle = similarArticles.length > 0;
 
       if (!existingArticle && !hasSimilarArticle) {
+        // Create the article
         const newArticle = await prisma.article.create({
           data: {
-            categoryId: category.categoryId,
             articleTitle: suggestedArticle.title,
             articleSlug,
             isContentGenerated: false,
-            createdByClerkUserId: userId || null  // Make it null if no user
-          },
+            createdByClerkUserId: userId || null
+          }
+        });
+        
+        // Create article-category relationships
+        for (let i = 0; i < categories.length; i++) {
+          await prisma.articleCategory.create({
+            data: {
+              articleId: newArticle.articleId,
+              categoryId: categories[i].categoryId,
+              isPrimary: categories[i].categoryName === suggestedArticle.primary_category_name
+            }
+          });
+        }
+        
+        // Fetch the complete article with categories
+        const completeArticle = await prisma.article.findUnique({
+          where: { articleId: newArticle.articleId },
           include: { 
-            category: true,
+            categories: {
+              include: {
+                category: true
+              }
+            },
             tags: {
               include: {
                 tag: true
@@ -403,7 +443,8 @@ export async function POST(request: Request) {
             }
           }
         });
-        newArticles.push(newArticle);
+        
+        newArticles.push(completeArticle);
       }
     }
 

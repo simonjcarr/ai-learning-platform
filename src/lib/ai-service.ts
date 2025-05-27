@@ -153,7 +153,8 @@ export const CategorySuggestionSchema = z.object({
 
 export const ArticleSuggestionSchema = z.object({
   title: z.string(),
-  target_category_name: z.string(),
+  target_category_names: z.array(z.string()).min(1),
+  primary_category_name: z.string(),
 });
 
 export const AISearchResponseSchema = z.object({
@@ -211,9 +212,11 @@ export const aiService = {
     const systemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. 
 
 IMPORTANT: 
-1. When suggesting articles, you MUST prefer using existing categories whenever possible. Only suggest new categories if none of the existing categories are appropriate.
-2. Keep category names GENERIC and SIMPLE (e.g., "Docker", "Kubernetes", "Python", NOT "Docker Basics" or "Advanced Python")
-3. Be precise about technology distinctions - Docker and Docker Swarm are different, Kubernetes and OpenShift are different, etc.`;
+1. Articles can belong to MULTIPLE categories. Assign articles to ALL relevant categories, not just one.
+2. When suggesting articles, you MUST prefer using existing categories whenever possible. Only suggest new categories if none of the existing categories are appropriate.
+3. Keep category names GENERIC and SIMPLE (e.g., "Docker", "Kubernetes", "Python", "Programming", NOT "Docker Basics" or "Advanced Python")
+4. Be precise about technology distinctions - Docker and Docker Swarm are different, Kubernetes and OpenShift are different, etc.
+5. Consider fundamental categories like "Programming", "DevOps", "Security", "Networking", etc. for articles that fit these broader topics.`;
     
     const userPrompt = `User's search query: "${query}"
     
@@ -228,19 +231,27 @@ SPECIAL ATTENTION FOR "HOW TO" QUESTIONS:
 If the user's query is a specific "how to" question (like "How to reclaim space used by docker"), prioritize creating articles that DIRECTLY answer that specific question with practical steps and commands.
 
 CRITICAL RULES:
-1. For each article, ALWAYS check if it fits into an existing category first
-2. Use the exact category name from the list above when assigning articles
-3. Only suggest a new category if absolutely none of the existing categories are appropriate
-4. NEW CATEGORY NAMES MUST BE:
-   - Generic and simple (e.g., "Docker Swarm" not "Docker Swarm Basics")
-   - Just the technology/tool name without qualifiers
-   - Distinct from related technologies (Docker ≠ Docker Swarm, Kubernetes ≠ OpenShift)
-5. If suggesting a new category, provide a clear description
-6. Don't suggest article titles that already exist
-7. Articles must be SPECIFICALLY about the searched technology and address the user's specific need
-8. For "how to" queries, create titles that directly address the specific task (e.g., "How to Clean Up Docker Storage" for docker space queries)
+1. Each article should have MULTIPLE categories:
+   - target_category_names: An array of ALL relevant category names
+   - primary_category_name: The MOST specific/relevant category (from target_category_names)
+2. For each article, assign it to ALL applicable categories:
+   - The specific technology category (e.g., "LISP", "Python", "Docker")
+   - Fundamental categories (e.g., "Programming", "DevOps", "AI")
+   - Domain categories if applicable (e.g., "Web Development", "Data Science")
+3. Use exact category names from the list above when they exist
+4. Only suggest new categories if essential (especially for fundamental categories like "Programming")
+5. NEW CATEGORY NAMES MUST BE:
+   - Generic and simple (e.g., "Programming", "Docker Swarm", not "Docker Swarm Basics")
+   - Just the technology/tool/domain name without qualifiers
+   - Distinct from related technologies
+6. If suggesting a new category, provide a clear description
+7. Don't suggest article titles that already exist
+8. Articles must be SPECIFICALLY about the searched technology
+9. For "how to" queries, create titles that directly address the specific task
 
-Your target_category_name for each article MUST match exactly one of the existing category names listed above, unless creating a new category.`;
+EXAMPLE: An article about "LISP Programming Tutorial" should have:
+- target_category_names: ["LISP", "Programming", "AI"] (if AI category exists and is relevant)
+- primary_category_name: "LISP" (most specific)`;
 
     const startTime = new Date();
     let result, error;
@@ -609,12 +620,13 @@ Consider:
     const userPrompt = `User's search query: "${query}"
 
 Available articles:
-${articles.map((article, index) => 
-  `${index + 1}. ID: ${article.articleId}
+${articles.map((article, index) => {
+  const categories = article.categories?.map(c => c.category.categoryName).join(', ') || 'No category';
+  return `${index + 1}. ID: ${article.articleId}
    Title: ${article.articleTitle}
-   Category: ${article.category.categoryName}
-   Status: ${article.isContentGenerated ? 'Ready' : 'Content pending'}`
-).join('\n\n')}
+   Categories: ${categories}
+   Status: ${article.isContentGenerated ? 'Ready' : 'Content pending'}`;
+}).join('\n\n')}
 
 Available categories:
 ${categories.map(cat => 

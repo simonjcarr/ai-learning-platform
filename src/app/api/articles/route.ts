@@ -9,13 +9,14 @@ export async function GET(request: Request) {
     const categoryId = searchParams.get('categoryId');
     const isContentGenerated = searchParams.get('isContentGenerated');
 
-    const where: {
-      categoryId?: string;
-      isContentGenerated?: boolean;
-    } = {};
+    const where: any = {};
     
     if (categoryId) {
-      where.categoryId = categoryId;
+      where.categories = {
+        some: {
+          categoryId: categoryId
+        }
+      };
     }
     
     if (isContentGenerated !== null) {
@@ -25,7 +26,11 @@ export async function GET(request: Request) {
     const articles = await prisma.article.findMany({
       where,
       include: {
-        category: true,
+        categories: {
+          include: {
+            category: true
+          }
+        },
         createdBy: true,
       },
       orderBy: { createdAt: 'desc' }
@@ -46,11 +51,11 @@ export async function POST(request: Request) {
     const user = await currentUser();
     const userId = user?.id;
     const body = await request.json();
-    const { categoryId, articleTitle, contentHtml } = body;
+    const { categoryIds, primaryCategoryId, articleTitle, contentHtml } = body;
 
-    if (!categoryId || !articleTitle) {
+    if (!categoryIds || categoryIds.length === 0 || !articleTitle) {
       return NextResponse.json(
-        { error: "Category ID and article title are required" },
+        { error: "At least one category ID and article title are required" },
         { status: 400 }
       );
     }
@@ -70,20 +75,39 @@ export async function POST(request: Request) {
 
     const article = await prisma.article.create({
       data: {
-        categoryId,
         articleTitle,
         articleSlug,
         contentHtml,
         isContentGenerated: !!contentHtml,
         createdByClerkUserId: userId || null,
-      },
+      }
+    });
+    
+    // Create article-category relationships
+    for (const categoryId of categoryIds) {
+      await prisma.articleCategory.create({
+        data: {
+          articleId: article.articleId,
+          categoryId: categoryId,
+          isPrimary: categoryId === (primaryCategoryId || categoryIds[0])
+        }
+      });
+    }
+    
+    // Fetch complete article with categories
+    const completeArticle = await prisma.article.findUnique({
+      where: { articleId: article.articleId },
       include: {
-        category: true,
+        categories: {
+          include: {
+            category: true
+          }
+        },
         createdBy: true,
       }
     });
 
-    return NextResponse.json(article, { status: 201 });
+    return NextResponse.json(completeArticle, { status: 201 });
   } catch (error) {
     console.error("Error creating article:", error);
     return NextResponse.json(

@@ -17,9 +17,11 @@ interface SearchResults {
     articleTitle: string;
     articleSlug: string;
     isContentGenerated: boolean;
-    category: {
-      categoryName: string;
-    };
+    categories: Array<{
+      category: {
+        categoryName: string;
+      };
+    }>;
     tags: Array<{
       tag: {
         tagId: string;
@@ -255,7 +257,7 @@ export default function SearchPage() {
                           </h3>
                         </Link>
                         <p className="mt-1 text-sm text-gray-600">
-                          in {article.category.categoryName}
+                          in {article.categories?.map(c => c.category.categoryName).join(', ') || 'No category'}
                         </p>
                         {/* Tags */}
                         {article.tags && article.tags.length > 0 && (

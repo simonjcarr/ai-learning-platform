@@ -34,8 +34,12 @@ export async function GET(request: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          category: {
-            select: { categoryName: true },
+          categories: {
+            include: {
+              category: {
+                select: { categoryName: true },
+              },
+            },
           },
           _count: {
             select: {

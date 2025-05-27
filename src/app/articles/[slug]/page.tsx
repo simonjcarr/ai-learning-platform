@@ -11,7 +11,11 @@ export default async function ArticlePage({ params }: PageProps) {
   const article = await prisma.article.findUnique({
     where: { articleSlug: slug },
     include: {
-      category: true,
+      categories: {
+        include: {
+          category: true
+        }
+      },
       stream: {
         include: {
           channel: true

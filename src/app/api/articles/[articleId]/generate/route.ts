@@ -31,7 +31,13 @@ export async function POST(
 
     const article = await prisma.article.findUnique({
       where: { articleId },
-      include: { category: true }
+      include: { 
+        categories: {
+          include: {
+            category: true
+          }
+        }
+      }
     });
 
     if (!article) {
@@ -48,12 +54,23 @@ export async function POST(
       });
     }
 
+    // Find primary category or use first category
+    const primaryCategory = article.categories.find(ac => ac.isPrimary)?.category 
+      || article.categories[0]?.category;
+    
+    if (!primaryCategory) {
+      return NextResponse.json(
+        { error: "Article has no categories" },
+        { status: 400 }
+      );
+    }
+    
     // Generate content using AI service
     console.log('Generating content with AI...');
     
     const result = await aiService.generateArticleContent(
       article.articleTitle,
-      article.category.categoryName,
+      primaryCategory.categoryName,
       userId
     );
 
@@ -73,7 +90,7 @@ export async function POST(
     console.log('Generating tag suggestions...');
     const tagSelection = await aiService.selectAndCreateTags(
       article.articleTitle,
-      article.category.categoryName,
+      primaryCategory.categoryName,
       existingTags,
       userId
     );
@@ -116,7 +133,11 @@ export async function POST(
         updatedAt: new Date()
       },
       include: { 
-        category: true,
+        categories: {
+          include: {
+            category: true
+          }
+        },
         tags: {
           include: {
             tag: true
@@ -139,7 +160,11 @@ export async function POST(
     const finalArticle = await prisma.article.findUnique({
       where: { articleId },
       include: { 
-        category: true,
+        categories: {
+          include: {
+            category: true
+          }
+        },
         tags: {
           include: {
             tag: true

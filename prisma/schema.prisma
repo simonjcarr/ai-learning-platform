@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,82 +8,71 @@ datasource db {
 }
 
 model User {
-  clerkUserId         String   @id @unique
-  email               String   @unique
-  username            String?  @unique
-  firstName           String?
-  lastName            String?
-  imageUrl            String?
-  appSpecificCreatedAt DateTime @default(now())
-  lastLoginToApp      DateTime?
-  
-  // Stripe subscription fields
-  stripeCustomerId    String?  @unique
-  subscriptionTier    SubscriptionTier @default(FREE)
-  subscriptionStatus  SubscriptionStatus @default(INACTIVE)
-  subscriptionId      String?
+  clerkUserId                  String                @id @unique
+  email                        String                @unique
+  username                     String?               @unique
+  appSpecificCreatedAt         DateTime              @default(now())
+  lastLoginToApp               DateTime?
+  firstName                    String?
+  imageUrl                     String?
+  lastName                     String?
+  stripeCustomerId             String?               @unique
   subscriptionCurrentPeriodEnd DateTime?
-  
-  // RBAC role field
-  role                Role     @default(USER)
-  
-  articles            Article[]
-  flaggedArticles     Article[] @relation("FlaggedArticles")
-  userResponses       UserResponse[]
-  comments            Comment[]
-  flaggedComments     Comment[] @relation("FlaggedComments")
-  chatMessages        ChatMessage[]
-  likedArticles       ArticleLike[]
-  curatedLists        CuratedList[]
-  subscriptionHistory SubscriptionHistory[]
-  aiInteractions      AIInteraction[]
-  
+  subscriptionId               String?
+  subscriptionStatus           SubscriptionStatus    @default(INACTIVE)
+  subscriptionTier             SubscriptionTier      @default(FREE)
+  role                         Role                  @default(USER)
+  aiInteractions               AIInteraction[]
+  likedArticles                ArticleLike[]
+  articles                     Article[]
+  flaggedArticles              Article[]             @relation("FlaggedArticles")
+  chatMessages                 ChatMessage[]
+  comments                     Comment[]
+  flaggedComments              Comment[]             @relation("FlaggedComments")
+  curatedLists                 CuratedList[]
+  subscriptionHistory          SubscriptionHistory[]
+  userResponses                UserResponse[]
+
   @@map("users")
 }
 
 model Category {
-  categoryId   String   @id @default(cuid())
-  categoryName String   @unique
+  categoryId   String            @id @default(cuid())
+  categoryName String            @unique
   description  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  articles     Article[]
-  
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  articles     ArticleCategory[]
+
   @@index([categoryName])
   @@map("categories")
 }
 
 model Article {
-  articleId            String   @id @default(cuid())
-  categoryId           String?
-  streamId             String?
+  articleId            String               @id @default(cuid())
   articleTitle         String
-  articleSlug          String   @unique
-  contentHtml          String?  @db.Text
-  isContentGenerated   Boolean  @default(false)
+  articleSlug          String               @unique
+  contentHtml          String?
+  isContentGenerated   Boolean              @default(false)
   createdByClerkUserId String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  
-  // Flagging fields
-  isFlagged            Boolean  @default(false)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  streamId             String?
+  flagReason           String?
   flaggedAt            DateTime?
   flaggedByClerkUserId String?
-  flagReason           String?  @db.Text
-  
-  category             Category? @relation(fields: [categoryId], references: [categoryId])
-  stream               Stream?   @relation(fields: [streamId], references: [streamId])
-  createdBy            User?     @relation(fields: [createdByClerkUserId], references: [clerkUserId], onDelete: SetNull)
-  flaggedBy            User?     @relation("FlaggedArticles", fields: [flaggedByClerkUserId], references: [clerkUserId], onDelete: SetNull)
-  interactiveExamples  InteractiveExample[]
-  comments             Comment[]
-  chatMessages         ChatMessage[]
+  isFlagged            Boolean              @default(false)
   likes                ArticleLike[]
-  curatedListItems     CuratedListItem[]
   tags                 ArticleTag[]
-  
-  @@index([categoryId])
+  categories           ArticleCategory[]
+  createdBy            User?                @relation(fields: [createdByClerkUserId], references: [clerkUserId])
+  flaggedBy            User?                @relation("FlaggedArticles", fields: [flaggedByClerkUserId], references: [clerkUserId])
+  stream               Stream?              @relation(fields: [streamId], references: [streamId])
+  chatMessages         ChatMessage[]
+  comments             Comment[]
+  curatedListItems     CuratedListItem[]
+  interactiveExamples  InteractiveExample[]
+
   @@index([streamId])
   @@index([articleSlug])
   @@index([articleTitle])
@@ -100,70 +83,60 @@ model Article {
 }
 
 model InteractiveExample {
-  exampleId                String   @id @default(cuid())
+  exampleId                String         @id @default(cuid())
   articleId                String
   questionType             QuestionType
-  scenarioOrQuestionText   String   @db.Text
+  scenarioOrQuestionText   String
   optionsJson              Json?
-  correctAnswerDescription String   @db.Text
-  aiMarkingPromptHint      String?  @db.Text
-  createdAt                DateTime @default(now())
-  
-  article                  Article  @relation(fields: [articleId], references: [articleId])
+  correctAnswerDescription String
+  aiMarkingPromptHint      String?
+  createdAt                DateTime       @default(now())
+  article                  Article        @relation(fields: [articleId], references: [articleId])
   userResponses            UserResponse[]
-  
+
   @@index([articleId])
   @@map("interactive_examples")
 }
 
 model UserResponse {
-  responseId     String   @id @default(cuid())
+  responseId     String             @id @default(cuid())
   clerkUserId    String
   exampleId      String
-  userAnswerText String   @db.Text
+  userAnswerText String
   isCorrect      Boolean
-  aiFeedback     String   @db.Text
-  submittedAt    DateTime @default(now())
-  
-  user           User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  aiFeedback     String
+  submittedAt    DateTime           @default(now())
+  user           User               @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
   example        InteractiveExample @relation(fields: [exampleId], references: [exampleId])
-  
+
   @@index([clerkUserId])
   @@index([exampleId])
   @@map("user_responses")
 }
 
-enum QuestionType {
-  MULTIPLE_CHOICE
-  TEXT_INPUT
-  COMMAND_LINE
-}
-
 model Channel {
-  channelId    String   @id @default(cuid())
-  channelName  String   @unique
-  description  String?
-  icon         String?  // Optional icon identifier
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  streams      Stream[]
-  
+  channelId   String   @id @default(cuid())
+  channelName String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  streams     Stream[]
+
   @@index([channelName])
   @@map("channels")
 }
 
 model Stream {
-  streamId     String   @id @default(cuid())
-  streamName   String
-  description  String?
-  channelId    String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  channel      Channel  @relation(fields: [channelId], references: [channelId])
-  articles     Article[]
-  
+  streamId    String    @id @default(cuid())
+  streamName  String
+  description String?
+  channelId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  articles    Article[]
+  channel     Channel   @relation(fields: [channelId], references: [channelId])
+
   @@unique([channelId, streamName])
   @@index([streamName])
   @@index([channelId])
@@ -171,26 +144,23 @@ model Stream {
 }
 
 model Comment {
-  commentId    String   @id @default(cuid())
-  articleId    String
-  clerkUserId  String
-  content      String   @db.Text
-  parentId     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  // Flagging fields
-  isFlagged            Boolean  @default(false)
+  commentId            String    @id @default(cuid())
+  articleId            String
+  clerkUserId          String
+  content              String
+  parentId             String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  flagReason           String?
   flaggedAt            DateTime?
   flaggedByClerkUserId String?
-  flagReason           String?  @db.Text
-  
-  article      Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user         User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  flaggedBy    User?    @relation("FlaggedComments", fields: [flaggedByClerkUserId], references: [clerkUserId], onDelete: SetNull)
-  parent       Comment? @relation("CommentReplies", fields: [parentId], references: [commentId], onDelete: Cascade)
-  replies      Comment[] @relation("CommentReplies")
-  
+  isFlagged            Boolean   @default(false)
+  article              Article   @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user                 User      @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  flaggedBy            User?     @relation("FlaggedComments", fields: [flaggedByClerkUserId], references: [clerkUserId])
+  parent               Comment?  @relation("CommentReplies", fields: [parentId], references: [commentId], onDelete: Cascade)
+  replies              Comment[] @relation("CommentReplies")
+
   @@index([articleId])
   @@index([clerkUserId])
   @@index([parentId])
@@ -199,20 +169,219 @@ model Comment {
 }
 
 model ChatMessage {
-  messageId       String   @id @default(cuid())
-  articleId       String
-  clerkUserId     String
-  role            ChatRole
-  content         String   @db.Text
-  exampleId       String?  // Reference to specific quiz question if applicable
-  createdAt       DateTime @default(now())
-  
-  article         Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user            User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  
+  messageId   String   @id @default(cuid())
+  articleId   String
+  clerkUserId String
+  role        ChatRole
+  content     String
+  exampleId   String?
+  createdAt   DateTime @default(now())
+  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
   @@index([articleId, clerkUserId])
   @@index([exampleId])
   @@map("chat_messages")
+}
+
+model ArticleLike {
+  likeId      String   @id @default(cuid())
+  articleId   String
+  clerkUserId String
+  createdAt   DateTime @default(now())
+  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@unique([articleId, clerkUserId])
+  @@index([clerkUserId])
+  @@index([articleId])
+  @@map("article_likes")
+}
+
+model CuratedList {
+  listId      String            @id @default(cuid())
+  clerkUserId String
+  listName    String
+  description String?
+  isPublic    Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  items       CuratedListItem[]
+  user        User              @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@index([clerkUserId])
+  @@index([isPublic])
+  @@map("curated_lists")
+}
+
+model CuratedListItem {
+  itemId    String      @id @default(cuid())
+  listId    String
+  articleId String
+  order     Int
+  notes     String?
+  addedAt   DateTime    @default(now())
+  article   Article     @relation(fields: [articleId], references: [articleId])
+  list      CuratedList @relation(fields: [listId], references: [listId], onDelete: Cascade)
+
+  @@unique([listId, articleId])
+  @@index([listId])
+  @@index([articleId])
+  @@map("curated_list_items")
+}
+
+model SubscriptionHistory {
+  historyId      String              @id @default(cuid())
+  clerkUserId    String
+  subscriptionId String
+  eventType      String
+  previousTier   SubscriptionTier?
+  newTier        SubscriptionTier
+  previousStatus SubscriptionStatus?
+  newStatus      SubscriptionStatus
+  amount         Int?
+  currency       String?
+  stripeEventId  String?             @unique
+  metadata       Json?
+  createdAt      DateTime            @default(now())
+  user           User                @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@index([clerkUserId])
+  @@index([subscriptionId])
+  @@index([createdAt])
+  @@map("subscription_history")
+}
+
+model SubscriptionPricing {
+  pricingId         String           @id @default(cuid())
+  tier              SubscriptionTier @unique
+  stripePriceId     String           @unique
+  monthlyPriceCents Int
+  yearlyPriceCents  Int
+  features          String[]
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([tier])
+  @@map("subscription_pricing")
+}
+
+model Tag {
+  tagId       String       @id @default(cuid())
+  tagName     String       @unique
+  description String?
+  color       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  articles    ArticleTag[]
+
+  @@index([tagName])
+  @@map("tags")
+}
+
+model ArticleTag {
+  articleTagId String   @id @default(cuid())
+  articleId    String
+  tagId        String
+  createdAt    DateTime @default(now())
+  article      Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  tag          Tag      @relation(fields: [tagId], references: [tagId], onDelete: Cascade)
+
+  @@unique([articleId, tagId])
+  @@index([articleId])
+  @@index([tagId])
+  @@map("article_tags")
+}
+
+model ArticleCategory {
+  articleCategoryId String   @id @default(cuid())
+  articleId         String
+  categoryId        String
+  isPrimary         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  article           Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  category          Category @relation(fields: [categoryId], references: [categoryId], onDelete: Cascade)
+
+  @@unique([articleId, categoryId])
+  @@index([articleId])
+  @@index([categoryId])
+  @@index([isPrimary])
+  @@map("article_categories")
+}
+
+model AIModel {
+  modelId              String              @id @default(cuid())
+  modelName            String              @unique
+  provider             String
+  displayName          String
+  description          String?
+  apiKey               String
+  inputTokenCostPer1M  Decimal             @db.Decimal(10, 6)
+  outputTokenCostPer1M Decimal             @db.Decimal(10, 6)
+  maxTokens            Int?
+  isActive             Boolean             @default(true)
+  isDefault            Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  interactionTypes     AIInteractionType[]
+  interactions         AIInteraction[]
+
+  @@index([provider])
+  @@index([isActive])
+  @@index([isDefault])
+  @@map("ai_models")
+}
+
+model AIInteractionType {
+  typeId         String          @id @default(cuid())
+  typeName       String          @unique
+  displayName    String
+  description    String?
+  defaultModelId String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  defaultModel   AIModel?        @relation(fields: [defaultModelId], references: [modelId])
+  interactions   AIInteraction[]
+
+  @@index([typeName])
+  @@map("ai_interaction_types")
+}
+
+model AIInteraction {
+  interactionId     String            @id @default(cuid())
+  clerkUserId       String?
+  modelId           String
+  interactionTypeId String
+  inputTokens       Int
+  outputTokens      Int
+  inputTokenCost    Decimal           @db.Decimal(10, 8)
+  outputTokenCost   Decimal           @db.Decimal(10, 8)
+  totalCost         Decimal           @db.Decimal(10, 8)
+  prompt            String?
+  response          String?
+  contextData       Json?
+  startedAt         DateTime          @default(now())
+  completedAt       DateTime?
+  durationMs        Int?
+  isSuccessful      Boolean           @default(true)
+  errorMessage      String?
+  user              User?             @relation(fields: [clerkUserId], references: [clerkUserId])
+  interactionType   AIInteractionType @relation(fields: [interactionTypeId], references: [typeId])
+  model             AIModel           @relation(fields: [modelId], references: [modelId])
+
+  @@index([clerkUserId])
+  @@index([modelId])
+  @@index([interactionTypeId])
+  @@index([startedAt])
+  @@index([isSuccessful])
+  @@map("ai_interactions")
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TEXT_INPUT
+  COMMAND_LINE
 }
 
 enum ChatRole {
@@ -238,199 +407,4 @@ enum Role {
   EDITOR
   MODERATOR
   ADMIN
-}
-
-model ArticleLike {
-  likeId      String   @id @default(cuid())
-  articleId   String
-  clerkUserId String
-  createdAt   DateTime @default(now())
-  
-  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  
-  @@unique([articleId, clerkUserId])
-  @@index([clerkUserId])
-  @@index([articleId])
-  @@map("article_likes")
-}
-
-model CuratedList {
-  listId      String   @id @default(cuid())
-  clerkUserId String
-  listName    String
-  description String?
-  isPublic    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  items       CuratedListItem[]
-  
-  @@index([clerkUserId])
-  @@index([isPublic])
-  @@map("curated_lists")
-}
-
-model CuratedListItem {
-  itemId      String   @id @default(cuid())
-  listId      String
-  articleId   String
-  order       Int
-  notes       String?  @db.Text
-  addedAt     DateTime @default(now())
-  
-  list        CuratedList @relation(fields: [listId], references: [listId], onDelete: Cascade)
-  article     Article     @relation(fields: [articleId], references: [articleId])
-  
-  @@unique([listId, articleId])
-  @@index([listId])
-  @@index([articleId])
-  @@map("curated_list_items")
-}
-
-model SubscriptionHistory {
-  historyId           String   @id @default(cuid())
-  clerkUserId         String
-  subscriptionId      String
-  eventType           String   // e.g., "created", "updated", "cancelled"
-  previousTier        SubscriptionTier?
-  newTier             SubscriptionTier
-  previousStatus      SubscriptionStatus?
-  newStatus           SubscriptionStatus
-  amount              Int?     // Amount in cents
-  currency            String?  // e.g., "usd"
-  stripeEventId       String?  @unique
-  metadata            Json?    // Additional event data from Stripe
-  createdAt           DateTime @default(now())
-  
-  user                User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  
-  @@index([clerkUserId])
-  @@index([subscriptionId])
-  @@index([createdAt])
-  @@map("subscription_history")
-}
-
-model SubscriptionPricing {
-  pricingId        String   @id @default(cuid())
-  tier             SubscriptionTier @unique
-  stripePriceId    String   @unique
-  monthlyPriceCents Int
-  yearlyPriceCents Int
-  features         String[] // Array of feature descriptions
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  
-  @@index([tier])
-  @@map("subscription_pricing")
-}
-
-model Tag {
-  tagId       String   @id @default(cuid())
-  tagName     String   @unique
-  description String?
-  color       String?  // Optional hex color for tag display
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  articles    ArticleTag[]
-  
-  @@index([tagName])
-  @@map("tags")
-}
-
-model ArticleTag {
-  articleTagId String @id @default(cuid())
-  articleId    String
-  tagId        String
-  createdAt    DateTime @default(now())
-  
-  article      Article @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  tag          Tag     @relation(fields: [tagId], references: [tagId], onDelete: Cascade)
-  
-  @@unique([articleId, tagId])
-  @@index([articleId])
-  @@index([tagId])
-  @@map("article_tags")
-}
-
-model AIModel {
-  modelId             String   @id @default(cuid())
-  modelName           String   @unique  // e.g., "gpt-4-0125-preview", "claude-3-sonnet"
-  provider            String              // e.g., "openai", "anthropic", "google"
-  displayName         String              // User-friendly name e.g., "GPT-4 Turbo"
-  description         String?
-  apiKey              String              // Encrypted API key
-  inputTokenCostPer1M  Decimal  @db.Decimal(10, 6)  // Cost per 1M input tokens in USD
-  outputTokenCostPer1M Decimal  @db.Decimal(10, 6)  // Cost per 1M output tokens in USD
-  maxTokens           Int?                // Maximum tokens supported
-  isActive            Boolean  @default(true)
-  isDefault           Boolean  @default(false)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
-  interactionTypes    AIInteractionType[]
-  interactions        AIInteraction[]
-  
-  @@index([provider])
-  @@index([isActive])
-  @@index([isDefault])
-  @@map("ai_models")
-}
-
-model AIInteractionType {
-  typeId          String   @id @default(cuid())
-  typeName        String   @unique  // e.g., "article_generation", "chat", "quiz_marking"
-  displayName     String              // User-friendly name
-  description     String?
-  defaultModelId  String?             // Default model for this interaction type
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  defaultModel    AIModel? @relation(fields: [defaultModelId], references: [modelId], onDelete: SetNull)
-  interactions    AIInteraction[]
-  
-  @@index([typeName])
-  @@map("ai_interaction_types")
-}
-
-model AIInteraction {
-  interactionId       String   @id @default(cuid())
-  clerkUserId         String?             // User who initiated the interaction (null for system operations)
-  modelId             String
-  interactionTypeId   String
-  
-  // Token usage and costs
-  inputTokens         Int
-  outputTokens        Int
-  inputTokenCost      Decimal  @db.Decimal(10, 8)   // Actual cost for input tokens
-  outputTokenCost     Decimal  @db.Decimal(10, 8)   // Actual cost for output tokens
-  totalCost           Decimal  @db.Decimal(10, 8)   // Total cost of this interaction
-  
-  // Context and metadata
-  prompt              String?  @db.Text            // The prompt sent to AI (optional for privacy)
-  response            String?  @db.Text            // AI response (optional for privacy)
-  contextData         Json?                        // Additional context (article ID, example ID, etc.)
-  
-  // Timing
-  startedAt           DateTime @default(now())
-  completedAt         DateTime?
-  durationMs          Int?                         // Duration in milliseconds
-  
-  // Error handling
-  isSuccessful        Boolean  @default(true)
-  errorMessage        String?  @db.Text
-  
-  user                User?    @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: SetNull)
-  model               AIModel  @relation(fields: [modelId], references: [modelId])
-  interactionType     AIInteractionType @relation(fields: [interactionTypeId], references: [typeId])
-  
-  @@index([clerkUserId])
-  @@index([modelId])
-  @@index([interactionTypeId])
-  @@index([startedAt])
-  @@index([isSuccessful])
-  @@map("ai_interactions")
 }

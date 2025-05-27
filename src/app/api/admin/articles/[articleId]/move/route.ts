@@ -43,11 +43,29 @@ export async function PATCH(
       );
     }
 
-    const article = await prisma.article.update({
+    // Remove all existing categories for this article
+    await prisma.articleCategory.deleteMany({
       where: { articleId },
-      data: { categoryId },
+    });
+
+    // Add the new category
+    await prisma.articleCategory.create({
+      data: {
+        articleId,
+        categoryId,
+        isPrimary: true,
+      },
+    });
+
+    // Fetch updated article with categories
+    const article = await prisma.article.findUnique({
+      where: { articleId },
       include: {
-        category: true,
+        categories: {
+          include: {
+            category: true,
+          },
+        },
       },
     });
 

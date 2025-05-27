@@ -27,7 +27,11 @@ export async function GET(
     // Fetch articles in this category
     const articles = await prisma.article.findMany({
       where: {
-        categoryId,
+        categories: {
+          some: {
+            categoryId,
+          },
+        },
       },
       select: {
         articleId: true,

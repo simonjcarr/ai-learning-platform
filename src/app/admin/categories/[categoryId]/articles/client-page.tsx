@@ -29,10 +29,12 @@ interface Category {
 }
 
 interface SearchArticle extends Article {
-  category: {
-    id: string;
-    categoryName: string;
-  };
+  categories: Array<{
+    category: {
+      id: string;
+      categoryName: string;
+    };
+  }>;
 }
 
 export default function CategoryArticlesClientPage({ categoryId }: { categoryId: string }) {
@@ -398,7 +400,7 @@ export default function CategoryArticlesClientPage({ categoryId }: { categoryId:
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg">{article.title}</h3>
                           <p className="text-sm text-gray-500 mt-1">
-                            Current category: <span className="font-medium">{article.category.categoryName}</span>
+                            Current categories: <span className="font-medium">{article.categories?.map(c => c.category.categoryName).join(', ') || 'None'}</span>
                           </p>
                           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                             <span className="flex items-center gap-1">

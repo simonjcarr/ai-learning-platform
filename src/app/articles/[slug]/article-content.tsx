@@ -18,10 +18,12 @@ interface Article {
   contentHtml: string | null;
   isContentGenerated: boolean;
   isFlagged: boolean;
-  category: {
-    categoryId: string;
-    categoryName: string;
-  } | null;
+  categories: Array<{
+    category: {
+      categoryId: string;
+      categoryName: string;
+    };
+  }>;
   stream: {
     streamId: string;
     streamName: string;
@@ -120,7 +122,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                 </Link>
               </li>
             </>
-          ) : article.category ? (
+          ) : article.categories && article.categories.length > 0 ? (
             <>
               <li>
                 <Link href="/categories" className="hover:text-gray-900">
@@ -130,10 +132,10 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
               <li>/</li>
               <li>
                 <Link 
-                  href={`/categories/${article.category.categoryId}`} 
+                  href={`/categories/${article.categories[0].category.categoryId}`} 
                   className="hover:text-gray-900"
                 >
-                  {article.category.categoryName}
+                  {article.categories[0].category.categoryName}
                 </Link>
               </li>
             </>
