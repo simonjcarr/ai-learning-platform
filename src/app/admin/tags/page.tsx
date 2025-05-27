@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { Role } from '@prisma/client';
 
@@ -318,6 +319,12 @@ export default function AdminTagsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <Link
+                      href={`/admin/tags/${tag.tagId}/articles`}
+                      className="text-blue-600 hover:text-blue-900 mr-4"
+                    >
+                      View Articles
+                    </Link>
                     <button
                       onClick={() => startEdit(tag)}
                       className="text-indigo-600 hover:text-indigo-900 mr-4"

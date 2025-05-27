@@ -113,6 +113,19 @@ export async function POST(request: Request) {
                 { contentHtml: { contains: query, mode: 'insensitive' } }
               ]
             },
+            // Tag-based search (when query starts with #)
+            ...(query.startsWith('#') ? [{
+              tags: {
+                some: {
+                  tag: {
+                    tagName: {
+                      contains: query.slice(1), // Remove the # prefix
+                      mode: 'insensitive' as const
+                    }
+                  }
+                }
+              }
+            }] : []),
             // Keyword matches in title and content
             ...searchKeywords.flatMap(keyword => [
               { articleTitle: { contains: keyword, mode: 'insensitive' } },
@@ -121,11 +134,31 @@ export async function POST(request: Request) {
                   { contentHtml: { not: null } },
                   { contentHtml: { contains: keyword, mode: 'insensitive' } }
                 ]
+              },
+              // Search by tag names in keywords as well
+              {
+                tags: {
+                  some: {
+                    tag: {
+                      tagName: {
+                        contains: keyword,
+                        mode: 'insensitive' as const
+                      }
+                    }
+                  }
+                }
               }
             ])
           ]
         },
-        include: { category: true }
+        include: { 
+          category: true,
+          tags: {
+            include: {
+              tag: true
+            }
+          }
+        }
       })
     ]);
     
@@ -138,6 +171,7 @@ export async function POST(request: Request) {
       const titleLower = article.articleTitle.toLowerCase();
       const categoryLower = article.category.categoryName.toLowerCase();
       const contentLower = article.contentHtml?.toLowerCase() || '';
+      const tagNames = article.tags?.map(t => t.tag.tagName.toLowerCase()) || [];
       let score = 0;
       
       // Skip articles from clearly different technology categories
@@ -181,6 +215,20 @@ export async function POST(request: Request) {
       // Category relevance bonus
       if (categoryLower.includes(query.toLowerCase())) {
         score += 20;
+      }
+
+      // Tag-based scoring (very high value for tag matches)
+      if (query.startsWith('#')) {
+        const tagQuery = query.slice(1).toLowerCase();
+        if (tagNames.some(tag => tag.includes(tagQuery))) {
+          score += 150; // Very high score for exact tag matches
+        }
+      } else {
+        // Regular keyword matches in tags
+        const tagKeywordMatches = searchKeywords.filter(keyword => 
+          tagNames.some(tag => tag.includes(keyword.toLowerCase()))
+        ).length;
+        score += tagKeywordMatches * 25; // High value for tag keyword matches
       }
       
       // Ensure minimum score for any match
@@ -345,7 +393,14 @@ export async function POST(request: Request) {
             isContentGenerated: false,
             createdByClerkUserId: userId || null  // Make it null if no user
           },
-          include: { category: true }
+          include: { 
+            category: true,
+            tags: {
+              include: {
+                tag: true
+              }
+            }
+          }
         });
         newArticles.push(newArticle);
       }

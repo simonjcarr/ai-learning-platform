@@ -33,12 +33,21 @@ interface Category {
   categoryName: string;
 }
 
+interface Tag {
+  tagId: string;
+  tagName: string;
+  description: string | null;
+  color: string | null;
+}
+
 export default function EditArticlePage({ params }: PageProps) {
   const { articleId } = use(params);
   const router = useRouter();
   const { hasMinRole, isLoadingRole } = useAuth();
   const [article, setArticle] = useState<Article | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [articleTags, setArticleTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +58,7 @@ export default function EditArticlePage({ params }: PageProps) {
   const [slug, setSlug] = useState("");
   const [content, setContent] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isLoadingRole && !hasMinRole(Role.EDITOR)) {
@@ -60,6 +70,8 @@ export default function EditArticlePage({ params }: PageProps) {
     if (!isLoadingRole && hasMinRole(Role.EDITOR)) {
       fetchArticle();
       fetchCategories();
+      fetchAllTags();
+      fetchArticleTags();
     }
   }, [articleId, isLoadingRole]);
 
@@ -101,12 +113,38 @@ export default function EditArticlePage({ params }: PageProps) {
     }
   }
 
+  async function fetchAllTags() {
+    try {
+      const response = await fetch("/api/admin/tags");
+      if (!response.ok) throw new Error("Failed to fetch tags");
+      
+      const data = await response.json();
+      setAllTags(data);
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+    }
+  }
+
+  async function fetchArticleTags() {
+    try {
+      const response = await fetch(`/api/admin/articles/${articleId}/tags`);
+      if (!response.ok) throw new Error("Failed to fetch article tags");
+      
+      const data = await response.json();
+      setArticleTags(data);
+      setSelectedTagIds(data.map((tag: Tag) => tag.tagId));
+    } catch (error) {
+      console.error("Error fetching article tags:", error);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     setError(null);
     
     try {
-      const response = await fetch(`/api/admin/articles/${articleId}`, {
+      // Save article details
+      const articleResponse = await fetch(`/api/admin/articles/${articleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -117,9 +155,23 @@ export default function EditArticlePage({ params }: PageProps) {
         }),
       });
       
-      if (!response.ok) {
-        const data = await response.json();
+      if (!articleResponse.ok) {
+        const data = await articleResponse.json();
         throw new Error(data.error || "Failed to save article");
+      }
+
+      // Save tags
+      const tagsResponse = await fetch(`/api/admin/articles/${articleId}/tags`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tagIds: selectedTagIds,
+        }),
+      });
+      
+      if (!tagsResponse.ok) {
+        const data = await tagsResponse.json();
+        throw new Error(data.error || "Failed to save tags");
       }
       
       router.push("/admin/articles");
@@ -139,6 +191,14 @@ export default function EditArticlePage({ params }: PageProps) {
       .replace(/-+/g, "-")
       .trim();
     setSlug(newSlug);
+  }
+
+  function handleTagToggle(tagId: string) {
+    setSelectedTagIds(prev => 
+      prev.includes(tagId) 
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    );
   }
 
   if (isLoadingRole || loading) {
@@ -260,6 +320,45 @@ export default function EditArticlePage({ params }: PageProps) {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tags
+              </label>
+              <div className="border border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto">
+                {allTags.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No tags available</p>
+                ) : (
+                  <div className="space-y-2">
+                    {allTags.map((tag) => (
+                      <label key={tag.tagId} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedTagIds.includes(tag.tagId)}
+                          onChange={() => handleTagToggle(tag.tagId)}
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        />
+                        <span className="flex items-center space-x-2">
+                          {tag.color && (
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                          )}
+                          <span className="text-sm">{tag.tagName}</span>
+                          {tag.description && (
+                            <span className="text-xs text-gray-500">({tag.description})</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Select the tags that apply to this article
+              </p>
             </div>
 
             <div>

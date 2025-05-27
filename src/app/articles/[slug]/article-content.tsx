@@ -183,16 +183,17 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           <div className="mt-4">
             <div className="flex flex-wrap gap-2">
               {article.tags.map(({ tag }) => (
-                <span
+                <Link
                   key={tag.tagId}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white shadow-sm"
+                  href={`/search?q=${encodeURIComponent(`#${tag.tagName}`)}`}
+                  className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white shadow-sm hover:opacity-80 transition-opacity"
                   style={{ 
                     backgroundColor: tag.color || '#3B82F6',
                   }}
-                  title={tag.description || undefined}
+                  title={tag.description ? `${tag.description} - Click to find more articles with this tag` : `Click to find more articles with #${tag.tagName}`}
                 >
                   #{tag.tagName}
-                </span>
+                </Link>
               ))}
             </div>
           </div>

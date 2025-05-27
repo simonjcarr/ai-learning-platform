@@ -20,6 +20,14 @@ interface SearchResults {
     category: {
       categoryName: string;
     };
+    tags: Array<{
+      tag: {
+        tagId: string;
+        tagName: string;
+        description: string | null;
+        color: string | null;
+      };
+    }>;
   }>;
   aiSuggestions: {
     newCategoriesAdded: number;
@@ -243,6 +251,25 @@ export default function SearchPage() {
                         <p className="mt-1 text-sm text-gray-600">
                           in {article.category.categoryName}
                         </p>
+                        {/* Tags */}
+                        {article.tags && article.tags.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {article.tags.map(({ tag }) => (
+                              <Link
+                                key={tag.tagId}
+                                href={`/search?q=${encodeURIComponent(`#${tag.tagName}`)}`}
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white hover:opacity-80 transition-opacity"
+                                style={{ 
+                                  backgroundColor: tag.color || '#3B82F6',
+                                }}
+                                title={tag.description ? `${tag.description} - Click to find more articles with this tag` : `Click to find more articles with #${tag.tagName}`}
+                                onClick={(e) => e.stopPropagation()} // Prevent triggering the article link
+                              >
+                                #{tag.tagName}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {!article.isContentGenerated && (
                         <span className="ml-4 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
