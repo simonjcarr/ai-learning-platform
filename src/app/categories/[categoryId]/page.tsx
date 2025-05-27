@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { FileText, Clock, User, AlertCircle } from "lucide-react";
+import { FileText } from "lucide-react";
+import { ArticleCard } from "./article-card";
 
 interface PageProps {
   params: Promise<{ categoryId: string }>;
@@ -84,56 +85,7 @@ export default async function CategoryDetailPage({ params }: PageProps) {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Published Articles</h2>
           <div className="grid gap-4">
             {publishedArticles.map((article) => (
-              <Link
-                key={article.articleId}
-                href={`/articles/${article.articleSlug}`}
-                className="block p-6 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      {article.articleTitle}
-                    </h3>
-                    <div className="flex items-center text-sm text-gray-500 space-x-4">
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        <span>{new Date(article.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      {article.createdBy?.username && (
-                        <div className="flex items-center">
-                          <User className="h-4 w-4 mr-1" />
-                          <span>{article.createdBy.username}</span>
-                        </div>
-                      )}
-                      {article._count.interactiveExamples > 0 && (
-                        <div className="flex items-center text-blue-600">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>{article._count.interactiveExamples} examples</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Tags */}
-                    {article.tags && article.tags.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {article.tags.map(({ tag }) => (
-                          <Link
-                            key={tag.tagId}
-                            href={`/search?q=${encodeURIComponent(`#${tag.tagName}`)}`}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white hover:opacity-80 transition-opacity"
-                            style={{ 
-                              backgroundColor: tag.color || '#3B82F6',
-                            }}
-                            title={tag.description ? `${tag.description} - Click to find more articles with this tag` : `Click to find more articles with #${tag.tagName}`}
-                          >
-                            #{tag.tagName}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <FileText className="h-5 w-5 text-gray-400 ml-4 flex-shrink-0" />
-                </div>
-              </Link>
+              <ArticleCard key={article.articleId} article={article} />
             ))}
           </div>
         </section>
