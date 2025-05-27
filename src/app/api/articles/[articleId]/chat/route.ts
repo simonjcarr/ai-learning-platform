@@ -95,7 +95,11 @@ export async function POST(
     const article = await prisma.article.findUnique({
       where: { articleId },
       include: {
-        category: true,
+        categories: {
+          include: {
+            category: true
+          }
+        },
         stream: {
           include: {
             channel: true
