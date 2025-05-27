@@ -82,10 +82,9 @@ export async function checkSubscription(userId?: string | null) {
   }
 
   // Check if subscription is active
-  const isActive = 
-    user.subscriptionStatus === 'ACTIVE' &&
-    user.subscriptionCurrentPeriodEnd &&
-    new Date(user.subscriptionCurrentPeriodEnd) > new Date();
+  // If status is ACTIVE, consider it active even if period end is null or in the past
+  // This handles cases where the subscription webhook hasn't updated the period end yet
+  const isActive = user.subscriptionStatus === 'ACTIVE';
 
   const effectiveTier = isActive ? user.subscriptionTier : 'FREE';
 

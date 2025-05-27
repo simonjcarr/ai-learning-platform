@@ -26,9 +26,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Check if subscription is still active
-    const isActive = user.subscriptionStatus === 'ACTIVE' && 
-                    user.subscriptionCurrentPeriodEnd && 
-                    new Date(user.subscriptionCurrentPeriodEnd) > new Date();
+    // If status is ACTIVE, consider it active even if period end is null or in the past
+    const isActive = user.subscriptionStatus === 'ACTIVE';
 
     // Ensure tier is always a valid value
     const tier = user.subscriptionTier || 'FREE';
