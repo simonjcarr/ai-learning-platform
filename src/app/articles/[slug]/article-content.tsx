@@ -9,6 +9,7 @@ import MarkdownViewer from "@/components/markdown-viewer";
 import CommentsList from "@/components/comments/comments-list";
 import LikeButton from "@/components/like-button";
 import AddToListButton from "@/components/add-to-list-button";
+import { FlagButton } from "@/components/flag-button";
 
 interface Article {
   articleId: string;
@@ -16,6 +17,7 @@ interface Article {
   articleSlug: string;
   contentHtml: string | null;
   isContentGenerated: boolean;
+  isFlagged: boolean;
   category: {
     categoryId: string;
     categoryName: string;
@@ -159,6 +161,11 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             <AddToListButton 
               articleId={article.articleId} 
               articleTitle={article.articleTitle}
+            />
+            <FlagButton 
+              type="article" 
+              id={article.articleId} 
+              isFlagged={article.isFlagged}
             />
           </div>
         </div>

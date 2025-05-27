@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { MessageCircle, Trash2, User } from "lucide-react";
 import Image from "next/image";
 import CommentForm from "./comment-form";
+import { FlagButton } from "@/components/flag-button";
 
 interface CommentUser {
   clerkUserId: string;
@@ -18,6 +19,7 @@ interface CommentData {
   commentId: string;
   content: string;
   createdAt: string;
+  isFlagged: boolean;
   user: CommentUser;
   replies?: CommentData[];
 }
@@ -139,6 +141,13 @@ export default function Comment({
                 {isDeleting ? "Deleting..." : "Delete"}
               </button>
             )}
+            
+            <FlagButton 
+              type="comment" 
+              id={comment.commentId} 
+              isFlagged={comment.isFlagged}
+              onFlagChange={onCommentDeleted}
+            />
           </div>
           
           {isReplying && (

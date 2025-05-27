@@ -74,9 +74,9 @@ export function Navbar() {
                 >
                   Dashboard
                 </Link>
-                {hasMinRole(Role.ADMIN) && (
+                {hasMinRole(Role.EDITOR) && (
                   <Link
-                    href="/admin/users"
+                    href={hasMinRole(Role.ADMIN) ? "/admin/users" : "/admin/articles"}
                     className={cn(
                       "flex items-center space-x-1 text-sm font-medium transition-colors",
                       pathname.startsWith("/admin")

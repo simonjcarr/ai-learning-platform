@@ -34,8 +34,10 @@ model User {
   role                Role     @default(USER)
   
   articles            Article[]
+  flaggedArticles     Article[] @relation("FlaggedArticles")
   userResponses       UserResponse[]
   comments            Comment[]
+  flaggedComments     Comment[] @relation("FlaggedComments")
   chatMessages        ChatMessage[]
   likedArticles       ArticleLike[]
   curatedLists        CuratedList[]
@@ -69,9 +71,16 @@ model Article {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   
+  // Flagging fields
+  isFlagged            Boolean  @default(false)
+  flaggedAt            DateTime?
+  flaggedByClerkUserId String?
+  flagReason           String?  @db.Text
+  
   category             Category? @relation(fields: [categoryId], references: [categoryId])
   stream               Stream?   @relation(fields: [streamId], references: [streamId])
   createdBy            User?     @relation(fields: [createdByClerkUserId], references: [clerkUserId], onDelete: SetNull)
+  flaggedBy            User?     @relation("FlaggedArticles", fields: [flaggedByClerkUserId], references: [clerkUserId], onDelete: SetNull)
   interactiveExamples  InteractiveExample[]
   comments             Comment[]
   chatMessages         ChatMessage[]
@@ -84,6 +93,7 @@ model Article {
   @@index([articleTitle])
   @@index([isContentGenerated])
   @@index([createdByClerkUserId])
+  @@index([isFlagged])
   @@map("articles")
 }
 
@@ -167,14 +177,22 @@ model Comment {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
+  // Flagging fields
+  isFlagged            Boolean  @default(false)
+  flaggedAt            DateTime?
+  flaggedByClerkUserId String?
+  flagReason           String?  @db.Text
+  
   article      Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
   user         User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  flaggedBy    User?    @relation("FlaggedComments", fields: [flaggedByClerkUserId], references: [clerkUserId], onDelete: SetNull)
   parent       Comment? @relation("CommentReplies", fields: [parentId], references: [commentId], onDelete: Cascade)
   replies      Comment[] @relation("CommentReplies")
   
   @@index([articleId])
   @@index([clerkUserId])
   @@index([parentId])
+  @@index([isFlagged])
   @@map("comments")
 }
 
@@ -290,4 +308,19 @@ model SubscriptionHistory {
   @@index([subscriptionId])
   @@index([createdAt])
   @@map("subscription_history")
+}
+
+model SubscriptionPricing {
+  pricingId        String   @id @default(cuid())
+  tier             SubscriptionTier @unique
+  stripePriceId    String   @unique
+  monthlyPriceCents Int
+  yearlyPriceCents Int
+  features         String[] // Array of feature descriptions
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@index([tier])
+  @@map("subscription_pricing")
 }
