@@ -156,7 +156,9 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             <span>
               {article.stream 
                 ? `${article.stream.channel.channelName} / ${article.stream.streamName}`
-                : article.category?.categoryName || 'Uncategorized'
+                : article.categories && article.categories.length > 0 
+                  ? article.categories.map(c => c.category.categoryName).join(', ')
+                  : 'Uncategorized'
               }
             </span>
             {article.createdBy?.username && (
