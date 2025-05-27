@@ -6,14 +6,33 @@ import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { FileText, Flag, DollarSign, Users, Shield } from "lucide-react";
+import { useEffect } from "react";
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { userRole, hasMinRole } = useAuth();
+  const { userRole, hasMinRole, isLoadingRole } = useAuth();
   const pathname = usePathname();
+
+  useEffect(() => {
+    console.log("Admin Layout - Loading role:", isLoadingRole);
+    console.log("Admin Layout - User role:", userRole);
+    console.log("Admin Layout - Has EDITOR role:", hasMinRole(Role.EDITOR));
+  }, [userRole, isLoadingRole, hasMinRole]);
+
+  // Show loading state while role is being fetched
+  if (isLoadingRole) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading admin panel...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Redirect if not at least EDITOR role
   if (!hasMinRole(Role.EDITOR)) {

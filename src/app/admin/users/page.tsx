@@ -29,18 +29,23 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log("AdminUsersPage - isLoadingRole:", isLoadingRole);
+    console.log("AdminUsersPage - userRole:", userRole);
+    console.log("AdminUsersPage - hasMinRole(ADMIN):", hasMinRole(Role.ADMIN));
+    
     if (!isLoadingRole && !hasMinRole(Role.ADMIN)) {
       router.push("/dashboard");
     }
   }, [userRole, isLoadingRole, hasMinRole, router]);
 
   useEffect(() => {
-    if (hasMinRole(Role.ADMIN)) {
+    if (!isLoadingRole && hasMinRole(Role.ADMIN)) {
       fetchUsers();
     }
-  }, [page, search, hasMinRole]);
+  }, [page, search, isLoadingRole]);
 
   const fetchUsers = async () => {
     try {
@@ -52,13 +57,18 @@ export default function AdminUsersPage() {
       });
 
       const response = await fetch(`/api/admin/users?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch users");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch users: ${response.status}`);
+      }
 
       const data = await response.json();
       setUsers(data.users);
       setTotalPages(data.pagination.totalPages);
+      setError(null);
     } catch (error) {
       console.error("Error fetching users:", error);
+      setError(error instanceof Error ? error.message : "Failed to fetch users");
     } finally {
       setLoading(false);
     }
@@ -138,9 +148,24 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          Error: {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : error ? (
+        <div className="text-center py-8">
+          <button
+            onClick={() => fetchUsers()}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            Try again
+          </button>
         </div>
       ) : (
         <div className="bg-white shadow-sm rounded-lg overflow-hidden">
