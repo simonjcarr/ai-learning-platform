@@ -19,6 +19,11 @@ export default async function CategoryDetailPage({ params }: PageProps) {
               createdBy: true,
               _count: {
                 select: { interactiveExamples: true }
+              },
+              tags: {
+                include: {
+                  tag: true
+                }
               }
             }
           }
@@ -107,6 +112,24 @@ export default async function CategoryDetailPage({ params }: PageProps) {
                         </div>
                       )}
                     </div>
+                    {/* Tags */}
+                    {article.tags && article.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {article.tags.map(({ tag }) => (
+                          <Link
+                            key={tag.tagId}
+                            href={`/search?q=${encodeURIComponent(`#${tag.tagName}`)}`}
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white hover:opacity-80 transition-opacity"
+                            style={{ 
+                              backgroundColor: tag.color || '#3B82F6',
+                            }}
+                            title={tag.description ? `${tag.description} - Click to find more articles with this tag` : `Click to find more articles with #${tag.tagName}`}
+                          >
+                            #{tag.tagName}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <FileText className="h-5 w-5 text-gray-400 ml-4 flex-shrink-0" />
                 </div>
