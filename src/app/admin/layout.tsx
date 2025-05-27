@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen } from "lucide-react";
 import { useEffect } from "react";
 
 export default function AdminLayout({
@@ -56,6 +56,12 @@ export default function AdminLayout({
       name: "Users",
       href: "/admin/users",
       icon: Users,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "Categories",
+      href: "/admin/categories",
+      icon: FolderOpen,
       minRole: Role.ADMIN,
     },
     {
