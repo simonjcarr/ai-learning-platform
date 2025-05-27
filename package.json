@@ -17,7 +17,8 @@
     "postinstall": "prisma generate",
     "stripe:setup": "tsx scripts/setup-stripe-products.ts",
     "stripe:portal": "tsx scripts/setup-stripe-portal.ts",
-    "delete-user": "tsx scripts/delete-user.ts"
+    "delete-user": "tsx scripts/delete-user.ts",
+    "update-role": "tsx scripts/update-user-role.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

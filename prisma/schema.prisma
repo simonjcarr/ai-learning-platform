@@ -30,6 +30,9 @@ model User {
   subscriptionId      String?
   subscriptionCurrentPeriodEnd DateTime?
   
+  // RBAC role field
+  role                Role     @default(USER)
+  
   articles            Article[]
   userResponses       UserResponse[]
   comments            Comment[]
@@ -208,6 +211,13 @@ enum SubscriptionStatus {
   INACTIVE
   CANCELLED
   PAST_DUE
+}
+
+enum Role {
+  USER
+  EDITOR
+  MODERATOR
+  ADMIN
 }
 
 model ArticleLike {
