@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     let searchIntent = '';
     
     try {
-      const keywordResponse = await aiService.extractSearchKeywords(query);
+      const keywordResponse = await aiService.extractSearchKeywords(query, userId);
       searchKeywords = keywordResponse.keywords;
       searchIntent = keywordResponse.search_intent;
       console.log("AI extracted keywords:", searchKeywords);
@@ -288,7 +288,7 @@ export async function POST(request: Request) {
       console.log(`Will generate ${articlesNeeded} new articles targeting keywords: ${searchKeywords.join(', ')}`);
 
       try {
-        console.log(`Calling AI (${aiService.getProviderInfo().provider})...`);
+        console.log('Calling AI for search suggestions...');
         
         // Fetch ALL categories for AI context
         const allCategories = await prisma.category.findMany({
@@ -313,7 +313,8 @@ export async function POST(request: Request) {
           enhancedQuery, 
           allCategories,
           existingContent.articles,
-          articlesNeeded
+          articlesNeeded,
+          userId
         );
         
         console.log("AI suggestions:", {
@@ -415,7 +416,7 @@ export async function POST(request: Request) {
     if (allArticles.length > 1) {
       try {
         console.log("Calling AI to reorder search results for better relevance...");
-        const reorderResponse = await aiService.reorderSearchResults(query, allArticles, allCategories);
+        const reorderResponse = await aiService.reorderSearchResults(query, allArticles, allCategories, userId);
         
         // Create a map for quick lookup
         const articleMap = new Map(allArticles.map(article => [article.articleId, article]));

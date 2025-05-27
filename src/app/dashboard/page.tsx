@@ -1,9 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon } from "lucide-react";
+import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon, Brain } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionStatus } from "@/components/subscription-status";
+import { Role } from "@prisma/client";
 
 interface DashboardStats {
   articlesRead: number;
@@ -196,7 +197,13 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  const stats = await getDashboardStats(userId);
+  const [stats, user] = await Promise.all([
+    getDashboardStats(userId),
+    prisma.user.findUnique({
+      where: { clerkUserId: userId },
+      select: { role: true }
+    })
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -260,6 +267,17 @@ export default async function DashboardPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">My Lists</p>
               <p className="text-2xl font-semibold text-gray-900">Manage</p>
+            </div>
+          </div>
+        </Link>
+
+        {/* AI Usage - Show for authenticated users */}
+        <Link href="/dashboard/ai-usage" className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+          <div className="flex items-center">
+            <Brain className="h-8 w-8 text-orange-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">AI Usage</p>
+              <p className="text-2xl font-semibold text-gray-900">Analytics</p>
             </div>
           </div>
         </Link>

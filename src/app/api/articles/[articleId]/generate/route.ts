@@ -49,11 +49,12 @@ export async function POST(
     }
 
     // Generate content using AI service
-    console.log(`Generating content with ${aiService.getProviderInfo().provider}...`);
+    console.log('Generating content with AI...');
     
     const result = await aiService.generateArticleContent(
       article.articleTitle,
-      article.category.categoryName
+      article.category.categoryName,
+      userId
     );
 
     const generatedContent = result.content;
@@ -73,7 +74,8 @@ export async function POST(
     const tagSelection = await aiService.selectAndCreateTags(
       article.articleTitle,
       article.category.categoryName,
-      existingTags
+      existingTags,
+      userId
     );
 
     // Create new tags first

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService, type MarkingResponse } from "@/lib/ai-service";
 
@@ -9,8 +9,7 @@ export async function POST(
 ) {
   const { exampleId } = await params;
   try {
-    const user = await currentUser();
-    const userId = user?.id;
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -44,13 +43,14 @@ export async function POST(
     // The correct answer handling will be done by the AI marking system
 
     // Use AI service to mark the answer
-    console.log(`Marking answer with ${aiService.getProviderInfo().provider}...`);
+    console.log('Marking answer with AI...');
     
     const markingResult = await aiService.markUserAnswer(
       example.scenarioOrQuestionText,
       userAnswer,
       example.questionType,
-      example.aiMarkingPromptHint || undefined
+      example.aiMarkingPromptHint || undefined,
+      userId
     );
 
     // Save the user's response

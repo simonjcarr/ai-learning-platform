@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { openai } from '@/lib/openai';
 import { checkSubscription } from '@/lib/subscription-check';
+import { generateText } from 'ai';
+import { createProviderForModel, getModelForInteraction, trackAIInteraction } from '@/lib/ai-service';
 
 export async function GET(
   req: NextRequest,
@@ -193,15 +194,70 @@ ${context}`,
       content,
     });
 
-    // Get AI response
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages,
-      temperature: 0.7,
-      max_tokens: 500,
-    });
-
-    const aiResponseContent = completion.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
+    // Get AI response using new tracking system
+    const startTime = new Date();
+    let aiResponseContent;
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('chat');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      // Convert messages to the format needed by generateText
+      const systemMessage = messages.find(m => m.role === 'system');
+      const conversationMessages = messages.filter(m => m.role !== 'system');
+      
+      const result = await generateText({
+        model: aiModel,
+        system: systemMessage?.content,
+        messages: conversationMessages.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content
+        })),
+        temperature: 0.7,
+        maxTokens: 500,
+      });
+      
+      aiResponseContent = result.text;
+      const endTime = new Date();
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        userId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { articleId, exampleId, messageCount: messages.length },
+        content, // User's question
+        aiResponseContent
+      );
+      
+    } catch (error) {
+      console.error('AI chat error:', error);
+      aiResponseContent = 'I apologize, but I was unable to generate a response.';
+      
+      const endTime = new Date();
+      try {
+        const { model, interactionType } = await getModelForInteraction('chat');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          userId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { articleId, exampleId, error: true },
+          content,
+          undefined,
+          String(error)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+    }
 
     // Create the assistant message
     const assistantMessage = await prisma.chatMessage.create({

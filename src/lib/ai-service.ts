@@ -3,57 +3,146 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { generateObject, generateText } from 'ai';
 import { z } from 'zod';
+import { prisma } from './prisma';
+import crypto from 'crypto';
 
-// Get AI configuration from environment variables
-const AI_PROVIDER = process.env.AI_PROVIDER || 'openai';
-const AI_MODEL = process.env.AI_MODEL || 'gpt-4-0125-preview';
+// Encryption key for API keys (in production, use a proper key management service)
+const ENCRYPTION_KEY = process.env.AI_API_KEY_ENCRYPTION_KEY || 'default-key-for-development-only';
 
-// Initialize providers
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Utility functions for API key encryption/decryption
+function encryptApiKey(apiKey: string): string {
+  if (!apiKey) return '';
+  const algorithm = 'aes-256-cbc';
+  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_API_KEY,
-});
+function decryptApiKey(encryptedApiKey: string): string {
+  if (!encryptedApiKey) return '';
+  try {
+    const algorithm = 'aes-256-cbc';
+    const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+    const parts = encryptedApiKey.split(':');
+    if (parts.length !== 2) return '';
+    const iv = Buffer.from(parts[0], 'hex');
+    const encryptedText = parts[1];
+    const decipher = crypto.createDecipheriv(algorithm, key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    console.error('Failed to decrypt API key:', error);
+    return '';
+  }
+}
 
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// Provider mapping
-const providers = {
-  openai,
-  google,
-  anthropic,
-} as const;
-
-// Model mapping for easy switching
-const modelMap: Record<string, string> = {
-  // OpenAI models
-  'gpt-4-0125-preview': 'gpt-4-0125-preview',
-  'gpt-4': 'gpt-4',
-  'gpt-3.5-turbo': 'gpt-3.5-turbo',
+// Initialize providers with database models
+async function createProviderForModel(modelId: string) {
+  const model = await prisma.aIModel.findUnique({
+    where: { modelId, isActive: true }
+  });
   
-  // Google models
-  'gemini-2.5-flash': 'gemini-2.0-flash-exp',
-  'gemini-pro': 'gemini-pro',
-  
-  // Anthropic models
-  'claude-3-opus': 'claude-3-opus-20240229',
-  'claude-3-sonnet': 'claude-3-sonnet-20240229',
-  'claude-3-haiku': 'claude-3-haiku-20240307',
-};
-
-// Get the configured model
-function getModel() {
-  const provider = providers[AI_PROVIDER as keyof typeof providers];
-  if (!provider) {
-    throw new Error(`Invalid AI provider: ${AI_PROVIDER}`);
+  if (!model) {
+    throw new Error(`Model ${modelId} not found or inactive`);
   }
   
-  const modelName = modelMap[AI_MODEL] || AI_MODEL;
-  return provider(modelName);
+  const apiKey = decryptApiKey(model.apiKey);
+  if (!apiKey) {
+    throw new Error(`No API key found for model ${modelId}`);
+  }
+  
+  switch (model.provider) {
+    case 'openai':
+      return createOpenAI({ apiKey })(model.modelName);
+    case 'google':
+      return createGoogleGenerativeAI({ apiKey })(model.modelName);
+    case 'anthropic':
+      return createAnthropic({ apiKey })(model.modelName);
+    default:
+      throw new Error(`Unsupported provider: ${model.provider}`);
+  }
+}
+
+// Get model for specific interaction type
+async function getModelForInteraction(interactionTypeName: string) {
+  const interactionType = await prisma.aIInteractionType.findUnique({
+    where: { typeName: interactionTypeName },
+    include: { defaultModel: true }
+  });
+  
+  if (!interactionType?.defaultModel) {
+    // Fallback to any active default model
+    const defaultModel = await prisma.aIModel.findFirst({
+      where: { isActive: true, isDefault: true }
+    });
+    
+    if (!defaultModel) {
+      throw new Error(`No active model found for interaction type: ${interactionTypeName}`);
+    }
+    
+    return { model: defaultModel, interactionType };
+  }
+  
+  return { model: interactionType.defaultModel, interactionType };
+}
+
+// Track AI interaction
+async function trackAIInteraction(
+  modelId: string,
+  interactionTypeId: string,
+  clerkUserId: string | null,
+  inputTokens: number,
+  outputTokens: number,
+  startTime: Date,
+  endTime: Date,
+  contextData?: any,
+  prompt?: string,
+  response?: string,
+  errorMessage?: string
+) {
+  const model = await prisma.aIModel.findUnique({
+    where: { modelId }
+  });
+  
+  if (!model) {
+    console.error(`Model ${modelId} not found for tracking`);
+    return;
+  }
+  
+  const inputCost = (inputTokens / 1000000) * Number(model.inputTokenCostPer1M);
+  const outputCost = (outputTokens / 1000000) * Number(model.outputTokenCostPer1M);
+  const totalCost = inputCost + outputCost;
+  
+  const durationMs = endTime.getTime() - startTime.getTime();
+  
+  try {
+    await prisma.aIInteraction.create({
+      data: {
+        modelId,
+        interactionTypeId,
+        clerkUserId,
+        inputTokens,
+        outputTokens,
+        inputTokenCost: inputCost,
+        outputTokenCost: outputCost,
+        totalCost: totalCost,
+        prompt: prompt?.substring(0, 5000), // Limit prompt length for storage
+        response: response?.substring(0, 10000), // Limit response length for storage
+        contextData,
+        startedAt: startTime,
+        completedAt: endTime,
+        durationMs,
+        isSuccessful: !errorMessage,
+        errorMessage
+      }
+    });
+  } catch (error) {
+    console.error('Failed to track AI interaction:', error);
+  }
 }
 
 // Schema definitions for structured outputs
@@ -116,9 +205,9 @@ export const TagSelectionResponseSchema = z.object({
   explanation: z.string().optional(),
 });
 
-// AI Service functions
+// Enhanced AI Service functions with database tracking
 export const aiService = {
-  async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5) {
+  async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5, clerkUserId: string | null = null) {
     const systemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. 
 
 IMPORTANT: 
@@ -153,19 +242,68 @@ CRITICAL RULES:
 
 Your target_category_name for each article MUST match exactly one of the existing category names listed above, unless creating a new category.`;
 
-    const result = await generateObject({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      schema: AISearchResponseSchema,
-      temperature: 0.7,
-      maxTokens: 1000,
-    });
-
-    return result.object;
+    const startTime = new Date();
+    let result, error;
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('search_suggestions');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: AISearchResponseSchema,
+        temperature: 0.7,
+        maxTokens: 1000,
+      });
+      
+      const endTime = new Date();
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { query, categoriesCount: allCategories.length, articlesCount: existingArticles.length },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      error = err;
+      const endTime = new Date();
+      
+      // Try to get model info for error tracking
+      try {
+        const { model, interactionType } = await getModelForInteraction('search_suggestions');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          clerkUserId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { query, categoriesCount: allCategories.length, articlesCount: existingArticles.length },
+          userPrompt,
+          undefined,
+          String(err)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      
+      throw error;
+    }
   },
 
-  async generateArticleContent(title: string, categoryName: string) {
+  async generateArticleContent(title: string, categoryName: string, clerkUserId: string | null = null) {
     const systemPrompt = `You are an expert IT technical writer. Create comprehensive, detailed articles in Markdown format with proper headings, code examples, and clear explanations. Include practical examples and real-world scenarios. 
 
 IMPORTANT: Output pure Markdown content only. Do NOT wrap the entire response in code blocks. Start directly with the article title using # heading.`;
@@ -184,30 +322,79 @@ Requirements:
 
 Remember: Output raw Markdown text, NOT wrapped in any code blocks.`;
 
-    const result = await generateText({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      temperature: 0.7,
-      maxTokens: 4000,
-    });
+    const startTime = new Date();
+    let result, error;
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('article_generation');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      result = await generateText({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        temperature: 0.7,
+        maxTokens: 4000,
+      });
 
-    // Clean up any accidental code block wrappers
-    let content = result.text.trim();
-    if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
-      content = content.slice(12, -4).trim();
-    } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
-      content = content.slice(4, -4).trim();
+      const endTime = new Date();
+      
+      // Clean up any accidental code block wrappers
+      let content = result.text.trim();
+      if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
+        content = content.slice(12, -4).trim();
+      } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
+        content = content.slice(4, -4).trim();
+      }
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { title, categoryName },
+        userPrompt,
+        content
+      );
+
+      return {
+        title,
+        content,
+        metaDescription: `Learn about ${title} in ${categoryName}. Comprehensive guide with examples and best practices.`
+      };
+    } catch (err) {
+      error = err;
+      const endTime = new Date();
+      
+      // Try to get model info for error tracking
+      try {
+        const { model, interactionType } = await getModelForInteraction('article_generation');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          clerkUserId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { title, categoryName },
+          userPrompt,
+          undefined,
+          String(err)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      
+      throw error;
     }
-
-    return {
-      title,
-      content,
-      metaDescription: `Learn about ${title} in ${categoryName}. Comprehensive guide with examples and best practices.`
-    };
   },
 
-  async generateInteractiveExamples(articleTitle: string, categoryName: string, existingQuestions: string[]) {
+  async generateInteractiveExamples(articleTitle: string, categoryName: string, existingQuestions: string[], clerkUserId: string | null = null) {
     const systemPrompt = `You are an IT education expert creating interactive examples. Generate diverse, practical questions that test real understanding. Focus on real-world scenarios that IT professionals would encounter.`;
     
     const userPrompt = `Based on the IT article titled "${articleTitle}" in the category "${categoryName}", generate 3-5 unique interactive examples to test understanding.
@@ -221,19 +408,67 @@ For each example:
 - Include clear explanations for correct answers
 - Add keywords for AI marking (for text/command line questions)`;
 
-    const result = await generateObject({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      schema: ExampleGenerationResponseSchema,
-      temperature: 0.8,
-      maxTokens: 2000,
-    });
-
-    return result.object;
+    const startTime = new Date();
+    let result, error;
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('interactive_examples');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: ExampleGenerationResponseSchema,
+        temperature: 0.8,
+        maxTokens: 2000,
+      });
+      
+      const endTime = new Date();
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { articleTitle, categoryName, existingQuestionsCount: existingQuestions.length },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      error = err;
+      const endTime = new Date();
+      
+      try {
+        const { model, interactionType } = await getModelForInteraction('interactive_examples');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          clerkUserId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { articleTitle, categoryName, existingQuestionsCount: existingQuestions.length },
+          userPrompt,
+          undefined,
+          String(err)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      
+      throw error;
+    }
   },
 
-  async markUserAnswer(questionText: string, userAnswer: string, questionType: string, markingHint?: string) {
+  async markUserAnswer(questionText: string, userAnswer: string, questionType: string, markingHint?: string, clerkUserId: string | null = null) {
     const systemPrompt = `You are an IT education expert marking student answers. Be encouraging but accurate. Provide constructive feedback that helps learning.`;
     
     const userPrompt = `Question: ${questionText}
@@ -243,19 +478,67 @@ ${markingHint ? `Marking Hint: ${markingHint}` : ''}
 
 Evaluate if the answer is correct and provide helpful feedback. For command line questions, accept reasonable variations (e.g., with or without sudo, different flag orders).`;
 
-    const result = await generateObject({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      schema: MarkingResponseSchema,
-      temperature: 0.3,
-      maxTokens: 500,
-    });
-
-    return result.object;
+    const startTime = new Date();
+    let result, error;
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('answer_marking');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: MarkingResponseSchema,
+        temperature: 0.3,
+        maxTokens: 500,
+      });
+      
+      const endTime = new Date();
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { questionType, hasMarkingHint: !!markingHint },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      error = err;
+      const endTime = new Date();
+      
+      try {
+        const { model, interactionType } = await getModelForInteraction('answer_marking');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          clerkUserId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { questionType, hasMarkingHint: !!markingHint },
+          userPrompt,
+          undefined,
+          String(err)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      
+      throw error;
+    }
   },
 
-  async extractSearchKeywords(query: string) {
+  async extractSearchKeywords(query: string, clerkUserId: string | null = null) {
     const systemPrompt = `You are an AI assistant that analyzes user search queries to extract relevant keywords and understand search intent. Your goal is to help find the most relevant content by identifying key terms and concepts.`;
 
     const userPrompt = `User's search query: "${query}"
@@ -271,19 +554,50 @@ Examples:
 - "How to reclaim space used by docker" → keywords: ["docker", "prune", "cleanup", "storage", "disk space", "remove", "images", "containers", "volumes"]
 - "Kubernetes troubleshooting" → keywords: ["kubectl", "pods", "services", "debugging", "logs", "events", "status"]`;
 
-    const result = await generateObject({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      schema: KeywordExtractionSchema,
-      temperature: 0.3,
-      maxTokens: 500,
-    });
-
-    return result.object;
+    const startTime = new Date();
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('keyword_extraction');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      const result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: KeywordExtractionSchema,
+        temperature: 0.3,
+        maxTokens: 500,
+      });
+      
+      const endTime = new Date();
+      
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { query },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      const endTime = new Date();
+      try {
+        const { model, interactionType } = await getModelForInteraction('keyword_extraction');
+        await trackAIInteraction(model.modelId, interactionType.typeId, clerkUserId, 0, 0, startTime, endTime, { query }, userPrompt, undefined, String(err));
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      throw err;
+    }
   },
 
-  async reorderSearchResults(query: string, articles: Array<{articleId: string, articleTitle: string, category: {categoryName: string}, isContentGenerated: boolean}>, categories: Array<{categoryId: string, categoryName: string, description: string | null}>) {
+  async reorderSearchResults(query: string, articles: Array<{articleId: string, articleTitle: string, category: {categoryName: string}, isContentGenerated: boolean}>, categories: Array<{categoryId: string, categoryName: string, description: string | null}>, clerkUserId: string | null = null) {
     const systemPrompt = `You are an AI assistant that helps reorder search results based on relevance to the user's query. Your goal is to put the most relevant and helpful content first.
 
 Consider:
@@ -311,19 +625,50 @@ Please reorder these articles by relevance to the user's query. Return the artic
 
 Consider what someone searching for "${query}" would most likely want to learn about first.`;
 
-    const result = await generateObject({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      schema: ReorderResultsSchema,
-      temperature: 0.3, // Lower temperature for more consistent ordering
-      maxTokens: 1000,
-    });
-
-    return result.object;
+    const startTime = new Date();
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('search_reordering');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      const result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: ReorderResultsSchema,
+        temperature: 0.3, // Lower temperature for more consistent ordering
+        maxTokens: 1000,
+      });
+      
+      const endTime = new Date();
+      
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { query, articlesCount: articles.length, categoriesCount: categories.length },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      const endTime = new Date();
+      try {
+        const { model, interactionType } = await getModelForInteraction('search_reordering');
+        await trackAIInteraction(model.modelId, interactionType.typeId, clerkUserId, 0, 0, startTime, endTime, { query, articlesCount: articles.length }, userPrompt, undefined, String(err));
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      throw err;
+    }
   },
 
-  async selectAndCreateTags(articleTitle: string, categoryName: string, existingTags: Array<{tagId: string, tagName: string, description: string | null}>) {
+  async selectAndCreateTags(articleTitle: string, categoryName: string, existingTags: Array<{tagId: string, tagName: string, description: string | null}>, clerkUserId: string | null = null) {
     const systemPrompt = `You are an AI assistant that helps select and create relevant tags for IT articles. Your goal is to choose appropriate existing tags and suggest new ones when necessary.
 
 IMPORTANT GUIDELINES:
@@ -352,27 +697,106 @@ RULES:
 - Avoid duplicating existing tag concepts
 - For new tags, provide optional descriptions and colors`;
 
-    const result = await generateObject({
-      model: getModel(),
-      system: systemPrompt,
-      prompt: userPrompt,
-      schema: TagSelectionResponseSchema,
-      temperature: 0.3, // Lower temperature for more consistent tagging
-      maxTokens: 1000,
+    const startTime = new Date();
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('tag_selection');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      const result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: TagSelectionResponseSchema,
+        temperature: 0.3, // Lower temperature for more consistent tagging
+        maxTokens: 1000,
+      });
+      
+      const endTime = new Date();
+      
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { articleTitle, categoryName, existingTagsCount: existingTags.length },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      const endTime = new Date();
+      try {
+        const { model, interactionType } = await getModelForInteraction('tag_selection');
+        await trackAIInteraction(model.modelId, interactionType.typeId, clerkUserId, 0, 0, startTime, endTime, { articleTitle, categoryName }, userPrompt, undefined, String(err));
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      throw err;
+    }
+  },
+
+  // Get all active AI models
+  async getActiveModels() {
+    return await prisma.aIModel.findMany({
+      where: { isActive: true },
+      orderBy: { displayName: 'asc' }
     });
-
-    return result.object;
   },
 
-  // Utility function to get current provider and model info
-  getProviderInfo() {
-    return {
-      provider: AI_PROVIDER,
-      model: AI_MODEL,
-      actualModel: modelMap[AI_MODEL] || AI_MODEL,
-    };
+  // Get all interaction types
+  async getInteractionTypes() {
+    return await prisma.aIInteractionType.findMany({
+      include: { defaultModel: true },
+      orderBy: { displayName: 'asc' }
+    });
   },
+
+  // Utility functions for admin management
+  async createModel(data: {
+    modelName: string;
+    provider: string;
+    displayName: string;
+    description?: string;
+    apiKey: string;
+    inputTokenCostPer1M: number;
+    outputTokenCostPer1M: number;
+    maxTokens?: number;
+    isDefault?: boolean;
+  }) {
+    return await prisma.aIModel.create({
+      data: {
+        ...data,
+        apiKey: encryptApiKey(data.apiKey),
+        inputTokenCostPer1M: data.inputTokenCostPer1M,
+        outputTokenCostPer1M: data.outputTokenCostPer1M,
+      }
+    });
+  },
+
+  async updateModel(modelId: string, data: any) {
+    if (data.apiKey) {
+      data.apiKey = encryptApiKey(data.apiKey);
+    }
+    return await prisma.aIModel.update({
+      where: { modelId },
+      data
+    });
+  },
+
+  async deleteModel(modelId: string) {
+    return await prisma.aIModel.delete({
+      where: { modelId }
+    });
+  }
 };
+
+// Export utility functions
+export { createProviderForModel, getModelForInteraction, trackAIInteraction };
 
 // Export types
 export type CategorySuggestion = z.infer<typeof CategorySuggestionSchema>;

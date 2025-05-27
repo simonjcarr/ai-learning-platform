@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -61,6 +61,18 @@ export default function AdminLayout({
       name: "Tags",
       href: "/admin/tags",
       icon: Tags,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "AI Models",
+      href: "/admin/ai-models",
+      icon: Brain,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "AI Interactions",
+      href: "/admin/ai-interactions",
+      icon: Zap,
       minRole: Role.ADMIN,
     },
     {

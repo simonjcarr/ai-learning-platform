@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService, type ExampleGenerationResponse } from "@/lib/ai-service";
 
@@ -30,8 +30,8 @@ export async function POST(
 ) {
   const { articleId } = await params;
   try {
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -59,12 +59,13 @@ export async function POST(
     const existingQuestions = existingExamples.map(e => e.scenarioOrQuestionText);
 
     // Generate examples using AI service
-    console.log(`Generating examples with ${aiService.getProviderInfo().provider}...`);
+    console.log('Generating examples with AI...');
     
     const response = await aiService.generateInteractiveExamples(
       article.articleTitle,
       article.category.categoryName,
-      existingQuestions
+      existingQuestions,
+      userId
     );
 
     // Save generated examples
