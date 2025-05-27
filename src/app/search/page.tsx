@@ -240,14 +240,20 @@ export default function SearchPage() {
               </h2>
               <div className="space-y-4">
                 {results.articles.map((article) => (
-                  <Link
+                  <div
                     key={article.articleId}
-                    href={`/articles/${article.articleSlug}`}
-                    className="block p-4 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                    className="p-4 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{article.articleTitle}</h3>
+                        <Link
+                          href={`/articles/${article.articleSlug}`}
+                          className="hover:text-blue-600 transition-colors"
+                        >
+                          <h3 className="font-medium text-gray-900 hover:text-blue-600">
+                            {article.articleTitle}
+                          </h3>
+                        </Link>
                         <p className="mt-1 text-sm text-gray-600">
                           in {article.category.categoryName}
                         </p>
@@ -263,7 +269,6 @@ export default function SearchPage() {
                                   backgroundColor: tag.color || '#3B82F6',
                                 }}
                                 title={tag.description ? `${tag.description} - Click to find more articles with this tag` : `Click to find more articles with #${tag.tagName}`}
-                                onClick={(e) => e.stopPropagation()} // Prevent triggering the article link
                               >
                                 #{tag.tagName}
                               </Link>
@@ -277,7 +282,7 @@ export default function SearchPage() {
                         </span>
                       )}
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             </section>
