@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: Request,
-  { params }: { params: { listId: string } }
+  { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -12,9 +12,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { listId } = await params;
     const list = await prisma.curatedList.findFirst({
       where: {
-        listId: params.listId,
+        listId: listId,
         OR: [
           { clerkUserId: userId },
           { isPublic: true },
@@ -25,7 +26,7 @@ export async function GET(
           include: {
             article: {
               include: {
-                category: true,
+                categories: true,
               },
             },
           },
@@ -58,7 +59,7 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { listId: string } }
+  { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -69,9 +70,10 @@ export async function PATCH(
     const body = await request.json();
     const { listName, description, isPublic } = body;
 
+    const { listId } = await params;
     const list = await prisma.curatedList.findFirst({
       where: {
-        listId: params.listId,
+        listId: listId,
         clerkUserId: userId,
       },
     });
@@ -84,7 +86,7 @@ export async function PATCH(
     }
 
     const updatedList = await prisma.curatedList.update({
-      where: { listId: params.listId },
+      where: { listId: listId },
       data: {
         ...(listName !== undefined && { listName }),
         ...(description !== undefined && { description }),
@@ -104,7 +106,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { listId: string } }
+  { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -112,9 +114,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { listId } = await params;
     const list = await prisma.curatedList.findFirst({
       where: {
-        listId: params.listId,
+        listId: listId,
         clerkUserId: userId,
       },
     });
@@ -127,7 +130,7 @@ export async function DELETE(
     }
 
     await prisma.curatedList.delete({
-      where: { listId: params.listId },
+      where: { listId: listId },
     });
 
     return NextResponse.json({ message: 'List deleted successfully' });
