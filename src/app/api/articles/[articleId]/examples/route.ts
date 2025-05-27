@@ -40,7 +40,13 @@ export async function POST(
 
     const article = await prisma.article.findUnique({
       where: { articleId },
-      include: { category: true }
+      include: { 
+        categories: {
+          include: {
+            category: true
+          }
+        }
+      }
     });
 
     if (!article) {
@@ -61,9 +67,12 @@ export async function POST(
     // Generate examples using AI service
     console.log('Generating examples with AI...');
     
+    // Get the first category name (articles can have multiple categories)
+    const categoryName = article.categories[0]?.category.categoryName || 'General';
+    
     const response = await aiService.generateInteractiveExamples(
       article.articleTitle,
-      article.category.categoryName,
+      categoryName,
       existingQuestions,
       userId
     );
