@@ -104,6 +104,18 @@ export const KeywordExtractionSchema = z.object({
   suggested_search_terms: z.array(z.string()),
 });
 
+export const TagSuggestionSchema = z.object({
+  tagName: z.string(),
+  description: z.string().optional(),
+  color: z.string().optional(),
+});
+
+export const TagSelectionResponseSchema = z.object({
+  existing_tags: z.array(z.string()), // Tag IDs of existing tags to use
+  new_tags: z.array(TagSuggestionSchema), // New tags to create
+  explanation: z.string().optional(),
+});
+
 // AI Service functions
 export const aiService = {
   async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5) {
@@ -311,6 +323,47 @@ Consider what someone searching for "${query}" would most likely want to learn a
     return result.object;
   },
 
+  async selectAndCreateTags(articleTitle: string, categoryName: string, existingTags: Array<{tagId: string, tagName: string, description: string | null}>) {
+    const systemPrompt = `You are an AI assistant that helps select and create relevant tags for IT articles. Your goal is to choose appropriate existing tags and suggest new ones when necessary.
+
+IMPORTANT GUIDELINES:
+1. Always prefer existing tags when they are relevant
+2. Keep tag names SHORT and focused (1-3 words max)
+3. Tags should be specific technical concepts, tools, or methodologies
+4. Avoid generic words like "guide", "tutorial", "basics", "advanced"
+5. Use standard industry terminology
+6. For new tags, suggest a relevant color (hex code) that helps with organization
+7. Don't create tags that are too similar to existing ones`;
+
+    const userPrompt = `Article Title: "${articleTitle}"
+Category: "${categoryName}"
+
+EXISTING TAGS in the system:
+${existingTags.map(tag => `- ID: ${tag.tagId}, Name: "${tag.tagName}"${tag.description ? `, Description: ${tag.description}` : ''}`).join('\n')}
+
+Based on the article title and category, suggest:
+1. Which existing tags (by ID) are relevant for this article
+2. Any new tags that should be created for this article
+
+RULES:
+- Select 3-6 tags total (existing + new)
+- New tag names should be concise and technical
+- Focus on tools, technologies, concepts, methodologies
+- Avoid duplicating existing tag concepts
+- For new tags, provide optional descriptions and colors`;
+
+    const result = await generateObject({
+      model: getModel(),
+      system: systemPrompt,
+      prompt: userPrompt,
+      schema: TagSelectionResponseSchema,
+      temperature: 0.3, // Lower temperature for more consistent tagging
+      maxTokens: 1000,
+    });
+
+    return result.object;
+  },
+
   // Utility function to get current provider and model info
   getProviderInfo() {
     return {
@@ -330,3 +383,5 @@ export type ExampleGenerationResponse = z.infer<typeof ExampleGenerationResponse
 export type MarkingResponse = z.infer<typeof MarkingResponseSchema>;
 export type ReorderResultsResponse = z.infer<typeof ReorderResultsSchema>;
 export type KeywordExtractionResponse = z.infer<typeof KeywordExtractionSchema>;
+export type TagSuggestion = z.infer<typeof TagSuggestionSchema>;
+export type TagSelectionResponse = z.infer<typeof TagSelectionResponseSchema>;

@@ -18,6 +18,11 @@ export default async function ArticlePage({ params }: PageProps) {
         }
       },
       createdBy: true,
+      tags: {
+        include: {
+          tag: true
+        }
+      }
     }
   });
 

@@ -86,6 +86,7 @@ model Article {
   chatMessages         ChatMessage[]
   likes                ArticleLike[]
   curatedListItems     CuratedListItem[]
+  tags                 ArticleTag[]
   
   @@index([categoryId])
   @@index([streamId])
@@ -323,4 +324,33 @@ model SubscriptionPricing {
   
   @@index([tier])
   @@map("subscription_pricing")
+}
+
+model Tag {
+  tagId       String   @id @default(cuid())
+  tagName     String   @unique
+  description String?
+  color       String?  // Optional hex color for tag display
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  articles    ArticleTag[]
+  
+  @@index([tagName])
+  @@map("tags")
+}
+
+model ArticleTag {
+  articleTagId String @id @default(cuid())
+  articleId    String
+  tagId        String
+  createdAt    DateTime @default(now())
+  
+  article      Article @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  tag          Tag     @relation(fields: [tagId], references: [tagId], onDelete: Cascade)
+  
+  @@unique([articleId, tagId])
+  @@index([articleId])
+  @@index([tagId])
+  @@map("article_tags")
 }

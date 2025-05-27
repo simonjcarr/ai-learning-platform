@@ -33,6 +33,14 @@ interface Article {
   createdBy: {
     username: string | null;
   } | null;
+  tags: Array<{
+    tag: {
+      tagId: string;
+      tagName: string;
+      description: string | null;
+      color: string | null;
+    };
+  }>;
 }
 
 interface ArticleContentProps {
@@ -169,6 +177,26 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             />
           </div>
         </div>
+        
+        {/* Tags */}
+        {article.tags && article.tags.length > 0 && (
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2">
+              {article.tags.map(({ tag }) => (
+                <span
+                  key={tag.tagId}
+                  className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white shadow-sm"
+                  style={{ 
+                    backgroundColor: tag.color || '#3B82F6',
+                  }}
+                  title={tag.description || undefined}
+                >
+                  #{tag.tagName}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Content */}
