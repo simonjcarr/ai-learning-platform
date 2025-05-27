@@ -26,6 +26,24 @@ export function SubscriptionStatus() {
     try {
       const response = await fetch('/api/subscription/status');
       const data = await response.json();
+      
+      if (!response.ok && response.status === 404) {
+        // User not found, try to sync from Clerk
+        console.log('User not found in database, attempting to sync from Clerk...');
+        const syncResponse = await fetch('/api/user/sync', {
+          method: 'POST',
+        });
+        
+        if (syncResponse.ok) {
+          console.log('User synced successfully, fetching subscription status again...');
+          // Try fetching subscription status again
+          const retryResponse = await fetch('/api/subscription/status');
+          const retryData = await retryResponse.json();
+          setSubscription(retryData);
+          return;
+        }
+      }
+      
       setSubscription(data);
     } catch (error) {
       console.error('Failed to fetch subscription status:', error);
@@ -71,6 +89,17 @@ export function SubscriptionStatus() {
   const periodEnd = subscription.currentPeriodEnd 
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
     : null;
+
+  // Handle case where tier is not found (e.g., database has inconsistent data)
+  if (!tierInfo) {
+    console.error(`Unknown subscription tier: ${subscription.tier}`);
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">Subscription Status</h3>
+        <p className="text-sm text-gray-600">Loading subscription information...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow p-6">

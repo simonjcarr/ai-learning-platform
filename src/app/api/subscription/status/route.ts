@@ -30,8 +30,11 @@ export async function GET(req: NextRequest) {
                     user.subscriptionCurrentPeriodEnd && 
                     new Date(user.subscriptionCurrentPeriodEnd) > new Date();
 
+    // Ensure tier is always a valid value
+    const tier = user.subscriptionTier || 'FREE';
+    
     return NextResponse.json({
-      tier: user.subscriptionTier,
+      tier,
       status: user.subscriptionStatus,
       isActive,
       currentPeriodEnd: user.subscriptionCurrentPeriodEnd,
