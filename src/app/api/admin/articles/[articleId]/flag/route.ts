@@ -5,15 +5,16 @@ import prisma from "@/lib/prisma";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { articleId: string } }
+  { params }: { params: Promise<{ articleId: string }> }
 ) {
   try {
     const authUser = await requireMinRole(Role.EDITOR);
+    const { articleId } = await params;
     const body = await request.json();
     const { isFlagged, flagReason } = body;
     
     const article = await prisma.article.update({
-      where: { articleId: params.articleId },
+      where: { articleId },
       data: {
         isFlagged,
         flaggedAt: isFlagged ? new Date() : null,
