@@ -6,7 +6,6 @@ import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { FileText, Flag, DollarSign, Users, Shield, FolderOpen } from "lucide-react";
-import { useEffect } from "react";
 
 export default function AdminLayout({
   children,
@@ -15,12 +14,6 @@ export default function AdminLayout({
 }) {
   const { userRole, hasMinRole, isLoadingRole } = useAuth();
   const pathname = usePathname();
-
-  useEffect(() => {
-    console.log("Admin Layout - Loading role:", isLoadingRole);
-    console.log("Admin Layout - User role:", userRole);
-    console.log("Admin Layout - Has EDITOR role:", hasMinRole(Role.EDITOR));
-  }, [userRole, isLoadingRole, hasMinRole]);
 
   // Show loading state while role is being fetched
   if (isLoadingRole) {

@@ -6,14 +6,36 @@ import { Role } from "@prisma/client";
 
 export function useAuth() {
   const { user, isSignedIn, isLoaded } = useUser();
-  const [userRole, setUserRole] = useState<Role | null>(null);
-  const [isLoadingRole, setIsLoadingRole] = useState(true);
+  
+  // Initialize state with cached values
+  const getCachedRole = () => {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem('userRole');
+      return cached as Role | null;
+    }
+    return null;
+  };
+  
+  const [userRole, setUserRole] = useState<Role | null>(getCachedRole);
+  const [isLoadingRole, setIsLoadingRole] = useState(() => {
+    // If we have a cached role and Clerk is loaded with a signed-in user, we're not loading
+    const cached = getCachedRole();
+    return !cached || !isLoaded || !isSignedIn;
+  });
 
   useEffect(() => {
     async function fetchUserRole() {
-      if (!isLoaded || !isSignedIn || !user) {
+      if (!isLoaded) {
+        return;
+      }
+      
+      if (!isSignedIn || !user) {
         setUserRole(null);
         setIsLoadingRole(false);
+        // Clear cached role
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('userRole');
+        }
         return;
       }
 
@@ -22,8 +44,15 @@ export function useAuth() {
         if (response.ok) {
           const data = await response.json();
           setUserRole(data.role);
+          // Cache role in sessionStorage
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('userRole', data.role);
+          }
         } else {
           setUserRole(Role.USER);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('userRole', Role.USER);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch user role:", error);

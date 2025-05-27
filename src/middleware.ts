@@ -6,6 +6,8 @@ const isProtectedRoute = createRouteMatcher([
   '/articles(.*)',
   '/api/articles/(.*)/chat(.*)',
   '/api/articles/(.*)/generate',
+  '/admin(.*)',
+  '/api/admin(.*)',
 ]);
 
 const isWebhookRoute = createRouteMatcher([
