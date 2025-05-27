@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { ChatMessage } from './chat-message';
-import { Send, MessageCircle, X, Loader2 } from 'lucide-react';
+import { Send, MessageCircle, X, Loader2, Lock } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface ChatInterfaceProps {
   articleId: string;
@@ -20,11 +21,13 @@ interface Message {
 
 export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProps) {
   const { isSignedIn } = useAuth();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{ canUseAI: boolean; loading: boolean }>({ canUseAI: false, loading: true });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -38,9 +41,26 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
 
   useEffect(() => {
     if (isOpen && isSignedIn) {
+      checkSubscriptionStatus();
       fetchChatHistory();
     }
   }, [isOpen, isSignedIn]);
+
+  const checkSubscriptionStatus = async () => {
+    try {
+      const response = await fetch('/api/subscription/status');
+      if (response.ok) {
+        const data = await response.json();
+        const canUseAI = data.tier === 'STANDARD' || data.tier === 'MAX';
+        setSubscriptionStatus({ canUseAI, loading: false });
+      } else {
+        setSubscriptionStatus({ canUseAI: false, loading: false });
+      }
+    } catch (error) {
+      console.error('Error checking subscription status:', error);
+      setSubscriptionStatus({ canUseAI: false, loading: false });
+    }
+  };
 
   const fetchChatHistory = async () => {
     setIsFetchingHistory(true);
@@ -102,7 +122,14 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
       } else {
         // Remove temp message on error
         setMessages(prev => prev.filter(msg => msg.messageId !== tempUserMessage.messageId));
-        console.error('Failed to send message');
+        
+        // Check if it's a subscription error
+        if (response.status === 403) {
+          setSubscriptionStatus({ canUseAI: false, loading: false });
+        }
+        
+        const errorData = await response.json();
+        console.error('Failed to send message:', errorData.error);
       }
     } catch (error) {
       // Remove temp message on error
@@ -149,9 +176,23 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
 
           {/* Messages area */}
           <div className="flex-1 overflow-y-auto p-4">
-            {isFetchingHistory ? (
+            {subscriptionStatus.loading || isFetchingHistory ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : !subscriptionStatus.canUseAI ? (
+              <div className="text-center mt-8 px-4">
+                <Lock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-semibold mb-2">AI Chat is a Premium Feature</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Upgrade to Standard or Max plan to get unlimited access to our AI tutor who can help you understand concepts and answer questions about the articles.
+                </p>
+                <button
+                  onClick={() => router.push('/pricing')}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  View Pricing Plans
+                </button>
               </div>
             ) : messages.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
@@ -187,36 +228,38 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
           </div>
 
           {/* Input area */}
-          <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex gap-2">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }
-                }}
-                placeholder="Ask a question..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white resize-none"
-                rows={1}
-                disabled={isLoading}
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
-              </button>
-            </div>
-          </form>
+          {subscriptionStatus.canUseAI && (
+            <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex gap-2">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
+                  placeholder="Ask a question..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white resize-none"
+                  rows={1}
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
     </>
