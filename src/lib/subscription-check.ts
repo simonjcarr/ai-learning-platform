@@ -4,6 +4,7 @@ import { SubscriptionTier } from '@prisma/client';
 
 export interface SubscriptionPermissions {
   canAccessArticles: boolean;
+  canGenerateContent: boolean;
   canUseAIChat: boolean;
   canDownloadContent: boolean;
   canCreateCustomLists: boolean;
@@ -16,6 +17,7 @@ export interface SubscriptionPermissions {
 export const TIER_PERMISSIONS: Record<SubscriptionTier, SubscriptionPermissions> = {
   FREE: {
     canAccessArticles: true, // Limited access
+    canGenerateContent: false,
     canUseAIChat: false,
     canDownloadContent: false,
     canCreateCustomLists: false,
@@ -26,6 +28,7 @@ export const TIER_PERMISSIONS: Record<SubscriptionTier, SubscriptionPermissions>
   },
   STANDARD: {
     canAccessArticles: true, // Full access
+    canGenerateContent: true,
     canUseAIChat: true,
     canDownloadContent: true,
     canCreateCustomLists: true,
@@ -36,6 +39,7 @@ export const TIER_PERMISSIONS: Record<SubscriptionTier, SubscriptionPermissions>
   },
   MAX: {
     canAccessArticles: true, // Full access
+    canGenerateContent: true,
     canUseAIChat: true,
     canDownloadContent: true,
     canCreateCustomLists: true,

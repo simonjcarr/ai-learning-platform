@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Loader2, BookOpen, Sparkles } from "lucide-react";
+import { Loader2, BookOpen, Sparkles, CreditCard } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
@@ -53,6 +53,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [article, setArticle] = useState(initialArticle);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionError, setSubscriptionError] = useState(false);
   const { isSignedIn } = useUser();
 
   useEffect(() => {
@@ -72,7 +73,12 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       });
 
       if (!response.ok) {
-        throw new Error("Failed to generate content");
+        const data = await response.json();
+        if (response.status === 403 && data.error === "Subscription required") {
+          setSubscriptionError(true);
+          throw new Error(data.message || "Subscription required");
+        }
+        throw new Error(data.error || "Failed to generate content");
       }
 
       const data = await response.json();
@@ -205,7 +211,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       </header>
 
       {/* Content */}
-      {error && (
+      {error && !subscriptionError && (
         <div className="mb-8 bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">Error: {error}</p>
         </div>
@@ -233,33 +239,58 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         </>
       ) : (
         <div className="text-center py-20">
-          <Sparkles className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Content Not Yet Generated
-          </h3>
-          {isSignedIn ? (
+          {subscriptionError ? (
             <>
-              <p className="text-gray-600 mb-4">
-                This article&apos;s content will be generated automatically.
+              <CreditCard className="mx-auto h-12 w-12 text-blue-600 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Subscription Required
+              </h3>
+              <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                To access AI-generated content and unlock all platform features, please subscribe to one of our plans.
               </p>
-              <button
-                onClick={generateContent}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Generate Content Now
-              </button>
+              <div className="space-y-3">
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  View Subscription Plans
+                </Link>
+                <p className="text-sm text-gray-500">
+                  Starting at just $9.99/month
+                </p>
+              </div>
             </>
           ) : (
             <>
-              <p className="text-gray-600 mb-4">
-                Sign in to read this article and access interactive examples.
-              </p>
-              <Link
-                href="/sign-in"
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Sign In to Continue
-              </Link>
+              <Sparkles className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Content Not Yet Generated
+              </h3>
+              {isSignedIn ? (
+                <>
+                  <p className="text-gray-600 mb-4">
+                    This article&apos;s content will be generated automatically.
+                  </p>
+                  <button
+                    onClick={generateContent}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Generate Content Now
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-600 mb-4">
+                    Sign in to read this article and access interactive examples.
+                  </p>
+                  <Link
+                    href="/sign-in"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Sign In to Continue
+                  </Link>
+                </>
+              )}
             </>
           )}
         </div>

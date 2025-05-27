@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService } from "@/lib/ai-service";
-import { Role } from "@prisma/client";
+import { checkSubscription } from "@/lib/subscription-check";
 
 export async function POST(
   request: Request,
@@ -18,13 +18,12 @@ export async function POST(
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user || ![Role.ADMIN, Role.EDITOR].includes(user.role)) {
+    // Check subscription status
+    const subscription = await checkSubscription(userId);
+    
+    if (!subscription.permissions.canGenerateContent) {
       return NextResponse.json(
-        { error: "Forbidden" },
+        { error: "Subscription required", message: "Please subscribe to generate article content" },
         { status: 403 }
       );
     }
