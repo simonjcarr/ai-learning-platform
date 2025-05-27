@@ -14,8 +14,9 @@ export async function GET() {
     const [
       totalResponses,
       correctResponses,
-      uniqueArticlesAnswered,
-      recentActivity
+      articlesViewed,
+      recentActivity,
+      recentViews
     ] = await Promise.all([
       // Total quiz responses
       prisma.userResponse.count({
@@ -30,17 +31,9 @@ export async function GET() {
         }
       }),
       
-      // Count unique articles where user has answered questions
-      prisma.userResponse.findMany({
-        where: { clerkUserId: userId },
-        select: {
-          example: {
-            select: {
-              articleId: true
-            }
-          }
-        },
-        distinct: ['exampleId']
+      // Count articles viewed (from UserArticleView table)
+      prisma.userArticleView.count({
+        where: { clerkUserId: userId }
       }),
       
       // Recent activity (last 10 responses)
@@ -60,15 +53,17 @@ export async function GET() {
         },
         orderBy: { submittedAt: 'desc' },
         take: 10
+      }),
+      
+      // Recent article views for streak calculation
+      prisma.userArticleView.findMany({
+        where: { clerkUserId: userId },
+        orderBy: { viewedAt: 'desc' },
+        take: 30
       })
     ]);
 
-    // Count unique articles
-    const uniqueArticleIds = new Set(
-      uniqueArticlesAnswered.map(response => response.example.articleId)
-    );
-
-    // Calculate learning streak (simplified - consecutive days with activity)
+    // Calculate learning streak based on article views (consecutive days with views)
     const today = new Date();
     const recentDays = [];
     for (let i = 0; i < 30; i++) {
@@ -80,10 +75,10 @@ export async function GET() {
       });
     }
 
-    // Mark days with activity
-    recentActivity.forEach(response => {
-      const responseDate = response.submittedAt.toDateString();
-      const dayIndex = recentDays.findIndex(day => day.date === responseDate);
+    // Mark days with article views
+    recentViews.forEach(view => {
+      const viewDate = view.viewedAt.toDateString();
+      const dayIndex = recentDays.findIndex(day => day.date === viewDate);
       if (dayIndex !== -1) {
         recentDays[dayIndex].hasActivity = true;
       }
@@ -111,7 +106,7 @@ export async function GET() {
     }));
 
     const stats = {
-      articlesRead: uniqueArticleIds.size,
+      articlesRead: articlesViewed,
       quizzesTaken: totalResponses,
       correctAnswers: correctResponses,
       learningStreak: learningStreak,

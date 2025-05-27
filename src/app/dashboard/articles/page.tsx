@@ -12,65 +12,80 @@ interface ArticleData {
   quizzesTaken: number;
   correctAnswers: number;
   totalQuestions: number;
+  hasQuizResponses: boolean;
 }
 
 async function getUserArticles(userId: string): Promise<ArticleData[]> {
   try {
-    // Get all user responses with article info
-    const userResponses = await prisma.userResponse.findMany({
-      where: { clerkUserId: userId },
-      include: {
-        example: {
-          include: {
-            article: {
-              select: {
-                articleId: true,
-                articleTitle: true,
-                articleSlug: true
-              }
+    // Get all viewed articles
+    const [viewedArticles, userResponses] = await Promise.all([
+      // Get all articles the user has viewed
+      prisma.userArticleView.findMany({
+        where: { clerkUserId: userId },
+        include: {
+          article: {
+            select: {
+              articleId: true,
+              articleTitle: true,
+              articleSlug: true
+            }
+          }
+        },
+        orderBy: { viewedAt: 'desc' }
+      }),
+      // Get all user responses for quiz stats
+      prisma.userResponse.findMany({
+        where: { clerkUserId: userId },
+        include: {
+          example: {
+            select: {
+              articleId: true
             }
           }
         }
-      },
-      orderBy: { submittedAt: 'desc' }
-    });
+      })
+    ]);
 
-    // Group by article and calculate stats
-    const articleMap = new Map<string, ArticleData>();
+    // Group responses by article for stats
+    const responseMap = new Map<string, { correctAnswers: number; totalQuestions: number }>();
     
     userResponses.forEach(response => {
-      const article = response.example.article;
-      const articleId = article.articleId;
+      const articleId = response.example.articleId;
       
-      if (!articleMap.has(articleId)) {
-        articleMap.set(articleId, {
-          id: articleId,
-          title: article.articleTitle,
-          slug: article.articleSlug,
-          lastAccessed: response.submittedAt,
-          quizzesTaken: 0,
+      if (!responseMap.has(articleId)) {
+        responseMap.set(articleId, {
           correctAnswers: 0,
           totalQuestions: 0
         });
       }
       
-      const articleData = articleMap.get(articleId)!;
-      
-      // Update last accessed if this is more recent
-      if (response.submittedAt > articleData.lastAccessed) {
-        articleData.lastAccessed = response.submittedAt;
-      }
-      
-      // Count quiz stats
-      articleData.totalQuestions++;
+      const stats = responseMap.get(articleId)!;
+      stats.totalQuestions++;
       if (response.isCorrect) {
-        articleData.correctAnswers++;
+        stats.correctAnswers++;
       }
     });
 
-    // Convert to array and sort by last accessed
-    return Array.from(articleMap.values())
-      .sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
+    // Create article data combining views and quiz stats
+    const articles = viewedArticles.map(view => {
+      const quizStats = responseMap.get(view.article.articleId) || {
+        correctAnswers: 0,
+        totalQuestions: 0
+      };
+      
+      return {
+        id: view.article.articleId,
+        title: view.article.articleTitle,
+        slug: view.article.articleSlug,
+        lastAccessed: view.viewedAt,
+        quizzesTaken: quizStats.totalQuestions,
+        correctAnswers: quizStats.correctAnswers,
+        totalQuestions: quizStats.totalQuestions,
+        hasQuizResponses: quizStats.totalQuestions > 0
+      };
+    });
+
+    return articles;
       
   } catch (error) {
     console.error('Error fetching user articles:', error);
@@ -99,7 +114,7 @@ export default async function UserArticlesPage() {
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">Your Articles</h1>
         <p className="text-gray-600 mt-2">
-          A complete list of articles you've read and practiced with quizzes
+          A complete list of articles you've read
         </p>
       </div>
 
@@ -132,22 +147,28 @@ export default async function UserArticlesPage() {
                               Last accessed: {article.lastAccessed.toLocaleDateString()}
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <span className="font-medium text-gray-900">{article.totalQuestions}</span>
-                              <span className="text-gray-500 ml-1">Questions Answered</span>
+                          {article.hasQuizResponses ? (
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="font-medium text-gray-900">{article.totalQuestions}</span>
+                                <span className="text-gray-500 ml-1">Questions Answered</span>
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-900">{article.correctAnswers}</span>
+                                <span className="text-gray-500 ml-1">Correct</span>
+                              </div>
+                              <div>
+                                <span className={`font-medium ${successRate >= 70 ? 'text-green-600' : successRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {successRate}%
+                                </span>
+                                <span className="text-gray-500 ml-1">Success Rate</span>
+                              </div>
                             </div>
-                            <div>
-                              <span className="font-medium text-gray-900">{article.correctAnswers}</span>
-                              <span className="text-gray-500 ml-1">Correct</span>
+                          ) : (
+                            <div className="text-sm text-gray-500">
+                              No quiz questions answered yet
                             </div>
-                            <div>
-                              <span className={`font-medium ${successRate >= 70 ? 'text-green-600' : successRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                {successRate}%
-                              </span>
-                              <span className="text-gray-500 ml-1">Success Rate</span>
-                            </div>
-                          </div>
+                          )}
                         </div>
                       </div>
                     </div>

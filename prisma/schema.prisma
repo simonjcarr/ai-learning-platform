@@ -32,6 +32,7 @@ model User {
   curatedLists                 CuratedList[]
   subscriptionHistory          SubscriptionHistory[]
   userResponses                UserResponse[]
+  articleViews                 UserArticleView[]
 
   @@map("users")
 }
@@ -72,6 +73,7 @@ model Article {
   comments             Comment[]
   curatedListItems     CuratedListItem[]
   interactiveExamples  InteractiveExample[]
+  views                UserArticleView[]
 
   @@index([streamId])
   @@index([articleSlug])
@@ -407,4 +409,19 @@ enum Role {
   EDITOR
   MODERATOR
   ADMIN
+}
+
+model UserArticleView {
+  viewId      String   @id @default(cuid())
+  clerkUserId String
+  articleId   String
+  viewedAt    DateTime @default(now())
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+
+  @@unique([clerkUserId, articleId])
+  @@index([clerkUserId])
+  @@index([articleId])
+  @@index([viewedAt])
+  @@map("user_article_views")
 }

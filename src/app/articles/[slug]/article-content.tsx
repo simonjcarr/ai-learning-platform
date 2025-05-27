@@ -63,6 +63,34 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [article.isContentGenerated, article.contentHtml, isSignedIn]);
 
+  useEffect(() => {
+    // Track article view when component mounts and user is signed in
+    if (isSignedIn && article.articleId) {
+      trackArticleView();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, article.articleId]);
+
+  const trackArticleView = async () => {
+    try {
+      const response = await fetch(`/api/articles/${article.articleId}/view`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        console.error("Failed to track article view:", response.status, data);
+      } else {
+        console.log("Article view tracked successfully");
+      }
+    } catch (err) {
+      console.error("Failed to track article view:", err);
+    }
+  };
+
   const generateContent = async () => {
     setGenerating(true);
     setError(null);

@@ -23,9 +23,34 @@ export async function POST(
       return NextResponse.json({ error: "Article not found" }, { status: 404 });
     }
 
-    // For now, we'll track article views through user responses to interactive examples
-    // This is a simple implementation - in a production app you might want a separate 
-    // article_views table to track views independently of quiz responses
+    // Ensure user exists in the database first
+    const user = await prisma.user.findUnique({
+      where: { clerkUserId: userId }
+    });
+
+    if (!user) {
+      console.error(`User not found in database: ${userId}`);
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Upsert the article view - update viewedAt if user has already viewed this article
+    const view = await prisma.userArticleView.upsert({
+      where: {
+        clerkUserId_articleId: {
+          clerkUserId: userId,
+          articleId: articleId
+        }
+      },
+      update: {
+        viewedAt: new Date()
+      },
+      create: {
+        clerkUserId: userId,
+        articleId: articleId
+      }
+    });
+
+    console.log(`Article view tracked: User ${userId} viewed article ${articleId}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
