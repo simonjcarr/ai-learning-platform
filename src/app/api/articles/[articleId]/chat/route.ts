@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { openai } from '@/lib/openai';
+import { checkSubscription } from '@/lib/subscription-check';
 
 export async function GET(
   req: NextRequest,
@@ -44,6 +45,39 @@ export async function POST(
 
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check subscription
+  const subscription = await checkSubscription(userId);
+  
+  if (!subscription.permissions.canUseAIChat) {
+    return NextResponse.json(
+      { error: 'AI chat requires a Standard or Max subscription' },
+      { status: 403 }
+    );
+  }
+
+  // Check daily limit for Standard tier
+  if (subscription.permissions.dailyAIChatsLimit > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayChatsCount = await prisma.chatMessage.count({
+      where: {
+        clerkUserId: userId,
+        role: 'USER',
+        createdAt: {
+          gte: today,
+        },
+      },
+    });
+
+    if (todayChatsCount >= subscription.permissions.dailyAIChatsLimit) {
+      return NextResponse.json(
+        { error: `Daily chat limit reached (${subscription.permissions.dailyAIChatsLimit} per day). Upgrade to Max for unlimited chats.` },
+        { status: 429 }
+      );
+    }
   }
 
   try {

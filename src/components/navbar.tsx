@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
-import { Search, BookOpen, Home, User, Menu, X } from "lucide-react";
+import { Search, BookOpen, Home, User, Menu, X, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -51,6 +51,18 @@ export function Navbar() {
             </div>
           </div>
           <div className="hidden md:flex items-center space-x-4">
+            <Link
+              href="/pricing"
+              className={cn(
+                "flex items-center space-x-1 text-sm font-medium transition-colors",
+                pathname === "/pricing"
+                  ? "text-blue-700"
+                  : "text-gray-700 hover:text-gray-900"
+              )}
+            >
+              <CreditCard className="h-4 w-4" />
+              <span>Pricing</span>
+            </Link>
             {isSignedIn ? (
               <>
                 <Link
@@ -117,6 +129,19 @@ export function Navbar() {
               </Link>
             );
           })}
+          <Link
+            href="/pricing"
+            onClick={() => setIsMenuOpen(false)}
+            className={cn(
+              "flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium w-full",
+              pathname === "/pricing"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            <CreditCard className="h-5 w-5" />
+            <span>Pricing</span>
+          </Link>
         </div>
         {isSignedIn ? (
           <>

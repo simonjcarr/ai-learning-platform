@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { SubscriptionStatus } from "@/components/subscription-status";
 
 interface DashboardStats {
   articlesRead: number;
@@ -264,8 +265,15 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Recent Quiz Results and Recent Articles */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Subscription Status and Recent Activity Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Subscription Status - Takes up 1 column */}
+        <div className="lg:col-span-1">
+          <SubscriptionStatus />
+        </div>
+
+        {/* Recent Quiz Results and Recent Articles - Takes up 2 columns */}
+        <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Quiz Results */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Quiz Results</h2>
@@ -340,6 +348,7 @@ export default async function DashboardPage() {
               <p>No articles read yet. Start reading to see your recent articles here!</p>
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
