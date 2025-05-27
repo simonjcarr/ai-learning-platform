@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   const eventType = evt.type;
 
   if (eventType === "user.created" || eventType === "user.updated") {
-    const { id, email_addresses, username } = evt.data;
+    const { id, email_addresses, username, first_name, last_name, image_url } = evt.data;
     const email = email_addresses[0]?.email_address;
 
     if (email) {
@@ -54,14 +54,22 @@ export async function POST(req: Request) {
           update: {
             email,
             username: username || null,
+            firstName: first_name || null,
+            lastName: last_name || null,
+            imageUrl: image_url || null,
             lastLoginToApp: new Date(),
           },
           create: {
             clerkUserId: id,
             email,
             username: username || null,
+            firstName: first_name || null,
+            lastName: last_name || null,
+            imageUrl: image_url || null,
           },
         });
+        
+        console.log(`User ${id} synced successfully with email: ${email}`);
       } catch (error) {
         console.error("Error syncing user:", error);
         return new Response("Error syncing user", { status: 500 });

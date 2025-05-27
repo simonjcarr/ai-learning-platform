@@ -23,12 +23,20 @@ model User {
   appSpecificCreatedAt DateTime @default(now())
   lastLoginToApp      DateTime?
   
+  // Stripe subscription fields
+  stripeCustomerId    String?  @unique
+  subscriptionTier    SubscriptionTier @default(FREE)
+  subscriptionStatus  SubscriptionStatus @default(INACTIVE)
+  subscriptionId      String?
+  subscriptionCurrentPeriodEnd DateTime?
+  
   articles            Article[]
   userResponses       UserResponse[]
   comments            Comment[]
   chatMessages        ChatMessage[]
   likedArticles       ArticleLike[]
   curatedLists        CuratedList[]
+  subscriptionHistory SubscriptionHistory[]
   
   @@map("users")
 }
@@ -60,7 +68,7 @@ model Article {
   
   category             Category? @relation(fields: [categoryId], references: [categoryId])
   stream               Stream?   @relation(fields: [streamId], references: [streamId])
-  createdBy            User?     @relation(fields: [createdByClerkUserId], references: [clerkUserId])
+  createdBy            User?     @relation(fields: [createdByClerkUserId], references: [clerkUserId], onDelete: SetNull)
   interactiveExamples  InteractiveExample[]
   comments             Comment[]
   chatMessages         ChatMessage[]
@@ -102,7 +110,7 @@ model UserResponse {
   aiFeedback     String   @db.Text
   submittedAt    DateTime @default(now())
   
-  user           User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  user           User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
   example        InteractiveExample @relation(fields: [exampleId], references: [exampleId])
   
   @@index([clerkUserId])
@@ -157,7 +165,7 @@ model Comment {
   updatedAt    DateTime @updatedAt
   
   article      Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user         User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  user         User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
   parent       Comment? @relation("CommentReplies", fields: [parentId], references: [commentId], onDelete: Cascade)
   replies      Comment[] @relation("CommentReplies")
   
@@ -177,7 +185,7 @@ model ChatMessage {
   createdAt       DateTime @default(now())
   
   article         Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user            User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  user            User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
   
   @@index([articleId, clerkUserId])
   @@index([exampleId])
@@ -189,6 +197,19 @@ enum ChatRole {
   ASSISTANT
 }
 
+enum SubscriptionTier {
+  FREE
+  STANDARD
+  MAX
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  PAST_DUE
+}
+
 model ArticleLike {
   likeId      String   @id @default(cuid())
   articleId   String
@@ -196,7 +217,7 @@ model ArticleLike {
   createdAt   DateTime @default(now())
   
   article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user        User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
   
   @@unique([articleId, clerkUserId])
   @@index([clerkUserId])
@@ -213,7 +234,7 @@ model CuratedList {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  user        User     @relation(fields: [clerkUserId], references: [clerkUserId])
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
   items       CuratedListItem[]
   
   @@index([clerkUserId])
@@ -236,4 +257,27 @@ model CuratedListItem {
   @@index([listId])
   @@index([articleId])
   @@map("curated_list_items")
+}
+
+model SubscriptionHistory {
+  historyId           String   @id @default(cuid())
+  clerkUserId         String
+  subscriptionId      String
+  eventType           String   // e.g., "created", "updated", "cancelled"
+  previousTier        SubscriptionTier?
+  newTier             SubscriptionTier
+  previousStatus      SubscriptionStatus?
+  newStatus           SubscriptionStatus
+  amount              Int?     // Amount in cents
+  currency            String?  // e.g., "usd"
+  stripeEventId       String?  @unique
+  metadata            Json?    // Additional event data from Stripe
+  createdAt           DateTime @default(now())
+  
+  user                User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  
+  @@index([clerkUserId])
+  @@index([subscriptionId])
+  @@index([createdAt])
+  @@map("subscription_history")
 }
