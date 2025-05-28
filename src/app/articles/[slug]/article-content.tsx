@@ -11,6 +11,7 @@ import LikeButton from "@/components/like-button";
 import AddToListButton from "@/components/add-to-list-button";
 import { FlagButton } from "@/components/flag-button";
 import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
+import { ArticleChangeHistory } from "@/components/article-change-history";
 
 interface Article {
   articleId: string;
@@ -267,6 +268,9 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           {isSignedIn && (
             <InteractiveExamples articleId={article.articleId} />
           )}
+          
+          {/* Change History Section */}
+          <ArticleChangeHistory articleId={article.articleId} />
           
           {/* Comments Section */}
           <CommentsList articleId={article.articleId} />

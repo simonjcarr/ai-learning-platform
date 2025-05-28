@@ -5,6 +5,7 @@ import { generateObject, generateText } from 'ai';
 import { z } from 'zod';
 import { prisma } from './prisma';
 import crypto from 'crypto';
+import { createPatch } from 'diff';
 
 // Encryption key for API keys (in production, use a proper key management service)
 const ENCRYPTION_KEY = process.env.AI_API_KEY_ENCRYPTION_KEY || 'default-key-for-development-only';
@@ -210,6 +211,8 @@ export const ArticleSuggestionValidationSchema = z.object({
   isValid: z.boolean(),
   reason: z.string(),
   updatedContent: z.string().nullable(),
+  diff: z.string().nullable(),
+  description: z.string().nullable(),
 });
 
 // Enhanced AI Service functions with database tracking
@@ -719,6 +722,7 @@ Please analyze this suggestion carefully:
    - Return the COMPLETE updated article in Markdown format
    - Ensure all Markdown formatting is preserved (headings, code blocks, lists, etc.)
    - The updated content should include the entire article, not just the changed section
+   - Also provide a human-readable description of the change made
    
 3. If the suggestion is INVALID:
    - Explain clearly why the suggestion cannot be applied
@@ -727,7 +731,8 @@ Please analyze this suggestion carefully:
 IMPORTANT: 
 - The updatedContent field must contain the ENTIRE article in valid Markdown format
 - Preserve all existing Markdown formatting (# headings, code blocks with triple backticks, lists, etc.)
-- Do not wrap the content in any additional code blocks`;
+- Do not wrap the content in any additional code blocks
+- The description should be a concise summary of what was changed`;
 
     const startTime = new Date();
     let result, error;
@@ -750,6 +755,18 @@ IMPORTANT:
       });
       
       const endTime = new Date();
+      
+      // If the suggestion was valid and we have updated content, generate the diff
+      if (result.object.isValid && result.object.updatedContent) {
+        const diff = createPatch(
+          articleTitle,
+          articleContent,
+          result.object.updatedContent,
+          'original',
+          'updated'
+        );
+        result.object.diff = diff;
+      }
       
       // Track the interaction
       await trackAIInteraction(

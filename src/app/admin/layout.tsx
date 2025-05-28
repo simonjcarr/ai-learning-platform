@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -43,6 +43,12 @@ export default function AdminLayout({
       name: "Flagged Content",
       href: "/admin/flagged",
       icon: Flag,
+      minRole: Role.MODERATOR,
+    },
+    {
+      name: "Change History",
+      href: "/admin/changes",
+      icon: History,
       minRole: Role.MODERATOR,
     },
     {

@@ -110,51 +110,94 @@ export async function POST(
     // Variable to track if the article was successfully updated
     let articleUpdateSuccess = false;
     let articleUpdateError: string | null = null;
+    let changeHistoryId: string | null = null;
 
-    // If AI validation is successful and provides updated content, update the article
-    if (aiValidation.isValid === true && aiValidation.updatedContent) {
-      try {
-        const updatedMarkdownFromAI = aiValidation.updatedContent;
-        
-        // Validate that the updated content is not empty
-        if (!updatedMarkdownFromAI || updatedMarkdownFromAI.trim().length === 0) {
-          throw new Error('AI returned empty content for the article update');
+    // Start a transaction to ensure data consistency
+    const result = await prisma.$transaction(async (tx) => {
+      // Create suggestion record first
+      const suggestion = await tx.articleSuggestion.create({
+        data: {
+          articleId: articleId,
+          clerkUserId: userId,
+          suggestionType,
+          suggestionDetails,
+          aiValidationResponse: JSON.stringify(aiValidation),
+          isApproved: aiValidation.isValid === true,
+          rejectionReason: aiValidation.isValid ? null : aiValidation.reason,
+          processedAt: new Date(),
+          aiInteractionId: null, // trackAIInteraction doesn't return the ID
+        },
+      });
+
+      // If AI validation is successful and provides updated content, update the article and create change history
+      if (aiValidation.isValid === true && aiValidation.updatedContent && aiValidation.diff) {
+        try {
+          const updatedMarkdownFromAI = aiValidation.updatedContent;
+          
+          // Validate that the updated content is not empty
+          if (!updatedMarkdownFromAI || updatedMarkdownFromAI.trim().length === 0) {
+            throw new Error('AI returned empty content for the article update');
+          }
+
+          // Create change history record
+          const changeHistory = await tx.articleChangeHistory.create({
+            data: {
+              articleId: articleId,
+              suggestionId: suggestion.suggestionId,
+              clerkUserId: userId,
+              diff: aiValidation.diff,
+              beforeContent: article.contentHtml || '',
+              afterContent: updatedMarkdownFromAI,
+              changeType: 'suggestion',
+              description: aiValidation.description || `Applied ${suggestionType}: ${suggestionDetails.substring(0, 100)}...`,
+              isActive: true,
+            },
+          });
+
+          changeHistoryId = changeHistory.id;
+          
+          // The field 'contentHtml' actually stores Markdown in this project
+          await tx.article.update({
+            where: { articleId: articleId },
+            data: {
+              contentHtml: updatedMarkdownFromAI, // Update the field with new Markdown
+            },
+          });
+
+          // Mark the suggestion as applied
+          await tx.articleSuggestion.update({
+            where: { suggestionId: suggestion.suggestionId },
+            data: {
+              isApplied: true,
+              appliedAt: new Date(),
+            },
+          });
+          
+          articleUpdateSuccess = true;
+          console.log(`Article ${articleId} successfully updated with AI suggestion and change history recorded.`);
+        } catch (dbUpdateError) {
+          console.error(`DB Error: Failed to update article ${articleId} with AI suggestion:`, dbUpdateError);
+          articleUpdateError = dbUpdateError instanceof Error ? dbUpdateError.message : 'Unknown error occurred';
+          
+          // Override the AI validation to reflect the failure
+          aiValidation.isValid = false;
+          aiValidation.reason = `The suggestion was valid but could not be applied due to a system error: ${articleUpdateError}. Your suggestion has been recorded for manual review.`;
+          
+          // Update the suggestion with the failure reason
+          await tx.articleSuggestion.update({
+            where: { suggestionId: suggestion.suggestionId },
+            data: {
+              isApproved: false,
+              rejectionReason: aiValidation.reason,
+            },
+          });
         }
-        
-        // The field 'contentHtml' actually stores Markdown in this project
-        await prisma.article.update({
-          where: { articleId: articleId },
-          data: {
-            contentHtml: updatedMarkdownFromAI, // Update the field with new Markdown
-          },
-        });
-        
-        articleUpdateSuccess = true;
-        console.log(`Article ${articleId} successfully updated with AI suggestion.`);
-      } catch (dbUpdateError) {
-        console.error(`DB Error: Failed to update article ${articleId} with AI suggestion:`, dbUpdateError);
-        articleUpdateError = dbUpdateError instanceof Error ? dbUpdateError.message : 'Unknown error occurred';
-        
-        // Override the AI validation to reflect the failure
-        aiValidation.isValid = false;
-        aiValidation.reason = `The suggestion was valid but could not be applied due to a system error: ${articleUpdateError}. Your suggestion has been recorded for manual review.`;
       }
-    }
 
-    // Create suggestion record
-    const suggestion = await prisma.articleSuggestion.create({
-      data: {
-        articleId: articleId,
-        clerkUserId: userId,
-        suggestionType,
-        suggestionDetails,
-        aiValidationResponse: JSON.stringify(aiValidation),
-        isApproved: aiValidation.isValid === true,
-        rejectionReason: aiValidation.isValid ? null : aiValidation.reason,
-        processedAt: new Date(),
-        aiInteractionId: null, // trackAIInteraction doesn't return the ID
-      },
+      return { suggestion, changeHistoryId };
     });
+
+    const { suggestion } = result;
 
     // Update rate limit
     await prisma.suggestionRateLimit.upsert({

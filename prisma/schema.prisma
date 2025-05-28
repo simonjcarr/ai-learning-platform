@@ -35,6 +35,8 @@ model User {
   articleViews                 UserArticleView[]
   articleSuggestions           ArticleSuggestion[]
   suggestionRateLimits         SuggestionRateLimit[]
+  articleChangeHistories       ArticleChangeHistory[]
+  rollbackChangeHistories      ArticleChangeHistory[] @relation("RollbackUser")
 
   @@map("users")
 }
@@ -77,6 +79,7 @@ model Article {
   interactiveExamples  InteractiveExample[]
   views                UserArticleView[]
   suggestions          ArticleSuggestion[]
+  changeHistories      ArticleChangeHistory[]
 
   @@index([streamId])
   @@index([articleSlug])
@@ -445,6 +448,9 @@ model ArticleSuggestion {
   aiInteractionId      String?
   article              Article             @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
   user                 User                @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  
+  // Link to the change history if this suggestion was approved
+  changeHistory        ArticleChangeHistory?
 
   @@index([articleId])
   @@index([clerkUserId])
@@ -487,4 +493,38 @@ enum SuggestionType {
   EXAMPLE_ADDITION
   LINK_UPDATE
   OTHER
+}
+
+model ArticleChangeHistory {
+  id                String       @id @default(cuid())
+  articleId         String
+  article           Article      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  suggestionId      String       @unique
+  suggestion        ArticleSuggestion @relation(fields: [suggestionId], references: [suggestionId], onDelete: Cascade)
+  clerkUserId       String
+  user              User         @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  
+  // Diff information
+  diff              String       @db.Text // The actual diff in unified diff format
+  beforeContent     String       @db.Text // Full content before change (for rollback)
+  afterContent      String       @db.Text // Full content after change
+  
+  // Change metadata
+  changeType        String       // e.g., "suggestion", "admin_edit", "rollback"
+  description       String       @db.Text // Human-readable description of the change
+  
+  // Status tracking
+  isActive          Boolean      @default(true) // Whether this change is currently applied
+  rolledBackAt      DateTime?
+  rolledBackBy      String?
+  rollbackUser      User?        @relation("RollbackUser", fields: [rolledBackBy], references: [clerkUserId], onDelete: SetNull)
+  
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("article_change_histories")
 }
