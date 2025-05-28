@@ -2,18 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { checkSubscription } from '@/lib/subscription-check';
-import { trackAIInteraction } from '@/lib/ai-service';
-import OpenAI from 'openai';
+import { aiService } from '@/lib/ai-service';
+
+export const maxDuration = 300; // Maximum function duration: 300 seconds for Vercel Pro
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { articleId: string } }
+  { params }: { params: Promise<{ articleId: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Await params in Next.js 15
+    const { articleId } = await params;
 
     // Check subscription
     const subscription = await checkSubscription(userId);
@@ -42,7 +46,7 @@ export async function POST(
       where: {
         clerkUserId_articleId: {
           clerkUserId: userId,
-          articleId: params.articleId,
+          articleId: articleId,
         },
       },
     });
@@ -64,7 +68,7 @@ export async function POST(
 
     // Get article details
     const article = await prisma.article.findUnique({
-      where: { articleId: params.articleId },
+      where: { articleId: articleId },
       select: {
         articleId: true,
         articleTitle: true,
@@ -76,160 +80,126 @@ export async function POST(
       return NextResponse.json({ error: 'Article not found' }, { status: 404 });
     }
 
-    // Get AI model for suggestion validation
-    const interactionType = await prisma.aIInteractionType.findUnique({
-      where: { typeName: 'article_suggestion_validation' },
-      include: { defaultModel: true },
-    });
-
-    const aiModel = interactionType?.defaultModel || (await prisma.aIModel.findFirst({
-      where: { isActive: true, isDefault: true },
-    }));
-
-    if (!aiModel) {
-      return NextResponse.json(
-        { error: 'No AI model configured' },
-        { status: 500 }
+    // Call AI service for validation
+    let aiValidation;
+    const aiStartTime = Date.now();
+    console.log(`Starting AI validation for article ${articleId} (${article.contentHtml?.length || 0} chars)`);
+    
+    try {
+      aiValidation = await aiService.validateArticleSuggestion(
+        article.articleTitle,
+        article.contentHtml || '',
+        suggestionType,
+        suggestionDetails,
+        userId
       );
+      
+      const aiEndTime = Date.now();
+      console.log(`AI validation completed in ${aiEndTime - aiStartTime}ms`);
+    } catch (aiError) {
+      console.error('AI service error:', aiError);
+      
+      // If AI validation fails, create a suggestion record but don't auto-approve
+      aiValidation = {
+        isValid: false,
+        reason: 'AI validation temporarily unavailable. Your suggestion has been recorded for manual review.',
+        updatedContent: null
+      };
     }
 
-    // Prepare AI prompt
-    const prompt = `You are an AI assistant helping to validate and apply user suggestions to educational articles.
+    // Variable to track if the article was successfully updated
+    let articleUpdateSuccess = false;
+    let articleUpdateError: string | null = null;
 
-Article Title: ${article.articleTitle}
-Current Content:
-${article.contentHtml}
-
-User Suggestion Type: ${suggestionType}
-User Suggestion Details: ${suggestionDetails}
-
-Please analyze this suggestion and:
-1. Determine if the suggestion is valid and appropriate for the article's target audience and scope
-2. If valid, provide the updated article content incorporating the suggestion
-3. If invalid, explain why the suggestion is not appropriate
-
-Response format:
-{
-  "isValid": true/false,
-  "reason": "Explanation of why the suggestion is valid or invalid",
-  "updatedContent": "Full updated HTML content if valid, null if invalid"
-}`;
-
-    // Call OpenAI
-    const openai = new OpenAI({ apiKey: aiModel.apiKey });
-    
-    const completion = await openai.chat.completions.create({
-      model: aiModel.modelName,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert technical content reviewer. Respond only with valid JSON.',
-        },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: aiModel.maxTokens || 4000,
-    });
-
-    const response = completion.choices[0].message.content;
-    const usage = completion.usage;
-
-    // Track AI interaction
-    const aiInteraction = await trackAIInteraction({
-      userId,
-      modelId: aiModel.modelId,
-      interactionTypeId: interactionType?.typeId || 'article_suggestion_validation',
-      inputTokens: usage?.prompt_tokens || 0,
-      outputTokens: usage?.completion_tokens || 0,
-      prompt,
-      response: response || '',
-      contextData: { articleId: params.articleId, suggestionType },
-    });
-
-    // Parse AI response
-    let aiValidation;
-    try {
-      aiValidation = JSON.parse(response || '{}');
-    } catch (error) {
-      console.error('Failed to parse AI response:', error);
-      return NextResponse.json(
-        { error: 'Invalid AI response format' },
-        { status: 500 }
-      );
+    // If AI validation is successful and provides updated content, update the article
+    if (aiValidation.isValid === true && aiValidation.updatedContent) {
+      try {
+        const updatedMarkdownFromAI = aiValidation.updatedContent;
+        
+        // Validate that the updated content is not empty
+        if (!updatedMarkdownFromAI || updatedMarkdownFromAI.trim().length === 0) {
+          throw new Error('AI returned empty content for the article update');
+        }
+        
+        // The field 'contentHtml' actually stores Markdown in this project
+        await prisma.article.update({
+          where: { articleId: articleId },
+          data: {
+            contentHtml: updatedMarkdownFromAI, // Update the field with new Markdown
+          },
+        });
+        
+        articleUpdateSuccess = true;
+        console.log(`Article ${articleId} successfully updated with AI suggestion.`);
+      } catch (dbUpdateError) {
+        console.error(`DB Error: Failed to update article ${articleId} with AI suggestion:`, dbUpdateError);
+        articleUpdateError = dbUpdateError instanceof Error ? dbUpdateError.message : 'Unknown error occurred';
+        
+        // Override the AI validation to reflect the failure
+        aiValidation.isValid = false;
+        aiValidation.reason = `The suggestion was valid but could not be applied due to a system error: ${articleUpdateError}. Your suggestion has been recorded for manual review.`;
+      }
     }
 
     // Create suggestion record
     const suggestion = await prisma.articleSuggestion.create({
       data: {
-        articleId: params.articleId,
+        articleId: articleId,
         clerkUserId: userId,
         suggestionType,
         suggestionDetails,
-        aiValidationResponse: response,
+        aiValidationResponse: JSON.stringify(aiValidation),
         isApproved: aiValidation.isValid === true,
         rejectionReason: aiValidation.isValid ? null : aiValidation.reason,
         processedAt: new Date(),
-        aiInteractionId: aiInteraction.interactionId,
+        aiInteractionId: null, // trackAIInteraction doesn't return the ID
       },
     });
-
-    // If approved, update the article
-    if (aiValidation.isValid && aiValidation.updatedContent) {
-      await prisma.article.update({
-        where: { articleId: params.articleId },
-        data: {
-          contentHtml: aiValidation.updatedContent,
-          updatedAt: new Date(),
-        },
-      });
-
-      await prisma.articleSuggestion.update({
-        where: { suggestionId: suggestion.suggestionId },
-        data: {
-          isApplied: true,
-          appliedAt: new Date(),
-        },
-      });
-    }
 
     // Update rate limit
     await prisma.suggestionRateLimit.upsert({
       where: {
         clerkUserId_articleId: {
           clerkUserId: userId,
-          articleId: params.articleId,
+          articleId: articleId,
         },
       },
       update: { lastSuggestionAt: now },
       create: {
         clerkUserId: userId,
-        articleId: params.articleId,
+        articleId: articleId,
         lastSuggestionAt: now,
       },
     });
 
     // Check for badge achievements
     const approvedCount = await prisma.articleSuggestion.count({
-      where: {
-        clerkUserId: userId,
-        isApproved: true,
-      },
+      where: { clerkUserId: userId, isApproved: true },
     });
 
-    const badges = [];
-    const thresholds = (settings?.badgeThresholds as { bronze?: number; silver?: number; gold?: number }) || { bronze: 5, silver: 10, gold: 25 };
-    
-    if (approvedCount >= thresholds.bronze) badges.push('bronze');
-    if (approvedCount >= thresholds.silver) badges.push('silver');
-    if (approvedCount >= thresholds.gold) badges.push('gold');
+    const badges: string[] = [];
+    // Assuming settings.badgeThresholds is a Prisma.JsonValue, 
+    // which could be an object like { bronze?: number, silver?: number, gold?: number }
+    if (settings?.badgeThresholds && typeof settings.badgeThresholds === 'object' && settings.badgeThresholds !== null) {
+      const thresholds = settings.badgeThresholds as Record<string, unknown>; // Cast to a basic object
+      if (typeof thresholds.bronze === 'number' && approvedCount >= thresholds.bronze) {
+        badges.push('bronze');
+      }
+      if (typeof thresholds.silver === 'number' && approvedCount >= thresholds.silver) {
+        badges.push('silver');
+      }
+      if (typeof thresholds.gold === 'number' && approvedCount >= thresholds.gold) {
+        badges.push('gold');
+      }
+    }
 
     return NextResponse.json({
       success: true,
       suggestion: {
-        id: suggestion.suggestionId,
+        suggestionId: suggestion.suggestionId,
         isApproved: suggestion.isApproved,
-        reason: aiValidation.reason,
-        isApplied: suggestion.isApplied,
+        rejectionReason: suggestion.rejectionReason,
+        articleUpdated: suggestion.isApproved && articleUpdateSuccess,
       },
       approvedSuggestionsCount: approvedCount,
       badges,

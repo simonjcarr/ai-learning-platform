@@ -206,6 +206,12 @@ export const TagSelectionResponseSchema = z.object({
   explanation: z.string().optional(),
 });
 
+export const ArticleSuggestionValidationSchema = z.object({
+  isValid: z.boolean(),
+  reason: z.string(),
+  updatedContent: z.string().nullable(),
+});
+
 // Enhanced AI Service functions with database tracking
 export const aiService = {
   async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5, clerkUserId: string | null = null) {
@@ -680,6 +686,114 @@ Consider what someone searching for "${query}" would most likely want to learn a
     }
   },
 
+  async validateArticleSuggestion(articleTitle: string, articleContent: string, suggestionType: string, suggestionDetails: string, clerkUserId: string | null = null) {
+    const systemPrompt = `You are an AI assistant helping to validate and apply user suggestions to educational IT articles. Be concise but thorough.`;
+    
+    // For very large articles, we might need to be more strategic
+    const contentLength = articleContent.length;
+    const isLargeArticle = contentLength > 10000;
+    
+    let processedContent = articleContent;
+    if (isLargeArticle && contentLength > 20000) {
+      // For extremely large articles, we might need to truncate
+      console.log(`Article is very large (${contentLength} chars), processing full content`);
+    }
+    
+    const userPrompt = `Article Title: ${articleTitle}
+Current Content (in Markdown format):
+${processedContent}
+
+User Suggestion Type: ${suggestionType}
+User Suggestion Details: ${suggestionDetails}
+
+Please analyze this suggestion carefully:
+
+1. First, determine if the suggestion is appropriate and valid:
+   - Is it relevant to the article's topic and title?
+   - Is it technically accurate?
+   - Is it appropriate for the article's educational purpose?
+   - Does it improve the article's quality or clarity?
+   
+2. If the suggestion is VALID:
+   - Apply the suggested change to the article
+   - Return the COMPLETE updated article in Markdown format
+   - Ensure all Markdown formatting is preserved (headings, code blocks, lists, etc.)
+   - The updated content should include the entire article, not just the changed section
+   
+3. If the suggestion is INVALID:
+   - Explain clearly why the suggestion cannot be applied
+   - Be specific about what makes it inappropriate
+
+IMPORTANT: 
+- The updatedContent field must contain the ENTIRE article in valid Markdown format
+- Preserve all existing Markdown formatting (# headings, code blocks with triple backticks, lists, etc.)
+- Do not wrap the content in any additional code blocks`;
+
+    const startTime = new Date();
+    let result, error;
+    
+    try {
+      const { model, interactionType } = await getModelForInteraction('article_suggestion_validation');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      // Calculate needed tokens based on article size
+      const estimatedOutputTokens = Math.ceil(contentLength / 3) + 1000; // Extra for the added content
+      const maxTokensNeeded = Math.min(estimatedOutputTokens, 16000); // Cap at 16k tokens
+      
+      result = await generateObject({
+        model: aiModel,
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: ArticleSuggestionValidationSchema,
+        temperature: 0.3,
+        maxTokens: Math.max(maxTokensNeeded, model.maxTokens || 4000),
+      });
+      
+      const endTime = new Date();
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { articleTitle, suggestionType },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      error = err;
+      const endTime = new Date();
+      
+      // Try to get model info for error tracking
+      try {
+        const { model, interactionType } = await getModelForInteraction('article_suggestion_validation');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          clerkUserId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { articleTitle, suggestionType },
+          userPrompt,
+          undefined,
+          String(err)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      
+      throw error;
+    }
+  },
+
   async selectAndCreateTags(articleTitle: string, categoryName: string, existingTags: Array<{tagId: string, tagName: string, description: string | null}>, clerkUserId: string | null = null) {
     const systemPrompt = `You are an AI assistant that helps select and create relevant tags for IT articles. Your goal is to choose appropriate existing tags and suggest new ones when necessary.
 
@@ -821,3 +935,4 @@ export type ReorderResultsResponse = z.infer<typeof ReorderResultsSchema>;
 export type KeywordExtractionResponse = z.infer<typeof KeywordExtractionSchema>;
 export type TagSuggestion = z.infer<typeof TagSuggestionSchema>;
 export type TagSelectionResponse = z.infer<typeof TagSelectionResponseSchema>;
+export type ArticleSuggestionValidationResponse = z.infer<typeof ArticleSuggestionValidationSchema>;

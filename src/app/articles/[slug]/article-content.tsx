@@ -212,7 +212,6 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             {article.contentHtml && (
               <ArticleSuggestionForm 
                 articleId={article.articleId}
-                onSuggestionSubmitted={() => window.location.reload()}
               />
             )}
             <FlagButton 
