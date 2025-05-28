@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { Webhook } from "svix";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { emails } from "@/lib/email-service";
 
 export async function POST(req: Request) {
   console.log("🔔 Clerk webhook received");
@@ -53,6 +54,8 @@ export async function POST(req: Request) {
 
     if (email) {
       try {
+        const isNewUser = eventType === "user.created";
+        
         await prisma.user.upsert({
           where: { clerkUserId: id },
           update: {
@@ -74,6 +77,22 @@ export async function POST(req: Request) {
         });
         
         console.log(`User ${id} synced successfully with email: ${email}`);
+        
+        // Send welcome email for new users
+        if (isNewUser) {
+          try {
+            await emails.sendWelcomeEmail(
+              id, 
+              email, 
+              first_name || undefined, 
+              last_name || undefined
+            );
+            console.log(`Welcome email queued for user ${id}`);
+          } catch (emailError) {
+            console.error(`Failed to send welcome email to ${email}:`, emailError);
+            // Don't fail the webhook if email fails
+          }
+        }
       } catch (error) {
         console.error("Error syncing user:", error);
         console.error("Error details:", {

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { checkSubscription } from '@/lib/subscription-check';
 import { aiService } from '@/lib/ai-service';
+import { emails } from '@/lib/email-service';
 
 export const maxDuration = 300; // Maximum function duration: 300 seconds for Vercel Pro
 
@@ -72,6 +73,7 @@ export async function POST(
       select: {
         articleId: true,
         articleTitle: true,
+        articleSlug: true,
         contentHtml: true,
       },
     });
@@ -199,6 +201,29 @@ export async function POST(
 
     const { suggestion } = result;
 
+    // Send approval email if suggestion was approved and applied
+    if (suggestion.isApproved && articleUpdateSuccess) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: userId },
+          select: { email: true, firstName: true }
+        });
+        
+        if (user) {
+          await emails.sendSuggestionApproved(
+            user.email,
+            user.firstName || "User",
+            article.articleTitle,
+            article.articleSlug
+          );
+          console.log(`Suggestion approval email sent to ${user.email}`);
+        }
+      } catch (emailError) {
+        console.error(`Failed to send suggestion approval email:`, emailError);
+        // Don't fail the suggestion if email fails
+      }
+    }
+
     // Update rate limit
     await prisma.suggestionRateLimit.upsert({
       where: {
@@ -219,20 +244,58 @@ export async function POST(
     const approvedCount = await prisma.articleSuggestion.count({
       where: { clerkUserId: userId, isApproved: true },
     });
+    const previousCount = approvedCount - (suggestion.isApproved ? 1 : 0);
 
     const badges: string[] = [];
+    const newBadges: string[] = [];
+    
     // Assuming settings.badgeThresholds is a Prisma.JsonValue, 
     // which could be an object like { bronze?: number, silver?: number, gold?: number }
     if (settings?.badgeThresholds && typeof settings.badgeThresholds === 'object' && settings.badgeThresholds !== null) {
       const thresholds = settings.badgeThresholds as Record<string, unknown>; // Cast to a basic object
+      
       if (typeof thresholds.bronze === 'number' && approvedCount >= thresholds.bronze) {
         badges.push('bronze');
+        if (previousCount < thresholds.bronze) newBadges.push('bronze');
       }
       if (typeof thresholds.silver === 'number' && approvedCount >= thresholds.silver) {
         badges.push('silver');
+        if (previousCount < thresholds.silver) newBadges.push('silver');
       }
       if (typeof thresholds.gold === 'number' && approvedCount >= thresholds.gold) {
         badges.push('gold');
+        if (previousCount < thresholds.gold) newBadges.push('gold');
+      }
+    }
+
+    // Send achievement emails for newly unlocked badges
+    if (newBadges.length > 0) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: userId },
+          select: { email: true, firstName: true }
+        });
+        
+        if (user) {
+          for (const badge of newBadges) {
+            const achievementDescriptions = {
+              bronze: "You've had 5 suggestions approved! Keep contributing to the community.",
+              silver: "Impressive! 10 approved suggestions shows your dedication to helping others learn.",
+              gold: "Outstanding! 25 approved suggestions makes you a valued contributor to our platform."
+            };
+            
+            await emails.sendAchievementUnlocked(
+              user.email,
+              user.firstName || "User",
+              `${badge.charAt(0).toUpperCase() + badge.slice(1)} Contributor`,
+              achievementDescriptions[badge as keyof typeof achievementDescriptions]
+            );
+            console.log(`Achievement email sent for ${badge} badge to ${user.email}`);
+          }
+        }
+      } catch (emailError) {
+        console.error(`Failed to send achievement email:`, emailError);
+        // Don't fail the suggestion if email fails
       }
     }
 

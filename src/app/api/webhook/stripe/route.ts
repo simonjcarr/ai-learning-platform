@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
+import { emails } from '@/lib/email-service';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -143,6 +144,21 @@ export async function POST(req: NextRequest) {
             metadata: event.data.object,
           },
         });
+
+        // Send subscription confirmation email for new active subscriptions
+        if (event.type === 'customer.subscription.created' && status === 'ACTIVE') {
+          try {
+            await emails.sendSubscriptionConfirmation(
+              user.email,
+              user.firstName || "User",
+              tier,
+              priceItem.price.unit_amount || 0
+            );
+            console.log(`Subscription confirmation email sent to ${user.email}`);
+          } catch (emailError) {
+            console.error(`Failed to send subscription confirmation to ${user.email}:`, emailError);
+          }
+        }
 
         break;
       }

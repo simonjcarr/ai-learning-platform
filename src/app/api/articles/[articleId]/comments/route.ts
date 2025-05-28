@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { emails } from "@/lib/email-service";
 
 export async function GET(
   request: Request,
@@ -179,6 +180,73 @@ export async function POST(
         }
       }
     });
+
+    // Send notification emails asynchronously
+    try {
+      if (parentId) {
+        // This is a reply to another comment - notify the parent comment author
+        const parentComment = await prisma.comment.findUnique({
+          where: { commentId: parentId },
+          include: { 
+            user: { select: { email: true, firstName: true } },
+            article: { select: { articleTitle: true, articleSlug: true } }
+          }
+        });
+
+        if (parentComment && parentComment.user.email !== user.emailAddresses[0]?.emailAddress) {
+          const commenterName = dbUser.firstName || dbUser.username || "Someone";
+          await emails.sendCommentNotification(
+            parentComment.user.email,
+            commenterName,
+            parentComment.article.articleTitle,
+            parentComment.article.articleSlug,
+            content.trim()
+          );
+        }
+      } else {
+        // This is a top-level comment - notify article author and users who liked the article
+        const article = await prisma.article.findUnique({
+          where: { articleId },
+          include: { 
+            createdBy: { select: { email: true, firstName: true } },
+            likes: { 
+              include: { user: { select: { email: true, firstName: true } } }
+            }
+          }
+        });
+
+        if (article) {
+          const commenterName = dbUser.firstName || dbUser.username || "Someone";
+          const notificationEmails = new Set<string>();
+          
+          // Add article author
+          if (article.createdBy && article.createdBy.email !== user.emailAddresses[0]?.emailAddress) {
+            notificationEmails.add(article.createdBy.email);
+          }
+          
+          // Add users who liked the article
+          article.likes.forEach(like => {
+            if (like.user.email !== user.emailAddresses[0]?.emailAddress) {
+              notificationEmails.add(like.user.email);
+            }
+          });
+
+          // Send notifications
+          for (const email of notificationEmails) {
+            await emails.sendCommentNotification(
+              email,
+              commenterName,
+              article.articleTitle,
+              article.articleSlug,
+              content.trim()
+            );
+          }
+        }
+      }
+    } catch (emailError) {
+      console.error("Failed to send comment notification:", emailError);
+      // Don't fail the comment creation if email fails
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

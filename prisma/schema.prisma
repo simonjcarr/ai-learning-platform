@@ -528,3 +528,60 @@ model ArticleChangeHistory {
   @@index([createdAt])
   @@map("article_change_histories")
 }
+
+model EmailTemplate {
+  templateId    String               @id @default(cuid())
+  templateKey   String               @unique
+  templateName  String
+  description   String?
+  subject       String
+  htmlContent   String               @db.Text
+  textContent   String?              @db.Text
+  fromEmail     String?
+  fromName      String?
+  isActive      Boolean              @default(true)
+  variables     Json?                // JSON array of variable names and descriptions
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  emailLogs     EmailLog[]
+
+  @@index([templateKey])
+  @@index([isActive])
+  @@map("email_templates")
+}
+
+model EmailLog {
+  logId         String          @id @default(cuid())
+  templateId    String?
+  template      EmailTemplate?  @relation(fields: [templateId], references: [templateId])
+  to            String
+  from          String
+  subject       String
+  status        EmailStatus
+  messageId     String?         // Mailgun message ID
+  error         String?
+  metadata      Json?           // Additional data like user ID, article ID, etc.
+  sentAt        DateTime        @default(now())
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  clickedAt     DateTime?
+  bouncedAt     DateTime?
+  complainedAt   DateTime?
+
+  @@index([to])
+  @@index([status])
+  @@index([sentAt])
+  @@index([templateId])
+  @@map("email_logs")
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  FAILED
+  COMPLAINED
+}
