@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,9 @@ interface Variable {
   defaultValue?: string;
 }
 
-export default function EditEmailTemplatePage({ params }: { params: { templateId: string } }) {
+export default function EditEmailTemplatePage({ params }: { params: Promise<{ templateId: string }> }) {
   const router = useRouter();
+  const { templateId } = use(params);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,11 +36,11 @@ export default function EditEmailTemplatePage({ params }: { params: { templateId
 
   useEffect(() => {
     fetchTemplate();
-  }, [params.templateId]);
+  }, [templateId]);
 
   const fetchTemplate = async () => {
     try {
-      const response = await fetch(`/api/admin/email-templates/${params.templateId}`);
+      const response = await fetch(`/api/admin/email-templates/${templateId}`);
       if (!response.ok) throw new Error("Failed to fetch template");
       
       const template = await response.json();
@@ -70,7 +71,7 @@ export default function EditEmailTemplatePage({ params }: { params: { templateId
     setSaving(true);
 
     try {
-      const response = await fetch(`/api/admin/email-templates/${params.templateId}`, {
+      const response = await fetch(`/api/admin/email-templates/${templateId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
