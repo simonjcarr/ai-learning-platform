@@ -10,6 +10,7 @@ import CommentsList from "@/components/comments/comments-list";
 import LikeButton from "@/components/like-button";
 import AddToListButton from "@/components/add-to-list-button";
 import { FlagButton } from "@/components/flag-button";
+import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
 
 interface Article {
   articleId: string;
@@ -208,6 +209,12 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
               articleId={article.articleId} 
               articleTitle={article.articleTitle}
             />
+            {article.contentHtml && (
+              <ArticleSuggestionForm 
+                articleId={article.articleId}
+                onSuggestionSubmitted={() => window.location.reload()}
+              />
+            )}
             <FlagButton 
               type="article" 
               id={article.articleId} 

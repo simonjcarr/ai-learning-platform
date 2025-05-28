@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { Trophy, TrendingUp, Target, Award, ArrowLeft } from "lucide-react";
+import { Trophy, TrendingUp, Target, Award, ArrowLeft, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
@@ -8,7 +8,7 @@ interface Achievement {
   id: string;
   title: string;
   description: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string }>;
   progress: number;
   target: number;
   unlocked: boolean;
@@ -18,6 +18,7 @@ interface Achievement {
 async function getUserAchievements(userId: string): Promise<{
   correctAnswers: number;
   totalQuestions: number;
+  approvedSuggestions: number;
   achievements: Achievement[];
 }> {
   try {
@@ -27,6 +28,18 @@ async function getUserAchievements(userId: string): Promise<{
 
     const totalQuestions = userResponses.length;
     const correctAnswers = userResponses.filter(r => r.isCorrect).length;
+
+    // Get approved suggestions count
+    const approvedSuggestions = await prisma.articleSuggestion.count({
+      where: {
+        clerkUserId: userId,
+        isApproved: true
+      }
+    });
+
+    // Get suggestion settings for badge thresholds
+    const settings = await prisma.suggestionSettings.findFirst();
+    const thresholds = (settings?.badgeThresholds as { bronze?: number; silver?: number; gold?: number }) || { bronze: 5, silver: 10, gold: 25 };
 
     const achievements: Achievement[] = [
       {
@@ -78,12 +91,54 @@ async function getUserAchievements(userId: string): Promise<{
         target: 80,
         unlocked: totalQuestions >= 20 && (correctAnswers / totalQuestions) >= 0.8,
         color: 'indigo'
+      },
+      // Suggestion badges
+      {
+        id: 'first_suggestion',
+        title: 'Content Contributor',
+        description: 'Get your first article suggestion approved',
+        icon: Lightbulb,
+        progress: approvedSuggestions,
+        target: 1,
+        unlocked: approvedSuggestions >= 1,
+        color: 'orange'
+      },
+      {
+        id: 'bronze_contributor',
+        title: 'Bronze Contributor',
+        description: `Get ${thresholds.bronze} article suggestions approved`,
+        icon: Lightbulb,
+        progress: approvedSuggestions,
+        target: thresholds.bronze,
+        unlocked: approvedSuggestions >= thresholds.bronze,
+        color: 'amber'
+      },
+      {
+        id: 'silver_contributor',
+        title: 'Silver Contributor',
+        description: `Get ${thresholds.silver} article suggestions approved`,
+        icon: Lightbulb,
+        progress: approvedSuggestions,
+        target: thresholds.silver,
+        unlocked: approvedSuggestions >= thresholds.silver,
+        color: 'gray'
+      },
+      {
+        id: 'gold_contributor',
+        title: 'Gold Contributor',
+        description: `Get ${thresholds.gold} article suggestions approved`,
+        icon: Lightbulb,
+        progress: approvedSuggestions,
+        target: thresholds.gold,
+        unlocked: approvedSuggestions >= thresholds.gold,
+        color: 'yellow'
       }
     ];
 
     return {
       correctAnswers,
       totalQuestions,
+      approvedSuggestions,
       achievements
     };
       
@@ -92,6 +147,7 @@ async function getUserAchievements(userId: string): Promise<{
     return {
       correctAnswers: 0,
       totalQuestions: 0,
+      approvedSuggestions: 0,
       achievements: []
     };
   }
@@ -104,7 +160,7 @@ export default async function AchievementsPage() {
     redirect("/sign-in");
   }
 
-  const { correctAnswers, totalQuestions, achievements } = await getUserAchievements(userId);
+  const { correctAnswers, totalQuestions, approvedSuggestions, achievements } = await getUserAchievements(userId);
   const unlockedCount = achievements.filter(a => a.unlocked).length;
   const successRate = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
 
@@ -117,6 +173,9 @@ export default async function AchievementsPage() {
       case 'yellow': return 'bg-yellow-100 text-yellow-600';
       case 'purple': return 'bg-purple-100 text-purple-600';
       case 'indigo': return 'bg-indigo-100 text-indigo-600';
+      case 'orange': return 'bg-orange-100 text-orange-600';
+      case 'amber': return 'bg-amber-100 text-amber-600';
+      case 'gray': return 'bg-gray-100 text-gray-600';
       default: return 'bg-gray-100 text-gray-600';
     }
   };
@@ -138,7 +197,7 @@ export default async function AchievementsPage() {
       </div>
 
       {/* Progress Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
             <Award className="h-8 w-8 text-gold-600" />
@@ -169,6 +228,16 @@ export default async function AchievementsPage() {
               }`}>
                 {successRate}%
               </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <Lightbulb className="h-8 w-8 text-orange-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Approved Suggestions</p>
+              <p className="text-2xl font-semibold text-gray-900">{approvedSuggestions}</p>
             </div>
           </div>
         </div>

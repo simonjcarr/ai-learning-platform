@@ -33,6 +33,8 @@ model User {
   subscriptionHistory          SubscriptionHistory[]
   userResponses                UserResponse[]
   articleViews                 UserArticleView[]
+  articleSuggestions           ArticleSuggestion[]
+  suggestionRateLimits         SuggestionRateLimit[]
 
   @@map("users")
 }
@@ -74,6 +76,7 @@ model Article {
   curatedListItems     CuratedListItem[]
   interactiveExamples  InteractiveExample[]
   views                UserArticleView[]
+  suggestions          ArticleSuggestion[]
 
   @@index([streamId])
   @@index([articleSlug])
@@ -424,4 +427,64 @@ model UserArticleView {
   @@index([articleId])
   @@index([viewedAt])
   @@map("user_article_views")
+}
+
+model ArticleSuggestion {
+  suggestionId         String              @id @default(cuid())
+  articleId            String
+  clerkUserId          String
+  suggestionType       SuggestionType
+  suggestionDetails    String
+  aiValidationResponse String?
+  isApproved           Boolean             @default(false)
+  isApplied            Boolean             @default(false)
+  rejectionReason      String?
+  suggestedAt          DateTime            @default(now())
+  processedAt          DateTime?
+  appliedAt            DateTime?
+  aiInteractionId      String?
+  article              Article             @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user                 User                @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@index([isApproved])
+  @@index([suggestedAt])
+  @@map("article_suggestions")
+}
+
+model SuggestionRateLimit {
+  rateLimitId String   @id @default(cuid())
+  clerkUserId String
+  articleId   String
+  lastSuggestionAt DateTime
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@unique([clerkUserId, articleId])
+  @@index([clerkUserId])
+  @@index([articleId])
+  @@index([lastSuggestionAt])
+  @@map("suggestion_rate_limits")
+}
+
+model SuggestionSettings {
+  settingsId String @id @default(cuid())
+  rateLimitMinutes Int @default(60)
+  maxSuggestionsPerUser Int @default(10)
+  badgeThresholds Json @default("{\"bronze\": 5, \"silver\": 10, \"gold\": 25}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("suggestion_settings")
+}
+
+enum SuggestionType {
+  CONTENT_ADDITION
+  CONTENT_CORRECTION
+  GRAMMAR_SPELLING
+  CODE_IMPROVEMENT
+  CLARITY_IMPROVEMENT
+  EXAMPLE_ADDITION
+  LINK_UPDATE
+  OTHER
 }

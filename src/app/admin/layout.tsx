@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -85,6 +85,12 @@ export default function AdminLayout({
       name: "Subscription Pricing",
       href: "/admin/pricing",
       icon: DollarSign,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "Suggestion Settings",
+      href: "/admin/suggestions/settings",
+      icon: Settings,
       minRole: Role.ADMIN,
     },
   ];
