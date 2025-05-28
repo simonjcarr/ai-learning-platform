@@ -125,9 +125,9 @@ export default function EmailLogsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Select
-                value={filters.status}
+                value={filters.status || "all"}
                 onValueChange={(value) => {
-                  setFilters({ ...filters, status: value });
+                  setFilters({ ...filters, status: value === "all" ? "" : value });
                   setPagination({ ...pagination, page: 1 });
                 }}
               >
@@ -135,7 +135,7 @@ export default function EmailLogsPage() {
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Statuses</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="SENT">Sent</SelectItem>
                   <SelectItem value="DELIVERED">Delivered</SelectItem>

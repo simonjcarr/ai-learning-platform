@@ -3,10 +3,37 @@ import Mailgun from 'mailgun.js';
 
 const mailgun = new Mailgun(formData);
 
-const mg = mailgun.client({
-  username: 'api',
-  key: process.env.MAILGUN_API_KEY || '',
-});
+// Initialize client lazily to ensure env vars are loaded
+let mgClient: any;
+
+function getMgClient() {
+  if (!mgClient) {
+    const apiKey = process.env.MAILGUN_API_KEY;
+    if (!apiKey) {
+      throw new Error('MAILGUN_API_KEY is not configured');
+    }
+    
+    // Debug logging
+    console.log('Mailgun initialization:', {
+      apiKeyLength: apiKey.length,
+      apiKeyPrefix: apiKey.substring(0, 10) + '...',
+      domain: process.env.MAILGUN_DOMAIN,
+    });
+    
+    // Check if using EU region
+    const isEU = process.env.MAILGUN_REGION?.toUpperCase() === 'EU';
+    const apiUrl = isEU ? 'https://api.eu.mailgun.net' : 'https://api.mailgun.net';
+    
+    console.log('Using Mailgun API URL:', apiUrl, '(Region:', process.env.MAILGUN_REGION || 'US', ')');
+    
+    mgClient = mailgun.client({
+      username: 'api',
+      key: apiKey,
+      url: apiUrl,
+    });
+  }
+  return mgClient;
+}
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -57,16 +84,32 @@ export async function sendEmail(options: SendEmailOptions) {
   }
 
   try {
+    const mg = getMgClient();
+    console.log('Sending email with domain:', domain);
+    console.log('Message data:', {
+      ...messageData,
+      html: messageData.html ? '[HTML content]' : undefined,
+      text: messageData.text ? '[Text content]' : undefined,
+    });
+    
     const result = await mg.messages.create(domain, messageData);
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to send email:', error);
+    if (error.status === 401) {
+      console.error('Authentication failed. Please check:');
+      console.error('1. API key is correct');
+      console.error('2. Domain is verified in Mailgun');
+      console.error('3. API key has permissions for this domain');
+      console.error('4. You are using the correct region (US vs EU)');
+    }
     throw error;
   }
 }
 
 export async function validateEmail(email: string): Promise<boolean> {
   try {
+    const mg = getMgClient();
     const result = await mg.validate.get(email);
     return result.is_valid || false;
   } catch (error) {

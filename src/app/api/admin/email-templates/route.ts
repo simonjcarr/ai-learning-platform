@@ -4,13 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const createTemplateSchema = z.object({
-  templateKey: z.string().min(1).max(50),
+  templateKey: z.string().min(1).max(50).regex(/^[a-z0-9_]+$/, {
+    message: "Template key must contain only lowercase letters, numbers, and underscores",
+  }),
   templateName: z.string().min(1).max(100),
   description: z.string().optional(),
   subject: z.string().min(1),
   htmlContent: z.string().min(1),
   textContent: z.string().optional(),
-  fromEmail: z.string().email().optional(),
+  fromEmail: z.string().email().optional().or(z.literal("")),
   fromName: z.string().optional(),
   variables: z.array(z.object({
     name: z.string(),
@@ -57,6 +59,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
+    console.log("Creating email template - userId:", userId);
+    
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -66,12 +70,25 @@ export async function POST(request: NextRequest) {
       select: { role: true },
     });
 
+    console.log("User role:", user?.role);
+
     if (!user || user.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
-    const validated = createTemplateSchema.parse(body);
+    console.log("Request body:", JSON.stringify(body, null, 2));
+    
+    // Clean empty strings to null/undefined
+    const cleanedBody = {
+      ...body,
+      description: body.description || undefined,
+      textContent: body.textContent || undefined,
+      fromEmail: body.fromEmail || undefined,
+      fromName: body.fromName || undefined,
+    };
+    
+    const validated = createTemplateSchema.parse(cleanedBody);
 
     // Check if template key already exists
     const existing = await prisma.emailTemplate.findUnique({
@@ -79,6 +96,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
+      console.log("Template key already exists:", validated.templateKey);
       return NextResponse.json(
         { error: "Template key already exists" },
         { status: 400 }
@@ -92,9 +110,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log("Template created successfully:", template.templateId);
     return NextResponse.json(template);
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error("Validation error:", error.errors);
       return NextResponse.json(
         { error: "Invalid request data", details: error.errors },
         { status: 400 }

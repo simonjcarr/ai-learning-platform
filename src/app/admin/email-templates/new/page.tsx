@@ -36,13 +36,23 @@ export default function NewEmailTemplatePage() {
     setSaving(true);
 
     try {
+      // Clean up form data - convert empty strings to undefined for optional fields
+      const cleanedData = {
+        templateKey: formData.templateKey,
+        templateName: formData.templateName,
+        description: formData.description || undefined,
+        subject: formData.subject,
+        htmlContent: formData.htmlContent,
+        textContent: formData.textContent || undefined,
+        fromEmail: formData.fromEmail || undefined,
+        fromName: formData.fromName || undefined,
+        variables: variables.length > 0 ? variables.filter(v => v.name && v.description) : undefined,
+      };
+
       const response = await fetch("/api/admin/email-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          variables: variables.length > 0 ? variables : undefined,
-        }),
+        body: JSON.stringify(cleanedData),
       });
 
       if (!response.ok) {
