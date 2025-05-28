@@ -7,6 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { useSubscription } from '@/hooks/use-subscription';
+import { CreditCard } from 'lucide-react';
+import Link from 'next/link';
 
 interface ArticleSuggestionFormProps {
   articleId: string;
@@ -25,6 +28,7 @@ const suggestionTypes = [
 
 export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps) {
   const { user } = useAuth();
+  const { isSubscribed, isLoadingSubscription } = useSubscription();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [suggestionType, setSuggestionType] = useState('');
   const [suggestionDetails, setSuggestionDetails] = useState('');
@@ -189,7 +193,50 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
           </DialogDescription>
         </DialogHeader>
 
-        {hasFreshResponse && result ? (
+        {!user ? (
+          <div className="py-4 text-center">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Please Sign In
+              </h3>
+              <p className="text-gray-600 mb-4">
+                You need to be signed in to suggest improvements to articles.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Link href="/sign-in">
+                <Button className="bg-orange-600 text-white hover:bg-orange-700">
+                  Sign In
+                </Button>
+              </Link>
+            </DialogFooter>
+          </div>
+        ) : !isSubscribed && !isLoadingSubscription ? (
+          <div className="py-4 text-center">
+            <CreditCard className="mx-auto h-12 w-12 text-blue-600 mb-4" />
+            <div className="mb-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Subscription Required
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Article suggestions are available to subscribed users. Upgrade your plan to suggest improvements and help us make our content better.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Link href="/pricing">
+                <Button className="bg-blue-600 text-white hover:bg-blue-700">
+                  View Plans
+                </Button>
+              </Link>
+            </DialogFooter>
+          </div>
+        ) : hasFreshResponse && result ? (
           <div className="py-4">
             <div className={`mt-4 p-3 rounded-md text-sm ${result.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               {result.message}
