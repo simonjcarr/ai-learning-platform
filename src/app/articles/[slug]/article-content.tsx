@@ -198,7 +198,21 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
               {article.stream 
                 ? `${article.stream.channel.channelName} / ${article.stream.streamName}`
                 : article.categories && article.categories.length > 0 
-                  ? article.categories.map(c => c.category.categoryName).join(', ')
+                  ? (
+                    <div className="flex flex-wrap gap-2">
+                      {article.categories.map((c, index) => (
+                        <span key={c.category.categoryId}>
+                          <Link 
+                            href={`/categories/${c.category.categoryId}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            {c.category.categoryName}
+                          </Link>
+                          {index < article.categories.length - 1 && <span className="text-gray-600">,</span>}
+                        </span>
+                      ))}
+                    </div>
+                  )
                   : 'Uncategorized'
               }
             </span>
@@ -229,7 +243,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                 <Link
                   key={tag.tagId}
                   href={`/search?q=${encodeURIComponent(`#${tag.tagName}`)}`}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white shadow-sm hover:opacity-80 transition-opacity"
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white shadow-sm hover:opacity-80 transition-opacity"
                   style={{ 
                     backgroundColor: tag.color || '#3B82F6',
                   }}
