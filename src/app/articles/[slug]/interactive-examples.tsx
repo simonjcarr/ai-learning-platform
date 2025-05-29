@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, RefreshCw, CheckCircle, XCircle, Lightbulb, MessageCircle } from "lucide-react";
-import { ChatInterface } from "@/components/chat/chat-interface";
 
 interface Option {
   id: string;
@@ -19,9 +18,10 @@ interface Example {
 
 interface InteractiveExamplesProps {
   articleId: string;
+  onFocusedExampleChange?: (exampleId: string | null) => void;
 }
 
-export default function InteractiveExamples({ articleId }: InteractiveExamplesProps) {
+export default function InteractiveExamples({ articleId, onFocusedExampleChange }: InteractiveExamplesProps) {
   const [examples, setExamples] = useState<Example[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -34,6 +34,11 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
   }>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [focusedExampleId, setFocusedExampleId] = useState<string | undefined>(undefined);
+
+  // Notify parent of focused example changes
+  useEffect(() => {
+    onFocusedExampleChange?.(focusedExampleId || null);
+  }, [focusedExampleId, onFocusedExampleChange]);
 
   const fetchExamples = useCallback(async () => {
     try {
@@ -285,9 +290,6 @@ export default function InteractiveExamples({ articleId }: InteractiveExamplesPr
         </div>
       )}
     </section>
-    
-    {/* Pass focused example ID to chat interface */}
-    <ChatInterface articleId={articleId} currentExampleId={focusedExampleId} />
     </>
   );
 }

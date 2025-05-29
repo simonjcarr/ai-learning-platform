@@ -16,7 +16,7 @@ import { FlagButton } from "@/components/flag-button";
 import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
 import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
 import { ArticleChangeHistory } from "@/components/article-change-history";
-import { ArticleGroupsButton } from "@/components/article-groups/article-groups-button";
+import { FloatingActionMenu } from "@/components/floating-action-menu";
 
 interface Article {
   articleId: string;
@@ -62,6 +62,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [error, setError] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState(false);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [focusedExampleId, setFocusedExampleId] = useState<string | null>(null);
   const { isSignedIn } = useUser();
 
   useEffect(() => {
@@ -279,7 +280,10 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           
           {/* Interactive Examples Section */}
           {isSignedIn && (
-            <InteractiveExamples articleId={article.articleId} />
+            <InteractiveExamples 
+              articleId={article.articleId} 
+              onFocusedExampleChange={setFocusedExampleId}
+            />
           )}
           
           {/* Change History Section */}
@@ -356,8 +360,8 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       />
     )}
     
-    {/* Article Groups Button */}
-    {isSignedIn && <ArticleGroupsButton />}
+    {/* Floating Action Menu */}
+    {isSignedIn && <FloatingActionMenu articleId={article.articleId} currentExampleId={focusedExampleId || undefined} />}
     </>
   );
 }
