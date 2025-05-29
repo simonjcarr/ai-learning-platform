@@ -16,6 +16,7 @@ import { FlagButton } from "@/components/flag-button";
 import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
 import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
 import { ArticleChangeHistory } from "@/components/article-change-history";
+import { ArticleGroupsButton } from "@/components/article-groups/article-groups-button";
 
 interface Article {
   articleId: string;
@@ -354,6 +355,9 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         onClose={() => setShowSuggestionModal(false)}
       />
     )}
+    
+    {/* Article Groups Button */}
+    {isSignedIn && <ArticleGroupsButton />}
     </>
   );
 }

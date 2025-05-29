@@ -37,6 +37,7 @@ model User {
   suggestionRateLimits         SuggestionRateLimit[]
   articleChangeHistories       ArticleChangeHistory[]
   rollbackChangeHistories      ArticleChangeHistory[] @relation("RollbackUser")
+  articleGroups                ArticleGroup[]
 
   @@map("users")
 }
@@ -80,6 +81,7 @@ model Article {
   views                UserArticleView[]
   suggestions          ArticleSuggestion[]
   changeHistories      ArticleChangeHistory[]
+  articleGroups        ArticleGroupArticle[]
 
   @@index([streamId])
   @@index([articleSlug])
@@ -584,4 +586,33 @@ enum EmailStatus {
   BOUNCED
   FAILED
   COMPLAINED
+}
+
+model ArticleGroup {
+  groupId       String                @id @default(cuid())
+  name          String
+  clerkUserId   String
+  user          User                  @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  articles      ArticleGroupArticle[]
+
+  @@index([clerkUserId])
+  @@map("article_groups")
+}
+
+model ArticleGroupArticle {
+  id             String       @id @default(cuid())
+  groupId        String
+  articleId      String
+  scrollPosition Int          @default(0)
+  addedAt        DateTime     @default(now())
+  lastViewedAt   DateTime?
+  group          ArticleGroup @relation(fields: [groupId], references: [groupId], onDelete: Cascade)
+  article        Article      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+
+  @@unique([groupId, articleId])
+  @@index([groupId])
+  @@index([articleId])
+  @@map("article_group_articles")
 }

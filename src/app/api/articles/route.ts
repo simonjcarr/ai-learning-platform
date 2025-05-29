@@ -8,8 +8,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get('categoryId');
     const isContentGenerated = searchParams.get('isContentGenerated');
+    const slug = searchParams.get('slug');
 
     const where: any = {};
+    
+    if (slug) {
+      where.articleSlug = slug;
+    }
     
     if (categoryId) {
       where.categories = {
