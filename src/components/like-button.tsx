@@ -8,9 +8,10 @@ import { useRouter } from "next/navigation";
 interface LikeButtonProps {
   articleId: string;
   className?: string;
+  iconOnly?: boolean;
 }
 
-export default function LikeButton({ articleId, className = "" }: LikeButtonProps) {
+export default function LikeButton({ articleId, className = "", iconOnly = false }: LikeButtonProps) {
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { isSignedIn } = useUser();
@@ -61,7 +62,7 @@ export default function LikeButton({ articleId, className = "" }: LikeButtonProp
     <button
       onClick={handleLike}
       disabled={isLoading}
-      className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+      className={`inline-flex items-center ${iconOnly ? "justify-center p-2" : "gap-2 px-3 py-2"} text-sm font-medium rounded-md transition-colors ${
         isLiked
           ? "bg-red-100 text-red-700 hover:bg-red-200"
           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -71,7 +72,7 @@ export default function LikeButton({ articleId, className = "" }: LikeButtonProp
       <Heart
         className={`h-4 w-4 ${isLiked ? "fill-current" : ""}`}
       />
-      <span>{isLiked ? "Liked" : "Like"}</span>
+      {!iconOnly && <span>{isLiked ? "Liked" : "Like"}</span>}
     </button>
   );
 }

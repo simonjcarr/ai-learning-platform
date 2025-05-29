@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookmarkPlus, Check, Loader2, Plus } from "lucide-react";
+import { BookmarkPlus, Check, Loader2, Plus, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
@@ -9,6 +9,7 @@ interface AddToListButtonProps {
   articleId: string;
   articleTitle: string;
   className?: string;
+  iconOnly?: boolean;
 }
 
 interface CuratedList {
@@ -23,7 +24,8 @@ interface CuratedList {
 export default function AddToListButton({ 
   articleId, 
   articleTitle,
-  className = "" 
+  className = "",
+  iconOnly = false
 }: AddToListButtonProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [lists, setLists] = useState<CuratedList[]>([]);
@@ -31,6 +33,7 @@ export default function AddToListButton({
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [addedToLists, setAddedToLists] = useState<Set<string>>(new Set());
+  const [articleLists, setArticleLists] = useState<Set<string>>(new Set());
   const { isSignedIn } = useUser();
   const router = useRouter();
 
@@ -43,10 +46,19 @@ export default function AddToListButton({
   const fetchLists = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/lists");
-      if (response.ok) {
-        const data = await response.json();
+      const [listsResponse, articleListsResponse] = await Promise.all([
+        fetch("/api/lists"),
+        fetch(`/api/articles/${articleId}/lists`)
+      ]);
+      
+      if (listsResponse.ok) {
+        const data = await listsResponse.json();
         setLists(data);
+      }
+      
+      if (articleListsResponse.ok) {
+        const data = await articleListsResponse.json();
+        setArticleLists(new Set(data.listIds || []));
       }
     } catch (error) {
       console.error("Error fetching lists:", error);
@@ -55,28 +67,42 @@ export default function AddToListButton({
     }
   };
 
-  const handleAddToList = async (listId: string) => {
+  const handleToggleList = async (listId: string) => {
     try {
-      const response = await fetch(`/api/lists/${listId}/items`, {
-        method: "POST",
+      const isInList = articleLists.has(listId);
+      const url = isInList 
+        ? `/api/lists/${listId}/items?articleId=${articleId}`
+        : `/api/lists/${listId}/items`;
+      
+      const response = await fetch(url, {
+        method: isInList ? "DELETE" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ articleId }),
+        body: isInList ? undefined : JSON.stringify({ articleId }),
       });
 
       if (response.ok) {
-        setAddedToLists(new Set([...addedToLists, listId]));
-        setTimeout(() => {
-          setAddedToLists(prev => {
+        if (isInList) {
+          setArticleLists(prev => {
             const newSet = new Set(prev);
             newSet.delete(listId);
             return newSet;
           });
-        }, 2000);
+        } else {
+          setArticleLists(prev => new Set([...prev, listId]));
+          setAddedToLists(new Set([...addedToLists, listId]));
+          setTimeout(() => {
+            setAddedToLists(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(listId);
+              return newSet;
+            });
+          }, 2000);
+        }
       }
     } catch (error) {
-      console.error("Error adding to list:", error);
+      console.error("Error toggling list:", error);
     }
   };
 
@@ -95,7 +121,7 @@ export default function AddToListButton({
 
       if (response.ok) {
         const newList = await response.json();
-        await handleAddToList(newList.listId);
+        await handleToggleList(newList.listId);
         setNewListName("");
         setShowNewListForm(false);
         fetchLists();
@@ -117,11 +143,11 @@ export default function AddToListButton({
     <div className="relative">
       <button
         onClick={handleButtonClick}
-        className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 ${className}`}
+        className={`inline-flex items-center ${iconOnly ? "justify-center p-2" : "gap-2 px-3 py-2"} text-sm font-medium rounded-md transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 ${className}`}
         title="Add to list"
       >
         <BookmarkPlus className="h-4 w-4" />
-        <span>Add to List</span>
+        {!iconOnly && <span>Add to List</span>}
       </button>
 
       {showDropdown && (
@@ -141,13 +167,21 @@ export default function AddToListButton({
                   {lists.map((list) => (
                     <button
                       key={list.listId}
-                      onClick={() => handleAddToList(list.listId)}
-                      className="w-full text-left px-2 py-2 text-sm rounded hover:bg-gray-100 flex items-center justify-between"
+                      onClick={() => handleToggleList(list.listId)}
+                      className="w-full text-left px-2 py-2 text-sm rounded hover:bg-gray-100 flex items-center justify-between group"
                     >
                       <span className="truncate">{list.listName}</span>
-                      {addedToLists.has(list.listId) && (
-                        <Check className="h-4 w-4 text-green-600 flex-shrink-0 ml-2" />
-                      )}
+                      <div className="flex items-center gap-1">
+                        {articleLists.has(list.listId) && (
+                          <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        )}
+                        {addedToLists.has(list.listId) && (
+                          <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        )}
+                        {articleLists.has(list.listId) && (
+                          <X className="h-4 w-4 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>

@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Loader2, BookOpen, Sparkles, CreditCard } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/use-auth";
+import { useSubscription } from "@/hooks/use-subscription";
+import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Bookmark, Flag } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
@@ -11,6 +14,7 @@ import LikeButton from "@/components/like-button";
 import AddToListButton from "@/components/add-to-list-button";
 import { FlagButton } from "@/components/flag-button";
 import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
+import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
 import { ArticleChangeHistory } from "@/components/article-change-history";
 
 interface Article {
@@ -56,6 +60,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const { isSignedIn } = useUser();
 
   useEffect(() => {
@@ -197,29 +202,22 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                   : 'Uncategorized'
               }
             </span>
-            {article.createdBy?.username && (
-              <>
-                <span className="mx-2">•</span>
-                <span>by {article.createdBy.username}</span>
-              </>
-            )}
           </div>
           <div className="flex items-center gap-2">
-            <LikeButton articleId={article.articleId} />
+            <LikeButton articleId={article.articleId} iconOnly />
             <AddToListButton 
               articleId={article.articleId} 
               articleTitle={article.articleTitle}
+              iconOnly
             />
             {article.contentHtml && (
-              <ArticleSuggestionForm 
+              <MoreOptionsDropdown
                 articleId={article.articleId}
+                articleTitle={article.articleTitle}
+                isFlagged={article.isFlagged}
+                onShowSuggestion={() => setShowSuggestionModal(true)}
               />
             )}
-            <FlagButton 
-              type="article" 
-              id={article.articleId} 
-              isFlagged={article.isFlagged}
-            />
           </div>
         </div>
         
@@ -335,6 +333,627 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       )}
     </div>
     
+    {showSuggestionModal && (
+      <SuggestionModal
+        articleId={article.articleId}
+        isOpen={showSuggestionModal}
+        onClose={() => setShowSuggestionModal(false)}
+      />
+    )}
     </>
+  );
+}
+
+interface MoreOptionsDropdownProps {
+  articleId: string;
+  articleTitle: string;
+  isFlagged: boolean;
+  onShowSuggestion: () => void;
+}
+
+function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggestion }: MoreOptionsDropdownProps) {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showListModal, setShowListModal] = useState(false);
+
+  return (
+    <>
+      <div className="relative">
+        <button
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="inline-flex items-center justify-center p-2 text-sm font-medium rounded-md transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"
+          title="More options"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+
+        {showDropdown && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setShowDropdown(false)}
+            />
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+              <div className="py-1">
+                <button
+                  onClick={() => {
+                    console.log('Manage Lists clicked');
+                    setShowDropdown(false);
+                    setShowListModal(true);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                >
+                  <BookmarkPlus className="h-4 w-4 mr-2" />
+                  Manage Lists
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('Suggest Improvement clicked');
+                    setShowDropdown(false);
+                    onShowSuggestion();
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Suggest Improvement
+                </button>
+                <div className="border-t border-gray-100">
+                  <FlagButtonMenuItem
+                    articleId={articleId}
+                    isFlagged={isFlagged}
+                    onClose={() => setShowDropdown(false)}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {showListModal && (
+        <ListManagementModal
+          articleId={articleId}
+          articleTitle={articleTitle}
+          isOpen={showListModal}
+          onClose={() => setShowListModal(false)}
+        />
+      )}
+    </>
+  );
+}
+
+interface FlagButtonMenuItemProps {
+  articleId: string;
+  isFlagged: boolean;
+  onClose: () => void;
+}
+
+function FlagButtonMenuItem({ articleId, isFlagged, onClose }: FlagButtonMenuItemProps) {
+  const { isSignedIn } = useUser();
+  const [loading, setLoading] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+
+  async function handleFlag() {
+    if (!isSignedIn) {
+      alert("Please sign in to flag content");
+      return;
+    }
+
+    if (isFlagged) {
+      alert("This content has already been flagged");
+      return;
+    }
+
+    onClose();
+    setShowReasonModal(true);
+  }
+
+  async function submitFlag() {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/articles/${articleId}/flag`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flagReason }),
+      });
+
+      if (!response.ok) throw new Error("Failed to flag content");
+      
+      setShowReasonModal(false);
+      setFlagReason("");
+    } catch (error) {
+      console.error("Error flagging content:", error);
+      alert("Failed to flag content");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleFlag}
+        disabled={loading || isFlagged}
+        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center disabled:opacity-50"
+        title={isFlagged ? "Already flagged" : "Flag as inappropriate"}
+      >
+        <Flag className="h-4 w-4 mr-2" fill={isFlagged ? "currentColor" : "none"} />
+        <span>{isFlagged ? "Flagged" : "Flag"}</span>
+      </button>
+
+      {showReasonModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold mb-4">Flag Content</h3>
+            <p className="text-gray-600 mb-4">
+              Please provide a reason for flagging this content:
+            </p>
+            <textarea
+              value={flagReason}
+              onChange={(e) => setFlagReason(e.target.value)}
+              placeholder="Explain why this content is inappropriate..."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 mb-4"
+              rows={4}
+              required
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowReasonModal(false);
+                  setFlagReason("");
+                }}
+                className="px-4 py-2 text-gray-700 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitFlag}
+                disabled={loading || !flagReason.trim()}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {loading ? "Submitting..." : "Submit Flag"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+interface ArticleSuggestionMenuItemProps {
+  articleId: string;
+  onClose: () => void;
+}
+
+function ArticleSuggestionMenuItem({ articleId, onClose }: ArticleSuggestionMenuItemProps) {
+  return (
+    <ArticleSuggestionFormInline articleId={articleId} onClose={onClose} />
+  );
+}
+
+interface ListManagementModalProps {
+  articleId: string;
+  articleTitle: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function ListManagementModal({ articleId, articleTitle, isOpen, onClose }: ListManagementModalProps) {
+  const [lists, setLists] = useState<any[]>([]);
+  const [articleLists, setArticleLists] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [showNewListForm, setShowNewListForm] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const { isSignedIn } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isOpen && isSignedIn) {
+      fetchLists();
+    }
+  }, [isOpen, isSignedIn]);
+
+  const fetchLists = async () => {
+    setIsLoading(true);
+    try {
+      const [listsResponse, articleListsResponse] = await Promise.all([
+        fetch("/api/lists"),
+        fetch(`/api/articles/${articleId}/lists`)
+      ]);
+      
+      if (listsResponse.ok) {
+        const data = await listsResponse.json();
+        setLists(data);
+      }
+      
+      if (articleListsResponse.ok) {
+        const data = await articleListsResponse.json();
+        setArticleLists(new Set(data.listIds || []));
+      }
+    } catch (error) {
+      console.error("Error fetching lists:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggleList = async (listId: string) => {
+    try {
+      const isInList = articleLists.has(listId);
+      const url = isInList 
+        ? `/api/lists/${listId}/items?articleId=${articleId}`
+        : `/api/lists/${listId}/items`;
+      
+      const response = await fetch(url, {
+        method: isInList ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: isInList ? undefined : JSON.stringify({ articleId }),
+      });
+
+      if (response.ok) {
+        if (isInList) {
+          setArticleLists(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(listId);
+            return newSet;
+          });
+        } else {
+          setArticleLists(prev => new Set([...prev, listId]));
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling list:", error);
+    }
+  };
+
+  const handleCreateNewList = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newListName.trim()) return;
+
+    try {
+      const response = await fetch("/api/lists", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ listName: newListName }),
+      });
+
+      if (response.ok) {
+        const newList = await response.json();
+        await handleToggleList(newList.listId);
+        setNewListName("");
+        setShowNewListForm(false);
+        fetchLists();
+      }
+    } catch (error) {
+      console.error("Error creating list:", error);
+    }
+  };
+
+  if (!isSignedIn) {
+    return null;
+  }
+
+  return (
+    <>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 p-4" 
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
+        >
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-semibold">Manage Lists</h2>
+              <p className="text-sm text-gray-600 mt-1">Add "{articleTitle}" to your lists</p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {lists.map((list) => (
+                      <button
+                        key={list.listId}
+                        onClick={() => handleToggleList(list.listId)}
+                        className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 flex items-center justify-between group"
+                      >
+                        <div>
+                          <p className="font-medium">{list.listName}</p>
+                          {list.description && (
+                            <p className="text-sm text-gray-600">{list.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {articleLists.has(list.listId) ? (
+                            <>
+                              <Check className="h-5 w-5 text-green-600" />
+                              <X className="h-5 w-5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </>
+                          ) : (
+                            <Plus className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {!showNewListForm ? (
+                    <button
+                      onClick={() => setShowNewListForm(true)}
+                      className="w-full mt-4 p-3 rounded-lg border-2 border-dashed border-gray-300 hover:border-gray-400 flex items-center justify-center text-gray-600 hover:text-gray-700"
+                    >
+                      <Plus className="h-5 w-5 mr-2" />
+                      Create new list
+                    </button>
+                  ) : (
+                    <form onSubmit={handleCreateNewList} className="mt-4 p-3 border rounded-lg">
+                      <input
+                        type="text"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                        placeholder="List name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          type="submit"
+                          className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        >
+                          Create
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNewListForm(false);
+                            setNewListName("");
+                          }}
+                          className="flex-1 px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
+            
+            <div className="p-6 border-t">
+              <button
+                onClick={onClose}
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+interface SuggestionModalProps {
+  articleId: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function SuggestionModal({ articleId, isOpen, onClose }: SuggestionModalProps) {
+  const { user } = useUser();
+  const { isSubscribed, isLoadingSubscription } = useSubscription();
+  const [suggestionType, setSuggestionType] = useState('');
+  const [suggestionDetails, setSuggestionDetails] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [hasFreshResponse, setHasFreshResponse] = useState(false);
+
+  const suggestionTypes = [
+    { value: 'CONTENT_ADDITION', label: 'Add missing content' },
+    { value: 'CONTENT_CORRECTION', label: 'Correct an error' },
+    { value: 'GRAMMAR_SPELLING', label: 'Fix grammar/spelling' },
+    { value: 'CODE_IMPROVEMENT', label: 'Improve code example' },
+    { value: 'CLARITY_IMPROVEMENT', label: 'Improve clarity' },
+    { value: 'EXAMPLE_ADDITION', label: 'Add an example' },
+    { value: 'LINK_UPDATE', label: 'Update a link' },
+    { value: 'OTHER', label: 'Other improvement' },
+  ];
+
+  const fullReset = () => {
+    setSuggestionType('');
+    setSuggestionDetails('');
+    setResult(null);
+    setHasFreshResponse(false);
+    setIsSubmitting(false);
+  };
+
+  const handleClose = () => {
+    onClose();
+    fullReset();
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+
+    if (!suggestionType || !suggestionDetails.trim()) {
+      setResult({ success: false, message: 'Please select a suggestion type and provide details.' });
+      setHasFreshResponse(true);
+      setIsSubmitting(false);
+      return;
+    }
+    setResult(null);
+
+    try {
+      const response = await fetch(`/api/articles/${articleId}/suggest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggestionType, suggestionDetails }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.suggestion && typeof data.suggestion.isApproved === 'boolean') {
+          setResult({
+            success: data.suggestion.isApproved,
+            message: data.suggestion.isApproved 
+              ? `Great! Your suggestion has been approved and applied. You now have ${data.approvedSuggestionsCount} approved suggestions! Please refresh your browser to see the changes.`
+              : data.message || data.suggestion.rejectionReason || 'Your suggestion was not approved at this time. It has been saved for review.',
+          });
+        } else {
+          setResult({ success: false, message: data.message || 'Received an unexpected response from the server.' });
+        }
+      } else {
+        setResult({ success: false, message: data.message || data.error || `Request failed with status ${response.status}.` });
+      }
+      setHasFreshResponse(true);
+
+    } catch (err) {
+      setResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to submit suggestion',
+      });
+      setHasFreshResponse(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen || !user) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ 
+        backgroundColor: 'rgba(0, 0, 0, 0.3)', 
+        zIndex: 9999
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 border-b flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold">Suggest an Improvement</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Your feedback helps us improve our content.
+            </p>
+          </div>
+          <button
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {!isSubscribed && !isLoadingSubscription ? (
+            <div className="text-center">
+              <CreditCard className="mx-auto h-12 w-12 text-blue-600 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Subscription Required
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Article suggestions are available to subscribed users. Upgrade your plan to suggest improvements.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleClose}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <Link href="/pricing" className="flex-1">
+                  <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    View Plans
+                  </button>
+                </Link>
+              </div>
+            </div>
+          ) : hasFreshResponse && result ? (
+            <div>
+              <div className={`p-3 rounded-md text-sm mb-4 ${result.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {result.message}
+              </div>
+              <button
+                onClick={handleClose}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                OK
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="suggestion-type" className="block text-sm font-medium text-gray-700 mb-2">
+                  Type
+                </label>
+                <select
+                  id="suggestion-type"
+                  value={suggestionType}
+                  onChange={(e) => setSuggestionType(e.target.value)}
+                  disabled={isSubmitting}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select improvement type</option>
+                  {suggestionTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label htmlFor="suggestion-details" className="block text-sm font-medium text-gray-700 mb-2">
+                  Details
+                </label>
+                <textarea
+                  id="suggestion-details"
+                  placeholder="Please provide specific details about your suggestion..."
+                  value={suggestionDetails}
+                  onChange={(e) => setSuggestionDetails(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px]"
+                  disabled={isSubmitting}
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400"
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Suggestion'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
