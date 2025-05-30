@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { AlertCircle, Brain, DollarSign, Edit, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Brain, DollarSign, Edit, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AIModel {
@@ -74,7 +74,7 @@ export default function AIModelsPage() {
       } else {
         toast.error('Failed to fetch AI models');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error fetching AI models');
     } finally {
       setLoading(false);
@@ -92,7 +92,17 @@ export default function AIModelsPage() {
       
       const method = editingModel ? 'PUT' : 'POST';
       
-      const payload: any = {
+      const payload: {
+        modelName: string;
+        provider: string;
+        displayName: string;
+        description: string;
+        apiKey?: string;
+        inputTokenCostPer1M: number;
+        outputTokenCostPer1M: number;
+        maxTokens: number | null;
+        isDefault: boolean;
+      } = {
         ...formData,
         inputTokenCostPer1M: parseFloat(formData.inputTokenCostPer1M),
         outputTokenCostPer1M: parseFloat(formData.outputTokenCostPer1M),
@@ -117,10 +127,10 @@ export default function AIModelsPage() {
         setFormData(initialFormData);
         fetchModels();
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to save model');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to save model');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error saving model');
     } finally {
       setSubmitting(false);
@@ -157,10 +167,10 @@ export default function AIModelsPage() {
         toast.success('Model deleted successfully');
         fetchModels();
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to delete model');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to delete model');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error deleting model');
     }
   };
@@ -177,10 +187,10 @@ export default function AIModelsPage() {
         toast.success(`Model ${!isActive ? 'activated' : 'deactivated'} successfully`);
         fetchModels();
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to update model status');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to update model status');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error updating model status');
     }
   };

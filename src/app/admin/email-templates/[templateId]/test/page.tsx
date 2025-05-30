@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -23,8 +23,9 @@ interface Template {
   variables?: Variable[];
 }
 
-export default function TestEmailTemplatePage({ params }: { params: { templateId: string } }) {
-  const router = useRouter();
+export default function TestEmailTemplatePage() {
+  const params = useParams();
+  const templateId = params.templateId as string;
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [template, setTemplate] = useState<Template | null>(null);
@@ -33,11 +34,11 @@ export default function TestEmailTemplatePage({ params }: { params: { templateId
 
   useEffect(() => {
     fetchTemplate();
-  }, [params.templateId]);
+  }, [templateId]);
 
   const fetchTemplate = async () => {
     try {
-      const response = await fetch(`/api/admin/email-templates/${params.templateId}`);
+      const response = await fetch(`/api/admin/email-templates/${templateId}`);
       if (!response.ok) throw new Error("Failed to fetch template");
       
       const data = await response.json();
@@ -64,7 +65,7 @@ export default function TestEmailTemplatePage({ params }: { params: { templateId
     setSending(true);
 
     try {
-      const response = await fetch(`/api/admin/email-templates/${params.templateId}/test`, {
+      const response = await fetch(`/api/admin/email-templates/${templateId}/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +79,7 @@ export default function TestEmailTemplatePage({ params }: { params: { templateId
         throw new Error(error.error || "Failed to send test email");
       }
 
-      const result = await response.json();
+      await response.json();
       toast.success("Test email sent successfully!");
       
       // Clear form

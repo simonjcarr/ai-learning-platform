@@ -17,7 +17,7 @@ export function RoleGuard({
   minRole, 
   fallback = null 
 }: RoleGuardProps) {
-  const { userRole, isLoadingRole, hasRole, hasMinRole } = useAuth();
+  const { isLoadingRole, hasRole, hasMinRole } = useAuth();
 
   if (isLoadingRole) {
     return (

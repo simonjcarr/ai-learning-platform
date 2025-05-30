@@ -4,7 +4,7 @@ import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, Bookm
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionStatus } from "@/components/subscription-status";
-import { Role } from "@prisma/client";
+// import { Role } from "@prisma/client";
 
 interface DashboardStats {
   articlesRead: number;
@@ -192,13 +192,7 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  const [stats, user] = await Promise.all([
-    getDashboardStats(userId),
-    prisma.user.findUnique({
-      where: { clerkUserId: userId },
-      select: { role: true }
-    })
-  ]);
+  const stats = await getDashboardStats(userId);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

@@ -21,9 +21,10 @@ const updateTemplateSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
+    const { templateId } = await params;
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,7 +40,7 @@ export async function GET(
     }
 
     const template = await prisma.emailTemplate.findUnique({
-      where: { templateId: params.templateId },
+      where: { templateId },
       include: {
         emailLogs: {
           take: 10,
@@ -67,9 +68,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
+    const { templateId } = await params;
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -88,7 +90,7 @@ export async function PATCH(
     const validated = updateTemplateSchema.parse(body);
 
     const template = await prisma.emailTemplate.update({
-      where: { templateId: params.templateId },
+      where: { templateId },
       data: validated,
     });
 
@@ -111,9 +113,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
+    const { templateId } = await params;
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -130,19 +133,19 @@ export async function DELETE(
 
     // Check if template has been used
     const emailCount = await prisma.emailLog.count({
-      where: { templateId: params.templateId },
+      where: { templateId },
     });
 
     if (emailCount > 0) {
       // Soft delete by deactivating instead of deleting
       await prisma.emailTemplate.update({
-        where: { templateId: params.templateId },
+        where: { templateId },
         data: { isActive: false },
       });
     } else {
       // Hard delete if never used
       await prisma.emailTemplate.delete({
-        where: { templateId: params.templateId },
+        where: { templateId },
       });
     }
 

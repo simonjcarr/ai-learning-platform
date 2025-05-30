@@ -143,7 +143,7 @@ export function ArticleGroupsButton() {
       if (!response.ok) throw new Error("Failed to fetch groups");
       const data = await response.json();
       setGroups(data);
-    } catch (error) {
+    } catch {
       toast.error("Failed to load article groups");
     } finally {
       setLoading(false);
@@ -171,7 +171,7 @@ export function ArticleGroupsButton() {
         throw new Error(errorData.error || "Failed to create group");
       }
       
-      const newGroup = await response.json();
+      await response.json();
       
       await fetchGroups();
       setNewGroupName("");
@@ -195,7 +195,7 @@ export function ArticleGroupsButton() {
       
       await fetchGroups();
       toast.success("Group deleted successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete group");
     }
   };
@@ -222,7 +222,7 @@ export function ArticleGroupsButton() {
       
       await fetchGroups();
       toast.success("Article added to group");
-    } catch (error) {
+    } catch {
       toast.error("Failed to add article to group");
     }
   };
@@ -238,7 +238,7 @@ export function ArticleGroupsButton() {
       
       await fetchGroups();
       toast.success("Article removed from group");
-    } catch (error) {
+    } catch {
       toast.error("Failed to remove article from group");
     }
   };

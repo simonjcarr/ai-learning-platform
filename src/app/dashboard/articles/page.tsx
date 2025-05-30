@@ -114,7 +114,7 @@ export default async function UserArticlesPage() {
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">Your Articles</h1>
         <p className="text-gray-600 mt-2">
-          A complete list of articles you've read
+          A complete list of articles you&apos;ve read
         </p>
       </div>
 

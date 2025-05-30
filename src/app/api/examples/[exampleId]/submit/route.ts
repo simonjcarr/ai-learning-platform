@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { aiService, type MarkingResponse } from "@/lib/ai-service";
+import { aiService } from "@/lib/ai-service";
 
 export async function POST(
   request: Request,

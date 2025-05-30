@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import { useSubscription } from "@/hooks/use-subscription";
 import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Flag } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
 import CommentsList from "@/components/comments/comments-list";
 import LikeButton from "@/components/like-button";
-import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
+// import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
 import { ArticleChangeHistory } from "@/components/article-change-history";
 import { FloatingActionMenu } from "@/components/floating-action-menu";
 

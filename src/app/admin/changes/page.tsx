@@ -9,7 +9,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { 
   History, 
-  Undo2, 
   User, 
   Calendar, 
   FileText,

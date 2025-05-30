@@ -6,13 +6,25 @@ import { MessageSquare, Loader2 } from "lucide-react";
 import CommentForm from "./comment-form";
 import Comment from "./comment";
 
+interface Comment {
+  commentId: string;
+  content: string;
+  createdAt: string;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    imageUrl: string | null;
+    email: string;
+  };
+}
+
 interface CommentsListProps {
   articleId: string;
 }
 
 export default function CommentsList({ articleId }: CommentsListProps) {
   const { isSignedIn } = useUser();
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

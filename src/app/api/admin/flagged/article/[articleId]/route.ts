@@ -5,9 +5,10 @@ import prisma from "@/lib/prisma";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { articleId: string } }
+  { params }: { params: Promise<{ articleId: string }> }
 ) {
   try {
+    const { articleId } = await params;
     await requireMinRole(Role.MODERATOR);
     
     const body = await request.json();
@@ -16,7 +17,7 @@ export async function POST(
     if (action === "approve") {
       // Remove flag
       await prisma.article.update({
-        where: { articleId: params.articleId },
+        where: { articleId },
         data: {
           isFlagged: false,
           flaggedAt: null,
@@ -27,7 +28,7 @@ export async function POST(
     } else if (action === "remove") {
       // Delete the article
       await prisma.article.delete({
-        where: { articleId: params.articleId },
+        where: { articleId },
       });
     } else {
       return NextResponse.json(

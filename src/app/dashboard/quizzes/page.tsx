@@ -75,7 +75,7 @@ export default async function UserQuizzesPage() {
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">Your Quiz Results</h1>
         <p className="text-gray-600 mt-2">
-          Complete history of all quiz questions you've answered
+          Complete history of all quiz questions you&apos;ve answered
         </p>
       </div>
 

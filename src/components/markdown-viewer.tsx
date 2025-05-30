@@ -74,7 +74,7 @@ export default function MarkdownViewer({ content, removeFirstHeading = false }: 
         components={{
         pre: ({ children, ...props }) => {
           // Extract text content from the code element
-          const extractTextContent = (element: any): string => {
+          const extractTextContent = (element: React.ReactNode): string => {
             if (typeof element === 'string') {
               return element;
             }

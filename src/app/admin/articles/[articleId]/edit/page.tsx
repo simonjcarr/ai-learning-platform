@@ -47,7 +47,7 @@ export default function EditArticlePage({ params }: PageProps) {
   const [article, setArticle] = useState<Article | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [articleTags, setArticleTags] = useState<Tag[]>([]);
+  const [, setArticleTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

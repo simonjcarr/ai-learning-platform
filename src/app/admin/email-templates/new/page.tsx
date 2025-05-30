@@ -198,7 +198,7 @@ export default function NewEmailTemplatePage() {
                 placeholder="Welcome {{firstName}}! Thanks for joining..."
                 rows={6}
               />
-              <p className="text-xs text-gray-500 mt-1">Plain text version for email clients that don't support HTML</p>
+              <p className="text-xs text-gray-500 mt-1">Plain text version for email clients that don&apos;t support HTML</p>
             </div>
           </CardContent>
         </Card>

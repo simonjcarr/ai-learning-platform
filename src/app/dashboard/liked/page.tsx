@@ -50,7 +50,7 @@ export default function LikedArticlesPage() {
           Liked Articles
         </h1>
         <p className="mt-2 text-gray-600">
-          Articles you've liked for quick access
+          Articles you&apos;ve liked for quick access
         </p>
       </div>
 

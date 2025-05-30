@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, Edit2, Save, X, Plus, Trash2 } from "lucide-react";
+import { Edit2, Save, X, Plus, Trash2 } from "lucide-react";
 import { SubscriptionTier } from "@prisma/client";
 
 interface PricingData {

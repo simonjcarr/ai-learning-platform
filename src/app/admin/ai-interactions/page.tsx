@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertCircle, Brain, DollarSign, Edit, Plus, Settings, Zap } from 'lucide-react';
+import { AlertCircle, Brain, Edit, Plus, Settings, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AIModel {
@@ -74,7 +74,7 @@ export default function AIInteractionsPage() {
       } else {
         toast.error('Failed to fetch data');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error fetching data');
     } finally {
       setLoading(false);
@@ -110,10 +110,10 @@ export default function AIInteractionsPage() {
         setFormData(initialFormData);
         fetchData();
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to save interaction type');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to save interaction type');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error saving interaction type');
     } finally {
       setSubmitting(false);
@@ -145,10 +145,10 @@ export default function AIInteractionsPage() {
         toast.success('Interaction type deleted successfully');
         fetchData();
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to delete interaction type');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to delete interaction type');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error deleting interaction type');
     }
   };

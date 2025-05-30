@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { Clock, Calendar, Flame, TrendingUp, ArrowLeft } from "lucide-react";
+import { Calendar, Flame, TrendingUp, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
@@ -231,8 +231,8 @@ export default async function StreakPage() {
         <ul className="space-y-2 text-blue-800">
           <li>• Set a daily goal of answering at least 3-5 quiz questions</li>
           <li>• Study at the same time each day to build a routine</li>
-          <li>• Start with easier topics when you're building momentum</li>
-          <li>• Don't break the chain - consistency beats intensity</li>
+          <li>• Start with easier topics when you&apos;re building momentum</li>
+          <li>• Don&apos;t break the chain - consistency beats intensity</li>
           <li>• Review incorrect answers to reinforce learning</li>
         </ul>
       </div>

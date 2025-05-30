@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
-import { Check, X } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { SUBSCRIPTION_TIERS } from '@/lib/stripe';
 
 // You'll need to create these price IDs in your Stripe dashboard
@@ -98,7 +98,7 @@ export default function PricingPage() {
             </div>
             <div className="px-6 pb-8">
               <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                What's included
+                What&apos;s included
               </h4>
               <ul className="mt-4 space-y-3">
                 {SUBSCRIPTION_TIERS.FREE.features.map((feature, index) => (
@@ -137,7 +137,7 @@ export default function PricingPage() {
             </div>
             <div className="px-6 pb-8">
               <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                What's included
+                What&apos;s included
               </h4>
               <ul className="mt-4 space-y-3">
                 {SUBSCRIPTION_TIERS.STANDARD.features.map((feature, index) => (
@@ -173,7 +173,7 @@ export default function PricingPage() {
             </div>
             <div className="px-6 pb-8">
               <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                What's included
+                What&apos;s included
               </h4>
               <ul className="mt-4 space-y-3">
                 {SUBSCRIPTION_TIERS.MAX.features.map((feature, index) => (

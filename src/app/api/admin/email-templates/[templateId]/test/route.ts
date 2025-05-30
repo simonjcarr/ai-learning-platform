@@ -11,9 +11,10 @@ const testEmailSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
+    const { templateId } = await params;
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -32,7 +33,7 @@ export async function POST(
     const validated = testEmailSchema.parse(body);
 
     const template = await prisma.emailTemplate.findUnique({
-      where: { templateId: params.templateId, isActive: true },
+      where: { templateId, isActive: true },
     });
 
     if (!template) {

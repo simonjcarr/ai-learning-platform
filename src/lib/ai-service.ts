@@ -100,7 +100,7 @@ async function trackAIInteraction(
   outputTokens: number,
   startTime: Date,
   endTime: Date,
-  contextData?: any,
+  contextData?: Record<string, unknown>,
   prompt?: string,
   response?: string,
   errorMessage?: string
@@ -725,7 +725,7 @@ Consider what someone searching for "${query}" would most likely want to learn a
     const contentLength = articleContent.length;
     const isLargeArticle = contentLength > 10000;
     
-    let processedContent = articleContent;
+    const processedContent = articleContent;
     if (isLargeArticle && contentLength > 20000) {
       // For extremely large articles, we might need to truncate
       console.log(`Article is very large (${contentLength} chars), processing full content`);
@@ -960,7 +960,7 @@ RULES:
     });
   },
 
-  async updateModel(modelId: string, data: any) {
+  async updateModel(modelId: string, data: Record<string, unknown>) {
     if (data.apiKey) {
       data.apiKey = encryptApiKey(data.apiKey);
     }
