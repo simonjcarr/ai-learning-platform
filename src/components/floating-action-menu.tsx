@@ -586,7 +586,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <FolderOpen className="h-5 w-5 text-gray-700 dark:text-gray-200" />
-              <h3 className="font-semibold">Article Groups</h3>
+              <h3 className="font-semibold text-gray-100">Article Groups</h3>
             </div>
             <div className="flex gap-2">
               <Button
@@ -787,18 +787,17 @@ function GroupItem({
                   }`}>
                     {item.article.articleTitle}
                   </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-5 w-5 opacity-0 group-hover/article:opacity-100 transition-opacity ml-2 flex-shrink-0"
+                <button
+                  className="h-7 w-7 flex items-center justify-center text-gray-100 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors ml-2 flex-shrink-0 bg-gray-700/50"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemoveArticle(group.groupId, item.article.articleId);
                   }}
                   title="Remove from group"
+                  type="button"
                 >
-                  <X className="h-3 w-3" />
-                </Button>
+                  <X className="h-4 w-4" />
+                </button>
               </div>
               );
             })}
