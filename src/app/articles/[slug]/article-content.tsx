@@ -3,16 +3,13 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
 import { useSubscription } from "@/hooks/use-subscription";
-import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Bookmark, Flag } from "lucide-react";
+import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Flag } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
 import CommentsList from "@/components/comments/comments-list";
 import LikeButton from "@/components/like-button";
-import { FlagButton } from "@/components/flag-button";
-import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
 import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
 import { ArticleChangeHistory } from "@/components/article-change-history";
 import { FloatingActionMenu } from "@/components/floating-action-menu";
@@ -370,6 +367,7 @@ interface MoreOptionsDropdownProps {
 function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggestion }: MoreOptionsDropdownProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
+  const [showFlagModal, setShowFlagModal] = useState(false);
 
   return (
     <>
@@ -391,7 +389,9 @@ function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggest
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
               <div className="py-1">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     console.log('Manage Lists clicked');
                     setShowDropdown(false);
                     setShowListModal(true);
@@ -402,7 +402,9 @@ function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggest
                   Manage Lists
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     console.log('Suggest Improvement clicked');
                     setShowDropdown(false);
                     onShowSuggestion();
@@ -417,6 +419,10 @@ function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggest
                     articleId={articleId}
                     isFlagged={isFlagged}
                     onClose={() => setShowDropdown(false)}
+                    onShowModal={() => {
+                      setShowDropdown(false);
+                      setShowFlagModal(true);
+                    }}
                   />
                 </div>
               </div>
@@ -433,6 +439,15 @@ function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggest
           onClose={() => setShowListModal(false)}
         />
       )}
+
+      {showFlagModal && (
+        <FlagModal
+          articleId={articleId}
+          isFlagged={isFlagged}
+          isOpen={showFlagModal}
+          onClose={() => setShowFlagModal(false)}
+        />
+      )}
     </>
   );
 }
@@ -441,13 +456,11 @@ interface FlagButtonMenuItemProps {
   articleId: string;
   isFlagged: boolean;
   onClose: () => void;
+  onShowModal: () => void;
 }
 
-function FlagButtonMenuItem({ articleId, isFlagged, onClose }: FlagButtonMenuItemProps) {
+function FlagButtonMenuItem({ isFlagged, onShowModal }: FlagButtonMenuItemProps) {
   const { isSignedIn } = useUser();
-  const [loading, setLoading] = useState(false);
-  const [showReasonModal, setShowReasonModal] = useState(false);
-  const [flagReason, setFlagReason] = useState("");
 
   async function handleFlag() {
     if (!isSignedIn) {
@@ -460,93 +473,26 @@ function FlagButtonMenuItem({ articleId, isFlagged, onClose }: FlagButtonMenuIte
       return;
     }
 
-    onClose();
-    setShowReasonModal(true);
-  }
-
-  async function submitFlag() {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/articles/${articleId}/flag`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flagReason }),
-      });
-
-      if (!response.ok) throw new Error("Failed to flag content");
-      
-      setShowReasonModal(false);
-      setFlagReason("");
-    } catch (error) {
-      console.error("Error flagging content:", error);
-      alert("Failed to flag content");
-    } finally {
-      setLoading(false);
-    }
+    onShowModal();
   }
 
   return (
-    <>
-      <button
-        onClick={handleFlag}
-        disabled={loading || isFlagged}
-        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center disabled:opacity-50"
-        title={isFlagged ? "Already flagged" : "Flag as inappropriate"}
-      >
-        <Flag className="h-4 w-4 mr-2" fill={isFlagged ? "currentColor" : "none"} />
-        <span>{isFlagged ? "Flagged" : "Flag"}</span>
-      </button>
-
-      {showReasonModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold mb-4">Flag Content</h3>
-            <p className="text-gray-600 mb-4">
-              Please provide a reason for flagging this content:
-            </p>
-            <textarea
-              value={flagReason}
-              onChange={(e) => setFlagReason(e.target.value)}
-              placeholder="Explain why this content is inappropriate..."
-              className="w-full rounded-md border border-gray-300 px-3 py-2 mb-4"
-              rows={4}
-              required
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowReasonModal(false);
-                  setFlagReason("");
-                }}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitFlag}
-                disabled={loading || !flagReason.trim()}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
-              >
-                {loading ? "Submitting..." : "Submit Flag"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    <button
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleFlag();
+      }}
+      disabled={isFlagged}
+      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center disabled:opacity-50"
+      title={isFlagged ? "Already flagged" : "Flag as inappropriate"}
+    >
+      <Flag className="h-4 w-4 mr-2" fill={isFlagged ? "currentColor" : "none"} />
+      <span>{isFlagged ? "Flagged" : "Flag"}</span>
+    </button>
   );
 }
 
-interface ArticleSuggestionMenuItemProps {
-  articleId: string;
-  onClose: () => void;
-}
-
-function ArticleSuggestionMenuItem({ articleId, onClose }: ArticleSuggestionMenuItemProps) {
-  return (
-    <ArticleSuggestionFormInline articleId={articleId} onClose={onClose} />
-  );
-}
 
 interface ListManagementModalProps {
   articleId: string;
@@ -562,7 +508,6 @@ function ListManagementModal({ articleId, articleTitle, isOpen, onClose }: ListM
   const [showNewListForm, setShowNewListForm] = useState(false);
   const [newListName, setNewListName] = useState("");
   const { isSignedIn } = useUser();
-  const router = useRouter();
 
   useEffect(() => {
     if (isOpen && isSignedIn) {
@@ -664,7 +609,7 @@ function ListManagementModal({ articleId, articleTitle, isOpen, onClose }: ListM
           <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b">
               <h2 className="text-xl font-semibold">Manage Lists</h2>
-              <p className="text-sm text-gray-600 mt-1">Add "{articleTitle}" to your lists</p>
+              <p className="text-sm text-gray-600 mt-1">Add &ldquo;{articleTitle}&rdquo; to your lists</p>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4">
@@ -769,6 +714,81 @@ interface SuggestionModalProps {
   articleId: string;
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface FlagModalProps {
+  articleId: string;
+  isFlagged: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function FlagModal({ articleId, isOpen, onClose }: FlagModalProps) {
+  const { isSignedIn } = useUser();
+  const [loading, setLoading] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+
+  async function submitFlag() {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/articles/${articleId}/flag`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flagReason }),
+      });
+
+      if (!response.ok) throw new Error("Failed to flag content");
+      
+      onClose();
+      setFlagReason("");
+      // Refresh the page to show the flagged status
+      window.location.reload();
+    } catch (error) {
+      console.error("Error flagging content:", error);
+      alert("Failed to flag content");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!isOpen || !isSignedIn) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <h3 className="text-lg font-semibold mb-4">Flag Content</h3>
+        <p className="text-gray-600 mb-4">
+          Please provide a reason for flagging this content:
+        </p>
+        <textarea
+          value={flagReason}
+          onChange={(e) => setFlagReason(e.target.value)}
+          placeholder="Explain why this content is inappropriate..."
+          className="w-full rounded-md border border-gray-300 px-3 py-2 mb-4"
+          rows={4}
+          required
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => {
+              onClose();
+              setFlagReason("");
+            }}
+            className="px-4 py-2 text-gray-700 hover:text-gray-900"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submitFlag}
+            disabled={loading || !flagReason.trim()}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+          >
+            {loading ? "Submitting..." : "Submit Flag"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SuggestionModal({ articleId, isOpen, onClose }: SuggestionModalProps) {
