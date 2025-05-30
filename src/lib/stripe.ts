@@ -81,13 +81,14 @@ export async function createCheckoutSession(
   priceId: string,
   successUrl: string,
   cancelUrl: string,
-  clerkUserId: string
+  clerkUserId: string,
+  trialPeriodDays?: number
 ) {
   if (!stripe) {
     throw new Error('Stripe is not initialized');
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const sessionParams: any = {
     customer: customerId,
     payment_method_types: ['card'],
     line_items: [
@@ -102,7 +103,16 @@ export async function createCheckoutSession(
     metadata: {
       clerkUserId,
     },
-  });
+  };
+
+  // Add subscription data with trial if specified
+  if (trialPeriodDays && trialPeriodDays > 0) {
+    sessionParams.subscription_data = {
+      trial_period_days: trialPeriodDays,
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
 
   return session;
 }
@@ -136,6 +146,128 @@ export async function createPortalSession(
       );
     }
     
+    throw error;
+  }
+}
+
+export async function createOrUpdateStripeProduct(
+  tierName: string,
+  features: string[]
+): Promise<string> {
+  if (!stripe) {
+    throw new Error('Stripe is not initialized');
+  }
+
+  try {
+    // Try to find existing product
+    const products = await stripe.products.list({
+      limit: 100,
+    });
+
+    let product = products.data.find(p => p.name === tierName);
+
+    if (product) {
+      // Update existing product
+      product = await stripe.products.update(product.id, {
+        description: features.join(', '),
+        metadata: {
+          features: JSON.stringify(features),
+        },
+      });
+    } else {
+      // Create new product
+      product = await stripe.products.create({
+        name: tierName,
+        description: features.join(', '),
+        metadata: {
+          features: JSON.stringify(features),
+        },
+      });
+    }
+
+    return product.id;
+  } catch (error) {
+    console.error('Error creating/updating Stripe product:', error);
+    throw error;
+  }
+}
+
+export async function createOrUpdateStripePrice(
+  productId: string,
+  unitAmount: number,
+  interval: 'month' | 'year',
+  trialPeriodDays?: number
+): Promise<string> {
+  if (!stripe) {
+    throw new Error('Stripe is not initialized');
+  }
+
+  try {
+    const priceParams: any = {
+      product: productId,
+      unit_amount: unitAmount,
+      currency: 'usd',
+      recurring: {
+        interval,
+      },
+    };
+
+    if (trialPeriodDays && trialPeriodDays > 0) {
+      priceParams.recurring.trial_period_days = trialPeriodDays;
+    }
+
+    const price = await stripe.prices.create(priceParams);
+    return price.id;
+  } catch (error) {
+    console.error('Error creating Stripe price:', error);
+    throw error;
+  }
+}
+
+export async function getActiveSubscriptionsForPrice(priceId: string): Promise<number> {
+  if (!stripe) {
+    throw new Error('Stripe is not initialized');
+  }
+
+  try {
+    const subscriptions = await stripe.subscriptions.list({
+      price: priceId,
+      status: 'active',
+      limit: 100,
+    });
+
+    return subscriptions.data.length;
+  } catch (error) {
+    console.error('Error getting active subscriptions:', error);
+    throw error;
+  }
+}
+
+export async function archiveStripePrice(priceId: string): Promise<void> {
+  if (!stripe) {
+    throw new Error('Stripe is not initialized');
+  }
+
+  try {
+    await stripe.prices.update(priceId, {
+      active: false,
+    });
+  } catch (error) {
+    console.error('Error archiving Stripe price:', error);
+    throw error;
+  }
+}
+
+export async function getStripeProductInfo(productId: string) {
+  if (!stripe) {
+    throw new Error('Stripe is not initialized');
+  }
+
+  try {
+    const product = await stripe.products.retrieve(productId);
+    return product;
+  } catch (error) {
+    console.error('Error retrieving Stripe product:', error);
     throw error;
   }
 }

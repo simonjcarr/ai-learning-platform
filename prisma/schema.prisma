@@ -20,7 +20,7 @@ model User {
   subscriptionCurrentPeriodEnd DateTime?
   subscriptionId               String?
   subscriptionStatus           SubscriptionStatus    @default(INACTIVE)
-  subscriptionTier             SubscriptionTier      @default(FREE)
+  subscriptionTier             String                @default("FREE")
   role                         Role                  @default(USER)
   aiInteractions               AIInteraction[]
   likedArticles                ArticleLike[]
@@ -245,8 +245,8 @@ model SubscriptionHistory {
   clerkUserId    String
   subscriptionId String
   eventType      String
-  previousTier   SubscriptionTier?
-  newTier        SubscriptionTier
+  previousTier   String?
+  newTier        String
   previousStatus SubscriptionStatus?
   newStatus      SubscriptionStatus
   amount         Int?
@@ -264,12 +264,14 @@ model SubscriptionHistory {
 
 model SubscriptionPricing {
   pricingId         String           @id @default(cuid())
-  tier              SubscriptionTier @unique
+  tier              String           @unique
   stripePriceId     String           @unique
+  stripeProductId   String?
   monthlyPriceCents Int
   yearlyPriceCents  Int
   features          String[]
   isActive          Boolean          @default(true)
+  freeTrialDays     Int              @default(0)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 

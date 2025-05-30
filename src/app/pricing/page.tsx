@@ -1,29 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { Check } from 'lucide-react';
-import { SUBSCRIPTION_TIERS } from '@/lib/stripe';
 
-// You'll need to create these price IDs in your Stripe dashboard
-const PRICE_IDS = {
-  STANDARD: process.env.NEXT_PUBLIC_STRIPE_STANDARD_PRICE_ID || '',
-  MAX: process.env.NEXT_PUBLIC_STRIPE_MAX_PRICE_ID || '',
-};
+interface PricingTier {
+  pricingId: string;
+  tier: string;
+  stripePriceId: string;
+  monthlyPriceCents: number;
+  yearlyPriceCents: number;
+  features: string[];
+  isActive: boolean;
+  freeTrialDays: number;
+}
 
 export default function PricingPage() {
   const { isSignedIn } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
+  const [loadingPricing, setLoadingPricing] = useState(true);
 
-  const handleSubscribe = async (tier: 'STANDARD' | 'MAX') => {
+  useEffect(() => {
+    async function fetchPricing() {
+      try {
+        const response = await fetch('/api/pricing');
+        if (response.ok) {
+          const data = await response.json();
+          setPricingTiers(data.pricing);
+        }
+      } catch (error) {
+        console.error('Error fetching pricing:', error);
+      } finally {
+        setLoadingPricing(false);
+      }
+    }
+    
+    fetchPricing();
+  }, []);
+
+  const handleSubscribe = async (tier: string, priceId: string) => {
     if (!isSignedIn) {
       router.push('/sign-in?redirect_url=/pricing');
       return;
     }
 
-    const priceId = PRICE_IDS[tier];
     if (!priceId) {
       alert('Stripe is not fully configured. Please contact support.');
       console.error(`Price ID for ${tier} tier is not configured`);
@@ -77,119 +100,87 @@ export default function PricingPage() {
           </p>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-3">
-          {/* Free Tier */}
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-8">
-              <h3 className="text-2xl font-semibold text-gray-900">
-                {SUBSCRIPTION_TIERS.FREE.name}
-              </h3>
-              <p className="mt-4 text-gray-600">Perfect for getting started</p>
-              <p className="mt-8">
-                <span className="text-4xl font-bold text-gray-900">$0</span>
-                <span className="text-gray-600">/month</span>
-              </p>
-              <button
-                className="mt-8 w-full bg-gray-200 text-gray-800 py-3 px-6 rounded-md font-medium cursor-not-allowed"
-                disabled
-              >
-                Current Plan
-              </button>
-            </div>
-            <div className="px-6 pb-8">
-              <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                What&apos;s included
-              </h4>
-              <ul className="mt-4 space-y-3">
-                {SUBSCRIPTION_TIERS.FREE.features.map((feature, index) => (
-                  <li key={index} className="flex items-start">
-                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    <span className="ml-3 text-gray-600">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        {loadingPricing ? (
+          <div className="mt-16 text-center">
+            <div className="text-lg text-gray-600">Loading pricing...</div>
           </div>
-
-          {/* Standard Tier */}
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden border-2 border-blue-500">
-            <div className="bg-blue-500 text-white text-center py-2 px-4">
-              <span className="text-sm font-semibold">MOST POPULAR</span>
-            </div>
-            <div className="px-6 py-8">
-              <h3 className="text-2xl font-semibold text-gray-900">
-                {SUBSCRIPTION_TIERS.STANDARD.name}
-              </h3>
-              <p className="mt-4 text-gray-600">For serious learners</p>
-              <p className="mt-8">
-                <span className="text-4xl font-bold text-gray-900">
-                  ${SUBSCRIPTION_TIERS.STANDARD.price}
-                </span>
-                <span className="text-gray-600">/month</span>
-              </p>
-              <button
-                onClick={() => handleSubscribe('STANDARD')}
-                disabled={loading !== null}
-                className="mt-8 w-full bg-blue-600 text-white py-3 px-6 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        ) : (
+          <div className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-3">
+            {pricingTiers.map((tier, index) => (
+              <div
+                key={tier.pricingId}
+                className={`bg-white rounded-lg shadow-lg overflow-hidden ${
+                  tier.tier.toUpperCase() === 'STANDARD' ? 'border-2 border-blue-500' : ''
+                }`}
               >
-                {loading === 'STANDARD' ? 'Loading...' : 'Subscribe'}
-              </button>
-            </div>
-            <div className="px-6 pb-8">
-              <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                What&apos;s included
-              </h4>
-              <ul className="mt-4 space-y-3">
-                {SUBSCRIPTION_TIERS.STANDARD.features.map((feature, index) => (
-                  <li key={index} className="flex items-start">
-                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    <span className="ml-3 text-gray-600">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                {tier.tier.toUpperCase() === 'STANDARD' && (
+                  <div className="bg-blue-500 text-white text-center py-2 px-4">
+                    <span className="text-sm font-semibold">MOST POPULAR</span>
+                  </div>
+                )}
+                <div className="px-6 py-8">
+                  <h3 className="text-2xl font-semibold text-gray-900">
+                    {tier.tier.charAt(0).toUpperCase() + tier.tier.slice(1).toLowerCase()}
+                  </h3>
+                  <p className="mt-4 text-gray-600">
+                    {tier.tier.toUpperCase() === 'FREE' 
+                      ? 'Perfect for getting started' 
+                      : tier.tier.toUpperCase() === 'STANDARD' 
+                      ? 'For serious learners' 
+                      : 'Enhanced features and capabilities'}
+                  </p>
+                  <p className="mt-8">
+                    <span className="text-4xl font-bold text-gray-900">
+                      ${(tier.monthlyPriceCents / 100).toFixed(2)}
+                    </span>
+                    <span className="text-gray-600">/month</span>
+                  </p>
+                  {tier.freeTrialDays > 0 && (
+                    <p className="mt-2 text-sm text-green-600">
+                      {tier.freeTrialDays} day free trial
+                    </p>
+                  )}
+                  <button
+                    onClick={() => tier.tier.toUpperCase() !== 'FREE' ? handleSubscribe(tier.tier, tier.stripePriceId) : undefined}
+                    disabled={loading !== null || tier.tier.toUpperCase() === 'FREE'}
+                    className={`mt-8 w-full py-3 px-6 rounded-md font-medium ${
+                      tier.tier.toUpperCase() === 'FREE'
+                        ? 'bg-gray-200 text-gray-800 cursor-not-allowed'
+                        : tier.tier.toUpperCase() === 'STANDARD'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                        : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    {tier.tier.toUpperCase() === 'FREE'
+                      ? 'Current Plan'
+                      : loading === tier.tier
+                      ? 'Loading...'
+                      : 'Subscribe'}
+                  </button>
+                </div>
+                <div className="px-6 pb-8">
+                  <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
+                    What&apos;s included
+                  </h4>
+                  <ul className="mt-4 space-y-3">
+                    {tier.features.map((feature, featureIndex) => (
+                      <li key={featureIndex} className="flex items-start">
+                        <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                        <span className="ml-3 text-gray-600">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
           </div>
-
-          {/* Max Tier */}
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-8">
-              <h3 className="text-2xl font-semibold text-gray-900">
-                {SUBSCRIPTION_TIERS.MAX.name}
-              </h3>
-              <p className="mt-4 text-gray-600">Maximum learning power</p>
-              <p className="mt-8">
-                <span className="text-4xl font-bold text-gray-900">
-                  ${SUBSCRIPTION_TIERS.MAX.price}
-                </span>
-                <span className="text-gray-600">/month</span>
-              </p>
-              <button
-                onClick={() => handleSubscribe('MAX')}
-                disabled={loading !== null}
-                className="mt-8 w-full bg-gray-900 text-white py-3 px-6 rounded-md font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading === 'MAX' ? 'Loading...' : 'Subscribe'}
-              </button>
-            </div>
-            <div className="px-6 pb-8">
-              <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                What&apos;s included
-              </h4>
-              <ul className="mt-4 space-y-3">
-                {SUBSCRIPTION_TIERS.MAX.features.map((feature, index) => (
-                  <li key={index} className="flex items-start">
-                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    <span className="ml-3 text-gray-600">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
+        )}
 
         <div className="mt-12 text-center">
           <p className="text-gray-600">
-            All plans include a 7-day free trial. Cancel anytime.
+            {pricingTiers.some(tier => tier.freeTrialDays > 0) 
+              ? `Free trials available. Cancel anytime.`
+              : 'All plans include flexible billing. Cancel anytime.'}
           </p>
         </div>
       </div>

@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get the pricing details to check for free trial
+    const pricingDetails = await prisma.subscriptionPricing.findFirst({
+      where: { stripePriceId: priceId },
+      select: { freeTrialDays: true },
+    });
+
     // Get user from database
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
@@ -55,7 +61,8 @@ export async function POST(req: NextRequest) {
       priceId,
       successUrl,
       cancelUrl,
-      userId
+      userId,
+      pricingDetails?.freeTrialDays
     );
 
     return NextResponse.json({ url: session.url });
