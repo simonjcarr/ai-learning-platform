@@ -51,7 +51,7 @@ export function ArticleGroupsButton() {
 
   // Extract article slug from pathname - this will update when pathname changes
   const articleMatch = pathname.match(/^\/articles\/([^\/]+)/);
-  const currentArticleSlug = articleMatch ? articleMatch[1] : null;
+  const currentArticleSlug = articleMatch ? decodeURIComponent(articleMatch[1]) : null;
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
@@ -78,9 +78,6 @@ export function ArticleGroupsButton() {
 
   // Fetch current article ID if on article page
   useEffect(() => {
-    console.log("Pathname changed:", pathname);
-    console.log("Current article slug:", currentArticleSlug);
-    
     if (currentArticleSlug) {
       setCurrentArticleId(null); // Reset while loading
       fetch(`/api/articles?slug=${currentArticleSlug}`)
@@ -89,7 +86,6 @@ export function ArticleGroupsButton() {
           if (data && data.length > 0) {
             const articleId = data[0].articleId;
             setCurrentArticleId(articleId);
-            console.log("Set current article ID to:", articleId, "for slug:", currentArticleSlug);
             
             // Check if we have a stored scroll position for this article
             const storedScrollPosition = sessionStorage.getItem(`article-scroll-${articleId}`);
@@ -176,7 +172,6 @@ export function ArticleGroupsButton() {
       }
       
       const newGroup = await response.json();
-      console.log("Created group:", newGroup);
       
       await fetchGroups();
       setNewGroupName("");
@@ -206,7 +201,6 @@ export function ArticleGroupsButton() {
   };
 
   const addCurrentArticleToGroup = async (groupId: string) => {
-    console.log("Adding article to group. Current article ID:", currentArticleId);
     if (!currentArticleId) {
       toast.error("No article selected");
       return;
@@ -375,6 +369,7 @@ export function ArticleGroupsButton() {
                     key={group.groupId}
                     group={group}
                     currentArticleId={currentArticleId}
+                    currentArticleSlug={currentArticleSlug}
                     onDelete={deleteGroup}
                     onAddCurrentArticle={addCurrentArticleToGroup}
                     onRemoveArticle={removeArticleFromGroup}
@@ -395,6 +390,7 @@ export function ArticleGroupsButton() {
 interface GroupItemProps {
   group: ArticleGroup;
   currentArticleId: string | null;
+  currentArticleSlug: string | null;
   onDelete: (groupId: string) => void;
   onAddCurrentArticle: (groupId: string) => void;
   onRemoveArticle: (groupId: string, articleId: string) => void;
@@ -411,6 +407,7 @@ interface GroupItemProps {
 function GroupItem({
   group,
   currentArticleId,
+  currentArticleSlug,
   onDelete,
   onAddCurrentArticle,
   onRemoveArticle,
@@ -468,22 +465,33 @@ function GroupItem({
       {isExpanded && group.articles.length > 0 && (
         <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
-            {group.articles.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-white dark:hover:bg-gray-800 cursor-pointer group/article transition-colors"
-                onClick={() =>
-                  onNavigateToArticle(
-                    group.groupId,
-                    item.article.articleId,
-                    item.article.articleSlug,
-                    item.scrollPosition
-                  )
-                }
-              >
-                <span className="text-sm truncate flex-1 text-gray-700 dark:text-gray-300 pl-6">
-                  {item.article.articleTitle}
-                </span>
+            {group.articles.map((item) => {
+              const isCurrentArticle = item.article.articleId === currentArticleId || 
+                                     (currentArticleSlug && item.article.articleSlug === currentArticleSlug);
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer group/article transition-colors ${
+                    isCurrentArticle 
+                      ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800' 
+                      : 'hover:bg-white dark:hover:bg-gray-800'
+                  }`}
+                  onClick={() =>
+                    onNavigateToArticle(
+                      group.groupId,
+                      item.article.articleId,
+                      item.article.articleSlug,
+                      item.scrollPosition
+                    )
+                  }
+                >
+                  <span className={`text-sm truncate flex-1 pl-6 ${
+                    isCurrentArticle 
+                      ? 'text-blue-700 dark:text-blue-300 font-medium' 
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {item.article.articleTitle}
+                  </span>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -497,7 +505,8 @@ function GroupItem({
                   <X className="h-3 w-3" />
                 </Button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
