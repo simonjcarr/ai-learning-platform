@@ -690,6 +690,35 @@ Consider what someone searching for "${query}" would most likely want to learn a
   },
 
   async validateArticleSuggestion(articleTitle: string, articleContent: string, suggestionType: string, suggestionDetails: string, clerkUserId: string | null = null) {
+    // Check for URLs in the suggestion details first to prevent spam
+    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}\b/gi;
+    const containsUrl = urlPattern.test(suggestionDetails);
+    
+    if (containsUrl) {
+      // Immediately reject suggestions containing URLs
+      return {
+        isValid: false,
+        reason: 'Suggestions containing URLs are not allowed to prevent spam. Please describe the improvement without including any links.',
+        updatedContent: null,
+        diff: null,
+        description: null
+      };
+    }
+    
+    // Check for references to external websites or resources
+    const websiteReferencePattern = /\b(website|site|webpage|web page|blog|portal|platform|resource|link|reference|check out|visit|go to|see|refer to|found at|available at|hosted at|located at)\b.*\b(com|org|net|io|dev|edu|gov|co|uk|ca|au|de|fr|it|es|nl|be|ch|at|se|no|dk|fi|pl|ru|jp|cn|in|br|mx|za)\b/gi;
+    const domainNamePattern = /\b(github|gitlab|bitbucket|stackoverflow|medium|reddit|youtube|google|facebook|twitter|linkedin|amazon|microsoft|apple|mozilla|wikipedia|wikimedia|npm|pypi|docker|kubernetes)\b/gi;
+    
+    if (websiteReferencePattern.test(suggestionDetails) || domainNamePattern.test(suggestionDetails)) {
+      return {
+        isValid: false,
+        reason: 'Suggestions that reference external websites or resources are not allowed. Please describe the improvement using only the content that should be added to the article itself.',
+        updatedContent: null,
+        diff: null,
+        description: null
+      };
+    }
+    
     const systemPrompt = `You are an AI assistant helping to validate and apply user suggestions to educational IT articles. Be concise but thorough.`;
     
     // For very large articles, we might need to be more strategic
@@ -717,22 +746,32 @@ Please analyze this suggestion carefully:
    - Is it appropriate for the article's educational purpose?
    - Does it improve the article's quality or clarity?
    
-2. If the suggestion is VALID:
+2. CRITICAL SPAM PREVENTION RULES - Immediately REJECT if the suggestion:
+   - Contains ANY URLs, links, or web addresses
+   - References ANY external websites, blogs, or online resources
+   - Mentions specific website names (GitHub, Stack Overflow, etc.)
+   - Asks to add references to external content
+   - Suggests visiting, checking out, or referring to any external resource
+   - Contains phrases like "see [website]", "refer to [resource]", "check out [site]"
+   - Attempts to promote or reference any external platform or service
+   
+3. If the suggestion is VALID and contains NO external references:
    - Apply the suggested change to the article
    - Return the COMPLETE updated article in Markdown format
    - Ensure all Markdown formatting is preserved (headings, code blocks, lists, etc.)
    - The updated content should include the entire article, not just the changed section
    - Also provide a human-readable description of the change made
    
-3. If the suggestion is INVALID:
+4. If the suggestion is INVALID:
    - Explain clearly why the suggestion cannot be applied
-   - Be specific about what makes it inappropriate
+   - If it references external content, state: "Suggestions referencing external websites or resources are not allowed. Please provide self-contained improvements."
 
 IMPORTANT: 
 - The updatedContent field must contain the ENTIRE article in valid Markdown format
 - Preserve all existing Markdown formatting (# headings, code blocks with triple backticks, lists, etc.)
 - Do not wrap the content in any additional code blocks
-- The description should be a concise summary of what was changed`;
+- The description should be a concise summary of what was changed
+- NEVER add ANY external links, references, or website mentions to the article`;
 
     const startTime = new Date();
     let result, error;
