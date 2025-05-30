@@ -11,7 +11,6 @@ import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
 import CommentsList from "@/components/comments/comments-list";
 import LikeButton from "@/components/like-button";
-import AddToListButton from "@/components/add-to-list-button";
 import { FlagButton } from "@/components/flag-button";
 import { ArticleSuggestionForm } from "@/components/article-suggestion-form";
 import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
@@ -221,11 +220,6 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           </div>
           <div className="flex items-center gap-2">
             <LikeButton articleId={article.articleId} iconOnly />
-            <AddToListButton 
-              articleId={article.articleId} 
-              articleTitle={article.articleTitle}
-              iconOnly
-            />
             {article.contentHtml && (
               <MoreOptionsDropdown
                 articleId={article.articleId}
