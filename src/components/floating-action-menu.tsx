@@ -73,7 +73,6 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
   // Main menu state
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeAction, setActiveAction] = useState<MenuAction | null>(null);
-  const [isSpinning, setIsSpinning] = useState(false);
   
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -121,18 +120,6 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
     role,
   ]);
 
-  // Handle spinning animation on hover
-  useEffect(() => {
-    if (isMenuOpen) {
-      setIsSpinning(true);
-      const timer = setTimeout(() => {
-        setIsSpinning(false);
-      }, 3000); // Stop spinning after 3 seconds
-      return () => clearTimeout(timer);
-    } else {
-      setIsSpinning(false);
-    }
-  }, [isMenuOpen]);
 
   // Chat functions
   const scrollToBottom = () => {
@@ -450,9 +437,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
       {/* Floating multi-action button */}
       <Button
         ref={refs.setReference}
-        className={`fixed bottom-4 right-4 z-40 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 bg-black hover:bg-gray-800 text-white border-0 ${
-          isSpinning ? 'animate-spin' : ''
-        }`}
+        className="fixed bottom-4 right-4 z-40 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 bg-black hover:bg-gray-800 text-white border-0"
         size="icon"
         {...getReferenceProps()}
         title="Actions Menu"
@@ -472,18 +457,18 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
             <div className="p-2 space-y-1">
               <Button
                 onClick={() => handleMenuAction('chat')}
-                className="w-full justify-start gap-3 text-left bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-200 border-0"
+                className="w-full justify-start gap-3 text-left bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 border-0 transition-colors"
                 size="sm"
               >
-                <MessageCircle className="h-4 w-4 text-blue-600" />
+                <MessageCircle className="h-4 w-4" />
                 AI Chat
               </Button>
               <Button
                 onClick={() => handleMenuAction('groups')}
-                className="w-full justify-start gap-3 text-left bg-transparent hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-700 dark:text-gray-200 border-0"
+                className="w-full justify-start gap-3 text-left bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 border-0 transition-colors"
                 size="sm"
               >
-                <FolderOpen className="h-4 w-4 text-purple-600" />
+                <FolderOpen className="h-4 w-4" />
                 Article Groups
               </Button>
             </div>
@@ -496,7 +481,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
         <div className="fixed bottom-0 right-0 w-full sm:w-96 h-[600px] bg-white dark:bg-gray-900 shadow-2xl rounded-t-lg sm:rounded-tl-lg border border-gray-200 dark:border-gray-700 z-50 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-blue-600" />
+              <MessageCircle className="h-5 w-5 text-gray-700 dark:text-gray-200" />
               <h3 className="font-semibold">AI Tutor</h3>
             </div>
             <button
@@ -600,7 +585,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
         <div className="fixed bottom-0 right-0 w-full sm:w-96 h-[600px] bg-white dark:bg-gray-900 shadow-2xl rounded-t-lg sm:rounded-tl-lg border border-gray-200 dark:border-gray-700 z-50 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5 text-purple-600" />
+              <FolderOpen className="h-5 w-5 text-gray-700 dark:text-gray-200" />
               <h3 className="font-semibold">Article Groups</h3>
             </div>
             <div className="flex gap-2">
@@ -637,7 +622,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
                   size="sm" 
                   type="submit"
                   disabled={!newGroupName.trim() || creating}
-                  className="bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+                  className="bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 text-white disabled:opacity-50"
                 >
                   {creating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -744,7 +729,7 @@ function GroupItem({
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 hover:bg-gray-200 dark:hover:bg-gray-700 text-purple-600 dark:text-purple-400"
+              className="h-7 w-7 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
               onClick={(e) => {
                 e.stopPropagation();
                 onAddCurrentArticle(group.groupId);
