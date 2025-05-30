@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log(`Processing ${event.type} for subscription ${subscription.id} with status ${subscription.status}`);
+        console.log(`Processing ${event.type} for subscription ${subscription.id} with status ${subscription.status}, cancel_at_period_end: ${subscription.cancel_at_period_end}`);
         
         const user = await getOrCreateUser(subscription.customer as string);
         
@@ -186,6 +186,11 @@ export async function POST(req: NextRequest) {
           throw new Error('Invalid subscription period end date');
         }
 
+        // Handle cancellation tracking
+        const cancelledAt = subscription.cancel_at_period_end 
+          ? (subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : new Date())
+          : null;
+
         const updatedUser = await prisma.user.update({
           where: { clerkUserId: user.clerkUserId },
           data: {
@@ -193,11 +198,12 @@ export async function POST(req: NextRequest) {
             subscriptionTier: tier,
             subscriptionStatus: status,
             subscriptionCurrentPeriodEnd: periodEnd,
+            subscriptionCancelledAt: cancelledAt,
             // Preserve existing user data - do NOT overwrite role, email, etc.
           },
         });
         
-        console.log(`✅ User subscription updated - preserving existing role: ${user.role}, email: ${user.email}`);
+        console.log(`✅ User subscription updated - preserving existing role: ${user.role}, email: ${user.email}, cancelled: ${!!cancelledAt}`);
 
         // Create history record
         await prisma.subscriptionHistory.create({

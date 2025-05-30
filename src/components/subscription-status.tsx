@@ -9,6 +9,7 @@ interface SubscriptionStatus {
   status: string;
   isActive: boolean;
   currentPeriodEnd: string | null;
+  cancelledAt: string | null;
   hasStripeCustomer: boolean;
 }
 
@@ -90,6 +91,12 @@ export function SubscriptionStatus() {
   const periodEnd = subscription.currentPeriodEnd 
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
     : null;
+  const cancelledAt = subscription.cancelledAt 
+    ? new Date(subscription.cancelledAt).toLocaleDateString()
+    : null;
+
+  // Determine if subscription is cancelled but still active
+  const isCancelledButActive = subscription.cancelledAt && subscription.isActive;
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -105,19 +112,35 @@ export function SubscriptionStatus() {
           <>
             <div>
               <span className="text-sm text-gray-600">Status:</span>
-              <p className={`font-medium ${
-                subscription.isActive ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {subscription.status}
-              </p>
+              <div className="flex flex-col">
+                <p className={`font-medium ${
+                  subscription.isActive ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {isCancelledButActive ? 'Active (Cancelled)' : subscription.status}
+                </p>
+                {isCancelledButActive && (
+                  <p className="text-sm text-orange-600 mt-1">
+                    Plan cancelled on {cancelledAt}
+                  </p>
+                )}
+              </div>
             </div>
 
             {periodEnd && (
               <div>
                 <span className="text-sm text-gray-600">
-                  {subscription.status === 'CANCELLED' ? 'Access until:' : 'Renews on:'}
+                  {isCancelledButActive ? 'Access expires on:' : 
+                   subscription.status === 'CANCELLED' ? 'Access until:' : 'Renews on:'}
                 </span>
                 <p className="font-medium">{periodEnd}</p>
+              </div>
+            )}
+
+            {isCancelledButActive && (
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                <p className="text-sm text-orange-800">
+                  Your subscription has been cancelled and will not renew. You&apos;ll continue to have access to {tierDisplayName} features until {periodEnd}.
+                </p>
               </div>
             )}
           </>

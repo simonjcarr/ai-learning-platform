@@ -20,6 +20,7 @@ export async function GET() {
       select: {
         subscriptionStatus: true,
         subscriptionCurrentPeriodEnd: true,
+        subscriptionCancelledAt: true,
         stripeCustomerId: true,
       },
     });
@@ -30,6 +31,7 @@ export async function GET() {
       isActive: subscription.isActive,
       permissions: subscription.permissions,
       currentPeriodEnd: user?.subscriptionCurrentPeriodEnd,
+      cancelledAt: user?.subscriptionCancelledAt,
       hasStripeCustomer: !!user?.stripeCustomerId,
     });
   } catch (error) {

@@ -18,6 +18,7 @@ model User {
   lastName                     String?
   stripeCustomerId             String?               @unique
   subscriptionCurrentPeriodEnd DateTime?
+  subscriptionCancelledAt      DateTime?
   subscriptionId               String?
   subscriptionStatus           SubscriptionStatus    @default(INACTIVE)
   subscriptionTier             String                @default("FREE")
