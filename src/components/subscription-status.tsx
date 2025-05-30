@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SUBSCRIPTION_TIERS } from '@/lib/stripe';
+// Dynamic tiers will be fetched from the API
 
 interface SubscriptionStatus {
   tier: string;
@@ -85,21 +85,11 @@ export function SubscriptionStatus() {
     return null;
   }
 
-  const tierInfo = SUBSCRIPTION_TIERS[subscription.tier as keyof typeof SUBSCRIPTION_TIERS];
+  // For now, just display the tier name directly since we've made it dynamic
+  const tierDisplayName = subscription.tier || 'Unknown';
   const periodEnd = subscription.currentPeriodEnd 
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
     : null;
-
-  // Handle case where tier is not found (e.g., database has inconsistent data)
-  if (!tierInfo) {
-    console.error(`Unknown subscription tier: ${subscription.tier}`);
-    return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Subscription Status</h3>
-        <p className="text-sm text-gray-600">Loading subscription information...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -108,7 +98,7 @@ export function SubscriptionStatus() {
       <div className="space-y-3">
         <div>
           <span className="text-sm text-gray-600">Current Plan:</span>
-          <p className="text-xl font-semibold">{tierInfo.name}</p>
+          <p className="text-xl font-semibold">{tierDisplayName}</p>
         </div>
 
         {subscription.tier !== 'FREE' && (

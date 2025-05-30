@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         stripeProductId,
         monthlyPriceCents,
         yearlyPriceCents,
-        features,
+        features: features ? features.filter((f: string) => f.trim()) : [],
         isActive,
         freeTrialDays: freeTrialDays || 0,
         displayOrder: finalDisplayOrder,

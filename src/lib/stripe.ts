@@ -3,45 +3,68 @@ import Stripe from 'stripe';
 // Only initialize Stripe on the server side
 export const stripe = typeof window === 'undefined' && process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2025-04-30.basil',
       typescript: true,
     })
   : null;
 
+// Dynamic subscription tiers loaded from database
+export async function getSubscriptionTiers() {
+  const { prisma } = await import('@/lib/prisma');
+  
+  try {
+    const tiers = await prisma.subscriptionPricing.findMany({
+      orderBy: { displayOrder: 'asc' },
+    });
+    
+    const tierMap: Record<string, any> = {};
+    
+    tiers.forEach((tier) => {
+      tierMap[tier.tier] = {
+        name: tier.tier,
+        price: tier.monthlyPriceCents / 100,
+        features: tier.features,
+        stripePriceId: tier.stripePriceId,
+        freeTrialDays: tier.freeTrialDays,
+        isActive: tier.isActive,
+      };
+    });
+    
+    // Ensure FREE tier exists as fallback
+    if (!tierMap['FREE']) {
+      tierMap['FREE'] = {
+        name: 'Free',
+        price: 0,
+        features: ['Access to basic articles', 'Limited interactive examples', 'Community support'],
+        stripePriceId: null,
+        freeTrialDays: 0,
+        isActive: true,
+      };
+    }
+    
+    return tierMap;
+  } catch (error) {
+    console.error('Error loading subscription tiers:', error);
+    // Fallback to default structure
+    return {
+      FREE: {
+        name: 'Free',
+        price: 0,
+        features: ['Access to basic articles', 'Limited interactive examples', 'Community support'],
+        stripePriceId: null,
+        freeTrialDays: 0,
+        isActive: true,
+      },
+    };
+  }
+}
+
+// For backward compatibility - use the dynamic version in new code
 export const SUBSCRIPTION_TIERS = {
   FREE: {
     name: 'Free',
     price: 0,
-    features: [
-      'Access to basic articles',
-      'Limited interactive examples',
-      'Community support',
-    ],
-  },
-  STANDARD: {
-    name: 'Standard',
-    price: Number(process.env.STRIPE_STANDARD_PRICE_MONTHLY) || 8,
-    features: [
-      'All Free features',
-      'Unlimited article access',
-      'All interactive examples',
-      'AI-powered chat support',
-      'Progress tracking',
-      'Download articles for offline reading',
-    ],
-  },
-  MAX: {
-    name: 'Max',
-    price: Number(process.env.STRIPE_MAX_PRICE_MONTHLY) || 14,
-    features: [
-      'All Standard features',
-      'Priority AI chat support',
-      'Personalized learning paths',
-      'Advanced analytics',
-      'Early access to new content',
-      'Direct support from experts',
-      'Custom curated lists',
-    ],
+    features: ['Access to basic articles', 'Limited interactive examples', 'Community support'],
   },
 };
 
@@ -252,8 +275,53 @@ export async function archiveStripePrice(priceId: string): Promise<void> {
     await stripe.prices.update(priceId, {
       active: false,
     });
+    console.log(`✅ Successfully archived Stripe price: ${priceId}`);
   } catch (error) {
     console.error('Error archiving Stripe price:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get subscription details for a given price ID
+ * Useful for understanding impact before price changes
+ */
+export async function getSubscriptionDetailsForPrice(priceId: string) {
+  if (!stripe) {
+    throw new Error('Stripe is not initialized');
+  }
+
+  try {
+    const subscriptions = await stripe.subscriptions.list({
+      price: priceId,
+      limit: 100,
+    });
+
+    const details = {
+      total: subscriptions.data.length,
+      active: subscriptions.data.filter(sub => sub.status === 'active').length,
+      trialing: subscriptions.data.filter(sub => sub.status === 'trialing').length,
+      pastDue: subscriptions.data.filter(sub => sub.status === 'past_due').length,
+      canceled: subscriptions.data.filter(sub => sub.status === 'canceled').length,
+      subscriptions: subscriptions.data.map(sub => ({
+        id: sub.id,
+        status: sub.status,
+        customerId: sub.customer,
+        currentPeriodEnd: new Date(sub.currentPeriodEnd * 1000),
+      }))
+    };
+
+    console.log(`📊 Subscription details for price ${priceId}:`, {
+      total: details.total,
+      active: details.active,
+      trialing: details.trialing,
+      pastDue: details.pastDue,
+      canceled: details.canceled
+    });
+
+    return details;
+  } catch (error) {
+    console.error('Error getting subscription details:', error);
     throw error;
   }
 }

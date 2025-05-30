@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
-import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus } from '@prisma/client';
 import { emails } from '@/lib/email-service';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -19,50 +19,118 @@ async function getOrCreateUser(customerId: string) {
     throw new Error('Customer missing clerkUserId in metadata');
   }
 
-  // Ensure user exists in database
-  const user = await prisma.user.findUnique({
+  // Check if user exists in database
+  let user = await prisma.user.findUnique({
     where: { clerkUserId: customer.metadata.clerkUserId },
   });
 
   if (!user) {
-    throw new Error(`User not found for clerkUserId: ${customer.metadata.clerkUserId}`);
-  }
-
-  // Update user with Stripe customer ID if not already set
-  if (!user.stripeCustomerId) {
-    await prisma.user.update({
-      where: { clerkUserId: customer.metadata.clerkUserId },
-      data: { stripeCustomerId: customerId },
-    });
+    console.log(`User not found for clerkUserId: ${customer.metadata.clerkUserId}, creating minimal user record`);
+    
+    // Create a minimal user record with the information we have from Stripe
+    const email = customer.email || `${customer.metadata.clerkUserId}@unknown.com`;
+    
+    try {
+      user = await prisma.user.create({
+        data: {
+          clerkUserId: customer.metadata.clerkUserId,
+          email,
+          stripeCustomerId: customerId,
+          firstName: customer.name?.split(' ')[0] || null,
+          lastName: customer.name?.split(' ').slice(1).join(' ') || null,
+        },
+      });
+      
+      console.log(`Created minimal user record for clerkUserId: ${customer.metadata.clerkUserId}`);
+    } catch (createError: any) {
+      if (createError.code === 'P2002' && createError.meta?.target?.includes('email')) {
+        // Email already exists, try to find user by email and update with new clerk ID
+        console.log(`Email ${email} already exists, attempting to find and update existing user`);
+        
+        const existingUser = await prisma.user.findUnique({
+          where: { email },
+        });
+        
+        if (existingUser) {
+          console.log(`Found existing user with email ${email}, updating clerkUserId from ${existingUser.clerkUserId} to ${customer.metadata.clerkUserId}`);
+          
+          user = await prisma.user.update({
+            where: { email },
+            data: {
+              clerkUserId: customer.metadata.clerkUserId,
+              stripeCustomerId: customerId,
+              firstName: customer.name?.split(' ')[0] || existingUser.firstName,
+              lastName: customer.name?.split(' ').slice(1).join(' ') || existingUser.lastName,
+            },
+          });
+        } else {
+          // This shouldn't happen, but fallback to using a unique email
+          const uniqueEmail = `${customer.metadata.clerkUserId}@${Date.now()}.stripe-webhook.com`;
+          console.log(`Creating user with unique email: ${uniqueEmail}`);
+          
+          user = await prisma.user.create({
+            data: {
+              clerkUserId: customer.metadata.clerkUserId,
+              email: uniqueEmail,
+              stripeCustomerId: customerId,
+              firstName: customer.name?.split(' ')[0] || null,
+              lastName: customer.name?.split(' ').slice(1).join(' ') || null,
+            },
+          });
+        }
+      } else {
+        throw createError;
+      }
+    }
+  } else {
+    // Update user with Stripe customer ID if not already set
+    if (!user.stripeCustomerId) {
+      user = await prisma.user.update({
+        where: { clerkUserId: customer.metadata.clerkUserId },
+        data: { stripeCustomerId: customerId },
+      });
+    }
   }
 
   return user;
 }
 
-function mapPriceToTier(priceAmount: number): SubscriptionTier {
-  const standardPrice = Number(process.env.STRIPE_STANDARD_PRICE_MONTHLY) || 8;
-  const maxPrice = Number(process.env.STRIPE_MAX_PRICE_MONTHLY) || 14;
+async function mapPriceToTier(stripePriceId: string): Promise<string> {
+  try {
+    // Look up the tier by Stripe price ID in the database
+    const pricing = await prisma.subscriptionPricing.findUnique({
+      where: { stripePriceId },
+      select: { tier: true },
+    });
 
-  // Convert from cents to dollars
-  const amount = priceAmount / 100;
+    if (pricing) {
+      return pricing.tier;
+    }
 
-  if (amount === standardPrice) return 'STANDARD';
-  if (amount === maxPrice) return 'MAX';
-  
-  // Default to standard if price doesn't match
-  console.warn(`Unknown price amount: ${amount}, defaulting to STANDARD tier`);
-  return 'STANDARD';
+    // Fallback: if not found in database, default to FREE
+    console.warn(`Unknown Stripe price ID: ${stripePriceId}, defaulting to FREE tier`);
+    return 'FREE';
+  } catch (error) {
+    console.error(`Error looking up tier for price ID ${stripePriceId}:`, error);
+    return 'FREE';
+  }
 }
 
 function mapStripeStatus(status: string): SubscriptionStatus {
   switch (status) {
     case 'active':
+    case 'trialing':
       return 'ACTIVE';
     case 'canceled':
       return 'CANCELLED';
     case 'past_due':
       return 'PAST_DUE';
+    case 'incomplete':
+    case 'incomplete_expired':
+    case 'unpaid':
+      return 'INACTIVE';
     default:
+      console.warn(`Unknown Stripe subscription status: ${status}, defaulting to INACTIVE`);
       return 'INACTIVE';
   }
 }
@@ -102,7 +170,7 @@ export async function POST(req: NextRequest) {
         const user = await getOrCreateUser(subscription.customer as string);
         
         const priceItem = subscription.items.data[0];
-        const tier = mapPriceToTier(priceItem.price.unit_amount || 0);
+        const tier = await mapPriceToTier(priceItem.price.id);
         const status = mapStripeStatus(subscription.status);
         
         console.log(`Subscription details - Tier: ${tier}, Status: ${status}, Period End: ${subscription.current_period_end}`);
@@ -125,8 +193,11 @@ export async function POST(req: NextRequest) {
             subscriptionTier: tier,
             subscriptionStatus: status,
             subscriptionCurrentPeriodEnd: periodEnd,
+            // Preserve existing user data - do NOT overwrite role, email, etc.
           },
         });
+        
+        console.log(`✅ User subscription updated - preserving existing role: ${user.role}, email: ${user.email}`);
 
         // Create history record
         await prisma.subscriptionHistory.create({

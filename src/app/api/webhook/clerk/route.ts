@@ -47,6 +47,11 @@ export async function POST(req: Request) {
 
   const eventType = evt.type;
   console.log(`📨 Clerk webhook event type: ${eventType}`);
+  
+  // Add debugging for subscription-related events
+  if (eventType === "user.updated") {
+    console.log(`🔍 User updated webhook - this might be triggered by subscription changes`);
+  }
 
   if (eventType === "user.created" || eventType === "user.updated") {
     const { id, email_addresses, username, first_name, last_name, image_url } = evt.data;
@@ -62,7 +67,7 @@ export async function POST(req: Request) {
         });
 
         if (existingUser) {
-          // Update existing user
+          // Update existing user - PRESERVE EXISTING ROLE AND SUBSCRIPTION DATA
           await prisma.user.update({
             where: { clerkUserId: id },
             data: {
@@ -72,8 +77,12 @@ export async function POST(req: Request) {
               lastName: last_name || null,
               imageUrl: image_url || null,
               lastLoginToApp: new Date(),
+              // DO NOT update role, subscriptionTier, subscriptionStatus, or stripeCustomerId
+              // These should only be managed by admin actions and Stripe webhooks respectively
             },
           });
+          
+          console.log(`✅ User ${id} updated - preserved role: ${existingUser.role}, subscriptionTier: ${existingUser.subscriptionTier}`);
         } else {
           // Check if someone else has this email
           const userWithEmail = await prisma.user.findUnique({

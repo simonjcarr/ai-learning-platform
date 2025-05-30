@@ -50,6 +50,11 @@ export async function PATCH(
       }
     }
 
+    // Filter empty lines from features if provided
+    if (body.features) {
+      body.features = body.features.filter((f: string) => f.trim());
+    }
+
     // If features, tier, or pricing changed, update Stripe
     if (body.features || body.tier || body.monthlyPriceCents || body.freeTrialDays !== undefined) {
       const features = body.features || currentPricing.features;
@@ -57,32 +62,76 @@ export async function PATCH(
       const monthlyPriceCents = body.monthlyPriceCents || currentPricing.monthlyPriceCents;
       const freeTrialDays = body.freeTrialDays !== undefined ? body.freeTrialDays : currentPricing.freeTrialDays;
 
+      console.log(`🔄 Updating pricing for tier "${tier}":`, {
+        oldPrice: currentPricing.monthlyPriceCents,
+        newPrice: monthlyPriceCents,
+        oldPriceId: currentPricing.stripePriceId,
+        oldTrialDays: currentPricing.freeTrialDays,
+        newTrialDays: freeTrialDays
+      });
+
       // Update or create Stripe product if features or tier changed
       let stripeProductId = currentPricing.stripeProductId;
       if (body.features || body.tier) {
+        console.log(`📦 Updating Stripe product for features/tier change`);
         stripeProductId = await createOrUpdateStripeProduct(tier, features);
         if (stripeProductId !== currentPricing.stripeProductId) {
           body.stripeProductId = stripeProductId;
+          console.log(`✅ Product updated: ${currentPricing.stripeProductId} → ${stripeProductId}`);
         }
       }
 
       // Create new Stripe price if price, trial period, or tier changed
-      if (body.monthlyPriceCents || body.freeTrialDays !== undefined || body.tier) {
-        if (stripeProductId) {
-          const newStripePriceId = await createOrUpdateStripePrice(
+      const needsNewPrice = body.monthlyPriceCents || body.freeTrialDays !== undefined || body.tier;
+      if (needsNewPrice && stripeProductId) {
+        console.log(`💰 Creating new Stripe price: $${monthlyPriceCents/100}/month, ${freeTrialDays} trial days`);
+        
+        // Check for active subscriptions on the old price before archiving
+        let activeSubscriptionsCount = 0;
+        if (currentPricing.stripePriceId) {
+          try {
+            activeSubscriptionsCount = await getActiveSubscriptionsForPrice(currentPricing.stripePriceId);
+            console.log(`📊 Found ${activeSubscriptionsCount} active subscriptions using old price`);
+          } catch (error) {
+            console.warn(`⚠️ Could not check active subscriptions for old price:`, error);
+          }
+        }
+
+        // Create the new price
+        let newStripePriceId: string;
+        try {
+          newStripePriceId = await createOrUpdateStripePrice(
             stripeProductId,
             monthlyPriceCents,
             'month',
             freeTrialDays
           );
-          
-          // Archive old price
-          if (currentPricing.stripePriceId) {
-            await archiveStripePrice(currentPricing.stripePriceId);
-          }
-          
-          body.stripePriceId = newStripePriceId;
+          console.log(`✅ New Stripe price created: ${newStripePriceId}`);
+        } catch (error: any) {
+          console.error(`❌ Failed to create new Stripe price:`, error);
+          throw new Error(`Failed to create new Stripe price: ${error.message || error}`);
         }
+
+        // Archive the old price (but only if we successfully created the new one)
+        if (currentPricing.stripePriceId && currentPricing.stripePriceId !== newStripePriceId) {
+          try {
+            console.log(`🗃️ Archiving old Stripe price: ${currentPricing.stripePriceId}`);
+            await archiveStripePrice(currentPricing.stripePriceId);
+            console.log(`✅ Old price archived successfully`);
+            
+            if (activeSubscriptionsCount > 0) {
+              console.log(`ℹ️ Note: ${activeSubscriptionsCount} active subscriptions will continue using the archived price until they renew`);
+            }
+          } catch (error) {
+            console.error(`⚠️ Failed to archive old price ${currentPricing.stripePriceId}:`, error);
+            // Don't fail the entire operation if archiving fails, but log it
+            console.log(`⚠️ Continuing with price update despite archive failure`);
+          }
+        }
+        
+        // Update the database with the new price ID
+        body.stripePriceId = newStripePriceId;
+        console.log(`📝 Will update database with new price ID: ${newStripePriceId}`);
       }
     }
     
@@ -91,11 +140,26 @@ export async function PATCH(
       data: body,
     });
     
+    console.log(`✅ Database updated successfully for pricing tier "${pricing.tier}":`, {
+      pricingId: pricing.pricingId,
+      tier: pricing.tier,
+      stripePriceId: pricing.stripePriceId,
+      monthlyPriceCents: pricing.monthlyPriceCents,
+      freeTrialDays: pricing.freeTrialDays
+    });
+    
     return NextResponse.json({ pricing });
-  } catch (error) {
-    console.error("Error updating pricing:", error);
+  } catch (error: any) {
+    console.error("❌ Error updating pricing:", error);
+    
+    // Provide more specific error messages
+    let errorMessage = "Failed to update pricing";
+    if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: "Failed to update pricing" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -82,6 +82,37 @@ export function useAuth() {
     return roleHierarchy[userRole] >= roleHierarchy[minRole];
   };
 
+  // Function to refresh role (useful after subscription changes)
+  const refreshRole = async () => {
+    // Clear cache and refetch
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('userRole');
+    }
+    setIsLoadingRole(true);
+    
+    // Re-trigger role fetch
+    if (user && isSignedIn && isLoaded) {
+      try {
+        const response = await fetch("/api/user/role");
+        if (response.ok) {
+          const data = await response.json();
+          setUserRole(data.role);
+          // Cache role in sessionStorage
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('userRole', data.role);
+          }
+        } else {
+          setUserRole(Role.USER);
+        }
+      } catch (error) {
+        console.error("Failed to refresh user role:", error);
+        setUserRole(Role.USER);
+      } finally {
+        setIsLoadingRole(false);
+      }
+    }
+  };
+
   return {
     user,
     isSignedIn,
@@ -89,6 +120,7 @@ export function useAuth() {
     userRole,
     isLoadingRole,
     hasRole,
-    hasMinRole
+    hasMinRole,
+    refreshRole
   };
 }

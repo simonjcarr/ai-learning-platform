@@ -403,11 +403,7 @@ enum ChatRole {
   ASSISTANT
 }
 
-enum SubscriptionTier {
-  FREE
-  STANDARD
-  MAX
-}
+// SubscriptionTier removed - now using dynamic string values from subscription_pricing table
 
 enum SubscriptionStatus {
   ACTIVE

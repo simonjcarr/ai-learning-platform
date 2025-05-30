@@ -59,6 +59,28 @@ export default function AdminPricingPage() {
       return;
     }
     
+    // Check if price is being changed and warn user
+    const currentPricing = pricingData.find(p => p.pricingId === pricingId);
+    const isPriceChanging = currentPricing && (
+      editForm.monthlyPriceCents !== currentPricing.monthlyPriceCents ||
+      editForm.yearlyPriceCents !== currentPricing.yearlyPriceCents ||
+      editForm.freeTrialDays !== currentPricing.freeTrialDays
+    );
+    
+    if (isPriceChanging) {
+      const confirmed = confirm(
+        "⚠️ Changing pricing will create a new Stripe price and archive the old one.\n\n" +
+        "• Existing subscribers will continue on their current price until renewal\n" +
+        "• New subscribers will use the updated price\n" +
+        "• This action cannot be undone\n\n" +
+        "Do you want to continue?"
+      );
+      
+      if (!confirmed) {
+        return;
+      }
+    }
+    
     try {
       const response = await fetch(`/api/admin/pricing/${pricingId}`, {
         method: "PATCH",
@@ -307,7 +329,7 @@ export default function AdminPricingPage() {
                 </label>
                 <textarea
                   value={newForm.features?.join("\n")}
-                  onChange={(e) => setNewForm({ ...newForm, features: e.target.value.split("\n").filter(f => f.trim()) })}
+                  onChange={(e) => setNewForm({ ...newForm, features: e.target.value.split("\n") })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2"
                   rows={4}
                 />
@@ -417,7 +439,7 @@ export default function AdminPricingPage() {
                     </label>
                     <textarea
                       value={editForm.features?.join("\n")}
-                      onChange={(e) => setEditForm({ ...editForm, features: e.target.value.split("\n").filter(f => f.trim()) })}
+                      onChange={(e) => setEditForm({ ...editForm, features: e.target.value.split("\n") })}
                       className="w-full rounded-md border border-gray-300 px-3 py-2"
                       rows={4}
                     />
