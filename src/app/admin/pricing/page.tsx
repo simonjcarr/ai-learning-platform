@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Edit2, Save, X, Plus, Trash2, Ban } from "lucide-react";
+import { Edit2, Save, X, Plus, Trash2, Ban, ChevronUp, ChevronDown } from "lucide-react";
 
 interface PricingData {
   pricingId: string;
@@ -13,6 +13,7 @@ interface PricingData {
   features: string[];
   isActive: boolean;
   freeTrialDays: number;
+  displayOrder: number;
 }
 
 export default function AdminPricingPage() {
@@ -29,6 +30,7 @@ export default function AdminPricingPage() {
     features: [],
     isActive: true,
     freeTrialDays: 0,
+    displayOrder: 0,
   });
 
   useEffect(() => {
@@ -107,6 +109,7 @@ export default function AdminPricingPage() {
         features: [],
         isActive: true,
         freeTrialDays: 0,
+        displayOrder: 0,
       });
       await fetchPricing();
     } catch (error) {
@@ -158,6 +161,50 @@ export default function AdminPricingPage() {
     } catch (error) {
       console.error("Error disabling pricing:", error);
       alert("Failed to disable pricing");
+    }
+  }
+
+  async function handleMoveUp(pricingId: string, currentOrder: number) {
+    if (currentOrder <= 0) return;
+    
+    try {
+      const response = await fetch(`/api/admin/pricing/${pricingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayOrder: currentOrder - 1 }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || "Failed to update order");
+        return;
+      }
+      
+      await fetchPricing();
+    } catch (error) {
+      console.error("Error moving up:", error);
+      alert("Failed to update order");
+    }
+  }
+
+  async function handleMoveDown(pricingId: string, currentOrder: number) {
+    try {
+      const response = await fetch(`/api/admin/pricing/${pricingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayOrder: currentOrder + 1 }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || "Failed to update order");
+        return;
+      }
+      
+      await fetchPricing();
+    } catch (error) {
+      console.error("Error moving down:", error);
+      alert("Failed to update order");
     }
   }
 
@@ -216,6 +263,19 @@ export default function AdminPricingPage() {
                     onChange={(e) => setNewForm({ ...newForm, freeTrialDays: parseInt(e.target.value) || 0 })}
                     className="w-full rounded-md border border-gray-300 px-3 py-2"
                     min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    value={newForm.displayOrder}
+                    onChange={(e) => setNewForm({ ...newForm, displayOrder: parseInt(e.target.value) || 0 })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2"
+                    min="0"
+                    placeholder="0 = first, higher numbers appear later"
                   />
                 </div>
                 <div>
@@ -304,6 +364,19 @@ export default function AdminPricingPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Display Order
+                      </label>
+                      <input
+                        type="number"
+                        value={editForm.displayOrder}
+                        onChange={(e) => setEditForm({ ...editForm, displayOrder: parseInt(e.target.value) || 0 })}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2"
+                        min="0"
+                        placeholder="0 = first, higher numbers appear later"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Active
                       </label>
                       <select
@@ -379,6 +452,9 @@ export default function AdminPricingPage() {
                       <p className="text-sm text-gray-500 mb-2">
                         Stripe Price ID: {pricing.stripePriceId}
                       </p>
+                      <p className="text-sm text-gray-500 mb-2">
+                        Display Order: {pricing.displayOrder}
+                      </p>
                       {pricing.freeTrialDays > 0 && (
                         <p className="text-sm text-green-600 mb-4">
                           {pricing.freeTrialDays} day free trial
@@ -408,6 +484,23 @@ export default function AdminPricingPage() {
                       </ul>
                     </div>
                     <div className="flex gap-2">
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => handleMoveUp(pricing.pricingId, pricing.displayOrder)}
+                          className="p-1 text-gray-600 hover:text-gray-800"
+                          title="Move up in display order"
+                          disabled={pricing.displayOrder <= 0}
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveDown(pricing.pricingId, pricing.displayOrder)}
+                          className="p-1 text-gray-600 hover:text-gray-800"
+                          title="Move down in display order"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      </div>
                       <button
                         onClick={() => {
                           setEditingId(pricing.pricingId);

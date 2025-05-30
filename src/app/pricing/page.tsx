@@ -14,6 +14,7 @@ interface PricingTier {
   features: string[];
   isActive: boolean;
   freeTrialDays: number;
+  displayOrder: number;
 }
 
 export default function PricingPage() {

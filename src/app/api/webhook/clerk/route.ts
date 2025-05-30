@@ -56,25 +56,49 @@ export async function POST(req: Request) {
       try {
         const isNewUser = eventType === "user.created";
         
-        await prisma.user.upsert({
+        // First, check if a user with this clerkUserId already exists
+        const existingUser = await prisma.user.findUnique({
           where: { clerkUserId: id },
-          update: {
-            email,
-            username: username || null,
-            firstName: first_name || null,
-            lastName: last_name || null,
-            imageUrl: image_url || null,
-            lastLoginToApp: new Date(),
-          },
-          create: {
-            clerkUserId: id,
-            email,
-            username: username || null,
-            firstName: first_name || null,
-            lastName: last_name || null,
-            imageUrl: image_url || null,
-          },
         });
+
+        if (existingUser) {
+          // Update existing user
+          await prisma.user.update({
+            where: { clerkUserId: id },
+            data: {
+              email,
+              username: username || null,
+              firstName: first_name || null,
+              lastName: last_name || null,
+              imageUrl: image_url || null,
+              lastLoginToApp: new Date(),
+            },
+          });
+        } else {
+          // Check if someone else has this email
+          const userWithEmail = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (userWithEmail) {
+            // This email belongs to another user, delete the old record first
+            await prisma.user.delete({
+              where: { email },
+            });
+          }
+
+          // Create new user
+          await prisma.user.create({
+            data: {
+              clerkUserId: id,
+              email,
+              username: username || null,
+              firstName: first_name || null,
+              lastName: last_name || null,
+              imageUrl: image_url || null,
+            },
+          });
+        }
         
         console.log(`User ${id} synced successfully with email: ${email}`);
         

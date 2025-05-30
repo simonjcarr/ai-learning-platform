@@ -9,7 +9,7 @@ export async function GET() {
     await requireMinRole(Role.ADMIN);
     
     const pricing = await prisma.subscriptionPricing.findMany({
-      orderBy: { tier: "asc" },
+      orderBy: { displayOrder: "asc" },
     });
     
     return NextResponse.json({ pricing });
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     await requireMinRole(Role.ADMIN);
     
     const body = await request.json();
-    const { tier, monthlyPriceCents, yearlyPriceCents, features, isActive, freeTrialDays } = body;
+    const { tier, monthlyPriceCents, yearlyPriceCents, features, isActive, freeTrialDays, displayOrder } = body;
     
     // Validate tier name
     if (!tier || !tier.trim()) {
@@ -49,6 +49,17 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Auto-assign display order if not provided
+    let finalDisplayOrder = displayOrder;
+    if (finalDisplayOrder === undefined || finalDisplayOrder === null) {
+      const maxOrder = await prisma.subscriptionPricing.aggregate({
+        _max: {
+          displayOrder: true,
+        },
+      });
+      finalDisplayOrder = (maxOrder._max.displayOrder || 0) + 1;
+    }
+
     // Create or update Stripe product
     const stripeProductId = await createOrUpdateStripeProduct(tier, features);
     
@@ -70,6 +81,7 @@ export async function POST(request: NextRequest) {
         features,
         isActive,
         freeTrialDays: freeTrialDays || 0,
+        displayOrder: finalDisplayOrder,
       },
     });
     

@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const pricing = await prisma.subscriptionPricing.findMany({
       where: { isActive: true },
-      orderBy: { tier: "asc" },
+      orderBy: { displayOrder: "asc" },
       select: {
         pricingId: true,
         tier: true,
@@ -15,6 +15,7 @@ export async function GET() {
         features: true,
         isActive: true,
         freeTrialDays: true,
+        displayOrder: true,
       },
     });
     

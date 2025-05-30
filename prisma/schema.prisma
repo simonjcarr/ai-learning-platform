@@ -272,10 +272,12 @@ model SubscriptionPricing {
   features          String[]
   isActive          Boolean          @default(true)
   freeTrialDays     Int              @default(0)
+  displayOrder      Int              @default(0)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@index([tier])
+  @@index([displayOrder])
   @@map("subscription_pricing")
 }
 
