@@ -60,13 +60,14 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [focusedExampleId, setFocusedExampleId] = useState<string | null>(null);
   const { isSignedIn } = useUser();
+  const { isSubscribed, isLoadingSubscription } = useSubscription();
 
   useEffect(() => {
-    if (!article.isContentGenerated && !article.contentHtml && isSignedIn) {
+    if (!article.isContentGenerated && !article.contentHtml && isSignedIn && isSubscribed) {
       generateContent();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [article.isContentGenerated, article.contentHtml, isSignedIn]);
+  }, [article.isContentGenerated, article.contentHtml, isSignedIn, isSubscribed]);
 
   useEffect(() => {
     // Track article view when component mounts and user is signed in
@@ -310,9 +311,49 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             <>
               <Sparkles className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Content Not Yet Generated
+                Pending Content Generation
               </h3>
-              {isSignedIn ? (
+              <p className="text-gray-600 mb-2">
+                Content will be generated when you open this article
+              </p>
+              {!isSignedIn ? (
+                <>
+                  <p className="text-orange-600 mb-4 text-sm">
+                    You need to login to generate articles.
+                  </p>
+                  <Link
+                    href="/sign-in"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Sign In to Generate Content
+                  </Link>
+                </>
+              ) : isLoadingSubscription ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  <span className="ml-2 text-sm text-gray-600">Checking subscription...</span>
+                </div>
+              ) : !isSubscribed ? (
+                <>
+                  <p className="text-orange-600 mb-4 text-sm">
+                    Please subscribe to generate content.
+                  </p>
+                  <div className="space-y-2">
+                    <Link
+                      href="/pricing"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                      View Subscription Plans
+                    </Link>
+                    <button
+                      onClick={generateContent}
+                      className="block mx-auto px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Try Generate Content
+                    </button>
+                  </div>
+                </>
+              ) : (
                 <>
                   <p className="text-gray-600 mb-4">
                     This article&apos;s content will be generated automatically.
@@ -323,18 +364,6 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                   >
                     Generate Content Now
                   </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-600 mb-4">
-                    Sign in to read this article and access interactive examples.
-                  </p>
-                  <Link
-                    href="/sign-in"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    Sign In to Continue
-                  </Link>
                 </>
               )}
             </>
