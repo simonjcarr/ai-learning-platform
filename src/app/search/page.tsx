@@ -96,7 +96,6 @@ function SearchPageContent() {
       }
 
       const data = await response.json();
-      console.log("Search results:", data);
       setResults(data);
     } catch (err) {
       console.error("Search error:", err);

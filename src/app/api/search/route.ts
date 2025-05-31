@@ -473,11 +473,6 @@ export async function POST(request: Request) {
         
         finalArticles = [...reorderedArticles, ...remainingArticles];
         
-        console.log("AI reordering completed", {
-          originalOrder: allArticles.map(a => a.articleTitle).slice(0, 3),
-          newOrder: finalArticles.map(a => a.articleTitle).slice(0, 3),
-          explanation: reorderResponse.explanation
-        });
       } catch (reorderError) {
         console.error("AI reordering failed, using original order:", reorderError);
         // Continue with original order if AI reordering fails
