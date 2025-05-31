@@ -1,4 +1,4 @@
-import { PrismaClient, SubscriptionTier } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -7,7 +7,7 @@ async function main() {
 
   const pricingData = [
     {
-      tier: SubscriptionTier.FREE,
+      tier: "FREE",
       stripePriceId: "price_free",
       monthlyPriceCents: 0,
       yearlyPriceCents: 0,
@@ -17,9 +17,10 @@ async function main() {
         "Community support",
       ],
       isActive: true,
+      displayOrder: 0,
     },
     {
-      tier: SubscriptionTier.STANDARD,
+      tier: "STANDARD",
       stripePriceId: process.env.STRIPE_STANDARD_PRICE_ID || "price_standard",
       monthlyPriceCents: 999, // $9.99
       yearlyPriceCents: 9990, // $99.90
@@ -31,14 +32,30 @@ async function main() {
         "Track progress",
       ],
       isActive: true,
+      displayOrder: 1,
     },
     {
-      tier: SubscriptionTier.MAX,
+      tier: "PRO",
+      stripePriceId: process.env.STRIPE_PRO_PRICE_ID || "price_pro",
+      monthlyPriceCents: 1499, // $14.99
+      yearlyPriceCents: 14990, // $149.90
+      features: [
+        "Everything in Standard",
+        "AI content generation",
+        "AI chat assistance",
+        "Advanced analytics",
+      ],
+      isActive: true,
+      displayOrder: 2,
+    },
+    {
+      tier: "MAX",
       stripePriceId: process.env.STRIPE_MAX_PRICE_ID || "price_max",
       monthlyPriceCents: 1999, // $19.99
       yearlyPriceCents: 19990, // $199.90
       features: [
-        "Everything in Standard",
+        "Everything in Pro",
+        "Unlimited AI features",
         "Early access to new content",
         "1-on-1 mentoring sessions",
         "Custom learning paths",
@@ -46,6 +63,7 @@ async function main() {
         "API access",
       ],
       isActive: true,
+      displayOrder: 3,
     },
   ];
 

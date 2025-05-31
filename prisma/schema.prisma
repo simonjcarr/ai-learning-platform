@@ -264,22 +264,84 @@ model SubscriptionHistory {
 }
 
 model SubscriptionPricing {
-  pricingId         String           @id @default(cuid())
-  tier              String           @unique
-  stripePriceId     String           @unique
+  pricingId         String                  @id @default(cuid())
+  tier              String                  @unique
+  stripePriceId     String                  @unique
   stripeProductId   String?
   monthlyPriceCents Int
   yearlyPriceCents  Int
-  features          String[]
-  isActive          Boolean          @default(true)
-  freeTrialDays     Int              @default(0)
-  displayOrder      Int              @default(0)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  features          String[]                // Legacy field - will be deprecated
+  isActive          Boolean                 @default(true)
+  freeTrialDays     Int                     @default(0)
+  displayOrder      Int                     @default(0)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  
+  // New feature assignments
+  featureAssignments PricingTierFeature[]
 
   @@index([tier])
   @@index([displayOrder])
   @@map("subscription_pricing")
+}
+
+model Feature {
+  featureId           String               @id @default(cuid())
+  featureKey          String               @unique  // e.g., "manage_lists", "ai_chat", "article_generation"
+  featureName         String               // Human readable name
+  description         String?              // Description of what this feature does
+  category            FeatureCategory      // UI organization category
+  featureType         FeatureType          // boolean, numeric_limit, etc.
+  isActive            Boolean              @default(true)
+  defaultValue        Json?                // Default value/config for this feature
+  metadata            Json?                // Additional feature metadata
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  
+  // Relationships
+  pricingTierFeatures PricingTierFeature[]
+
+  @@index([featureKey])
+  @@index([category])
+  @@index([isActive])
+  @@map("features")
+}
+
+model PricingTierFeature {
+  id                String              @id @default(cuid())
+  pricingTierId     String
+  featureId         String
+  isEnabled         Boolean             @default(true)
+  limitValue        Int?                // For numeric limits (e.g., daily chat limit)
+  configValue       Json?               // For complex feature config
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relationships
+  pricingTier       SubscriptionPricing @relation(fields: [pricingTierId], references: [pricingId], onDelete: Cascade)
+  feature           Feature             @relation(fields: [featureId], references: [featureId], onDelete: Cascade)
+
+  @@unique([pricingTierId, featureId])
+  @@index([pricingTierId])
+  @@index([featureId])
+  @@map("pricing_tier_features")
+}
+
+enum FeatureCategory {
+  CONTENT_MANAGEMENT     // Article creation, editing, etc.
+  SOCIAL_FEATURES       // Comments, likes, flagging
+  AI_FEATURES          // AI chat, content generation
+  ORGANIZATION         // Lists, groups, tags
+  ANALYTICS           // Reports, insights
+  ADMIN_TOOLS         // User management, system admin
+  LIMITS              // Usage limits and quotas
+}
+
+enum FeatureType {
+  BOOLEAN             // Simple on/off feature
+  NUMERIC_LIMIT       // Feature with numeric limit (daily chats, etc.)
+  QUOTA              // Renewable quota (monthly downloads)
+  CUSTOM             // Custom configuration via JSON
 }
 
 model Tag {

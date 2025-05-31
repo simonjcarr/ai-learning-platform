@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Edit2, Save, X, Plus, Trash2, Ban, ChevronUp, ChevronDown } from "lucide-react";
+import { Edit2, Save, X, Plus, Trash2, Ban, ChevronUp, ChevronDown, Settings } from "lucide-react";
+import Link from "next/link";
 
 interface PricingData {
   pricingId: string;
@@ -243,15 +244,24 @@ export default function AdminPricingPage() {
             Manage subscription tiers and pricing. Changes sync automatically with Stripe.
           </p>
         </div>
-        {!isCreating && (
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+        <div className="flex gap-3">
+          <Link
+            href="/admin/feature-assignments"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <Plus className="h-5 w-5" />
-            Add Tier
-          </button>
-        )}
+            <Settings className="h-5 w-5" />
+            Manage Features
+          </Link>
+          {!isCreating && (
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              Add Tier
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
