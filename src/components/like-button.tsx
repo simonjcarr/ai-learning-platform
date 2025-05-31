@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Heart } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useRedirectUrl } from "@/hooks/use-redirect-url";
 
 interface LikeButtonProps {
   articleId: string;
@@ -16,6 +17,7 @@ export default function LikeButton({ articleId, className = "", iconOnly = false
   const [isLoading, setIsLoading] = useState(false);
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const { signInWithRedirect } = useRedirectUrl();
 
   useEffect(() => {
     if (isSignedIn) {
@@ -37,7 +39,7 @@ export default function LikeButton({ articleId, className = "", iconOnly = false
 
   const handleLike = async () => {
     if (!isSignedIn) {
-      router.push("/sign-in");
+      router.push(signInWithRedirect);
       return;
     }
 

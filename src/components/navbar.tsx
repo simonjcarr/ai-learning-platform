@@ -7,12 +7,14 @@ import { Search, BookOpen, Home, User, Menu, X, CreditCard, Shield } from "lucid
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useRedirectUrl } from "@/hooks/use-redirect-url";
 import { Role } from "@prisma/client";
 
 export function Navbar() {
   const pathname = usePathname();
   const { isSignedIn } = useUser();
   const { hasMinRole } = useAuth();
+  const { signInWithRedirect } = useRedirectUrl();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
@@ -92,7 +94,7 @@ export function Navbar() {
               </>
             ) : (
               <Link
-                href="/sign-in"
+                href={signInWithRedirect}
                 className="flex items-center justify-center p-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
                 aria-label="Sign in"
               >
@@ -204,7 +206,7 @@ export function Navbar() {
           <div className="pt-4 pb-3 border-t border-gray-200">
             <div className="px-2">
               <Link
-                href="/sign-in"
+                href={signInWithRedirect}
                 onClick={() => setIsMenuOpen(false)}
                 className="flex items-center justify-center space-x-2 px-4 py-2 rounded-md bg-blue-600 text-white text-base font-medium hover:bg-blue-700 transition-colors w-full"
               >

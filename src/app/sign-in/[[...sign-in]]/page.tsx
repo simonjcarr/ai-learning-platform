@@ -1,9 +1,15 @@
 import { SignIn } from "@clerk/nextjs";
 
-export default function SignInPage() {
+export default function SignInPage({
+  searchParams
+}: {
+  searchParams: { redirect_url?: string }
+}) {
+  const redirectUrl = searchParams.redirect_url || "/dashboard";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <SignIn />
+      <SignIn afterSignInUrl={redirectUrl} />
     </div>
   );
 }

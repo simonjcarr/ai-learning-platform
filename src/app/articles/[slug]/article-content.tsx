@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 // import { useRouter } from "next/navigation";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useRedirectUrl } from "@/hooks/use-redirect-url";
 import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Flag } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
@@ -61,6 +62,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [focusedExampleId, setFocusedExampleId] = useState<string | null>(null);
   const { isSignedIn } = useUser();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
+  const { signInWithRedirect } = useRedirectUrl();
 
   useEffect(() => {
     if (!article.isContentGenerated && !article.contentHtml && isSignedIn && isSubscribed) {
@@ -322,7 +324,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                     You need to login to generate articles.
                   </p>
                   <Link
-                    href="/sign-in"
+                    href={signInWithRedirect}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
                   >
                     Sign In to Generate Content
