@@ -142,7 +142,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
       const response = await fetch('/api/subscription/status');
       if (response.ok) {
         const data = await response.json();
-        const canUseAI = data.tier === 'STANDARD' || data.tier === 'MAX';
+        const canUseAI = data.permissions?.canUseAIChat || false;
         setSubscriptionStatus({ canUseAI, loading: false });
       } else {
         setSubscriptionStatus({ canUseAI: false, loading: false });
