@@ -66,7 +66,28 @@ export default function InteractiveExamples({ articleId, onFocusedExampleChange 
       const response = await fetch(`/api/articles/${articleId}/examples`, {
         method: "POST",
       });
-      if (!response.ok) throw new Error("Failed to generate examples");
+      
+      if (!response.ok) {
+        // Try to get detailed error information from the response
+        try {
+          const errorData = await response.json();
+          if (response.status === 429 && errorData.currentUsage !== undefined && errorData.limit !== undefined) {
+            // This is a rate limit error with detailed information
+            setError(`Daily example generation limit reached (${errorData.currentUsage}/${errorData.limit}). ${errorData.remaining === 0 ? 'Upgrade your subscription for more generations.' : `${errorData.remaining} remaining today.`}`);
+          } else if (response.status === 403) {
+            // This is a feature access error
+            setError(errorData.error || "Subscription required to generate examples");
+          } else {
+            // Other error with message
+            setError(errorData.error || "Failed to generate examples");
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, use generic error
+          setError("Failed to generate examples");
+        }
+        return;
+      }
+      
       const data = await response.json();
       setExamples([...examples, ...data.examples]);
     } catch (err) {
@@ -90,7 +111,20 @@ export default function InteractiveExamples({ articleId, onFocusedExampleChange 
         body: JSON.stringify({ userAnswer }),
       });
 
-      if (!response.ok) throw new Error("Failed to submit answer");
+      if (!response.ok) {
+        // Try to get detailed error information from the response
+        try {
+          const errorData = await response.json();
+          if (response.status === 403) {
+            setError(errorData.error || "Subscription required for AI answer marking");
+          } else {
+            setError(errorData.error || "Failed to submit answer");
+          }
+        } catch (parseError) {
+          setError("Failed to submit answer");
+        }
+        return;
+      }
 
       const data = await response.json();
       setSubmissions({

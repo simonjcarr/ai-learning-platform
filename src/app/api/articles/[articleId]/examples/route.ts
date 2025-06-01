@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService } from "@/lib/ai-service";
+import { checkFeatureAccessWithAdmin, checkFeatureUsageWithAdmin } from "@/lib/feature-access-admin";
 
 export async function GET(
   request: Request,
@@ -35,6 +36,31 @@ export async function POST(
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    // Check feature access (admins bypass all restrictions)
+    const exampleAccess = await checkFeatureAccessWithAdmin('generate_example_questions', userId);
+    
+    if (!exampleAccess.hasAccess) {
+      return NextResponse.json(
+        { error: exampleAccess.reason || "Subscription required to generate example questions" },
+        { status: 403 }
+      );
+    }
+
+    // Check usage limits (admins have unlimited access)
+    const usageCheck = await checkFeatureUsageWithAdmin('generate_example_questions', userId, 'daily');
+    
+    if (!usageCheck.hasAccess) {
+      return NextResponse.json(
+        { 
+          error: usageCheck.reason || `Daily example generation limit reached (${usageCheck.currentUsage}/${usageCheck.limit}). Upgrade for more generations.`,
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          remaining: usageCheck.remaining
+        },
+        { status: 429 }
       );
     }
 

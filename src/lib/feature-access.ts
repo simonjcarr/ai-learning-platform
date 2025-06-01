@@ -341,6 +341,15 @@ export async function checkFeatureUsage(
           isSuccessful: true,
         },
       });
+    } else if (featureKey.includes('example_questions') || featureKey.includes('generate_example')) {
+      currentUsage = await prisma.aIInteraction.count({
+        where: {
+          clerkUserId: userId,
+          interactionType: { typeName: 'interactive_examples' },
+          startedAt: { gte: startDate },
+          isSuccessful: true,
+        },
+      });
     } else if (featureKey.includes('download')) {
       // This would need to be tracked separately if downloads are implemented
       currentUsage = 0;

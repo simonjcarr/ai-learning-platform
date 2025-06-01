@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { checkFeatureAccessWithAdmin } from '@/lib/feature-access-admin';
 
 export async function GET(
   request: Request,
@@ -51,6 +52,16 @@ export async function POST(
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check feature access for liking articles (admins bypass all restrictions)
+    const likeAccess = await checkFeatureAccessWithAdmin('like_articles', userId);
+    
+    if (!likeAccess.hasAccess) {
+      return NextResponse.json(
+        { error: likeAccess.reason || "Subscription required to like articles" },
+        { status: 403 }
+      );
     }
 
     // Ensure user exists in database

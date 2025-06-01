@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkFeatureAccessWithAdmin } from "@/lib/feature-access-admin";
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +13,16 @@ export async function POST(
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check feature access for viewing articles (admins bypass all restrictions)
+    const viewAccess = await checkFeatureAccessWithAdmin('view_articles', userId);
+    
+    if (!viewAccess.hasAccess) {
+      return NextResponse.json(
+        { error: viewAccess.reason || "Subscription required to view articles" },
+        { status: 403 }
+      );
     }
 
     // Check if article exists

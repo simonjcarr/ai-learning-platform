@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService } from "@/lib/ai-service";
+import { checkFeatureAccessWithAdmin } from "@/lib/feature-access-admin";
 
 export async function POST(
   request: Request,
@@ -14,6 +15,16 @@ export async function POST(
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    // Check feature access for AI answer marking (admins bypass all restrictions)
+    const markingAccess = await checkFeatureAccessWithAdmin('ai_chat', userId);
+    
+    if (!markingAccess.hasAccess) {
+      return NextResponse.json(
+        { error: markingAccess.reason || "Subscription required for AI answer marking" },
+        { status: 403 }
       );
     }
 
