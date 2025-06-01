@@ -81,6 +81,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const { access: chatAccess, loading: chatAccessLoading } = useFeatureAccess('ai_chat');
   const { access: groupAccess, loading: groupAccessLoading } = useFeatureAccess('article_groups');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -135,8 +136,28 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
   useEffect(() => {
     if (isChatOpen && isSignedIn) {
       fetchChatHistory();
+      // Clear rate limit error when reopening chat and check usage
+      setRateLimitError(null);
+      if (chatAccess?.hasAccess) {
+        checkChatUsageLimit();
+      }
     }
-  }, [isChatOpen, isSignedIn]);
+  }, [isChatOpen, isSignedIn, chatAccess?.hasAccess]);
+
+  const checkChatUsageLimit = async () => {
+    try {
+      const response = await fetch('/api/features/daily_ai_chat_limit/usage');
+      if (response.ok) {
+        const data = await response.json();
+        const usage = data.usage;
+        if (!usage.hasAccess && usage.currentUsage !== undefined && usage.limit !== undefined) {
+          setRateLimitError(`Daily AI chat limit reached (${usage.currentUsage}/${usage.limit}). ${usage.remaining === 0 ? 'Upgrade your subscription for more messages.' : `${usage.remaining} remaining today.`}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking chat usage limit:', error);
+    }
+  };
 
   const fetchChatHistory = async () => {
     setIsFetchingHistory(true);
@@ -156,10 +177,11 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!input.trim() || isLoading || !isSignedIn) return;
+    if (!input.trim() || isLoading || !isSignedIn || rateLimitError) return;
 
     const userInput = input.trim();
     setInput('');
+    setRateLimitError(null); // Clear any previous rate limit errors
     
     const tempUserMessage: Message = {
       messageId: `temp-user-${Date.now()}`,
@@ -193,12 +215,19 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
       } else {
         setMessages(prev => prev.filter(msg => msg.messageId !== tempUserMessage.messageId));
         
-        if (response.status === 403) {
-          setSubscriptionStatus({ canUseAI: false, loading: false });
+        // Try to get detailed error information from the response
+        try {
+          const errorData = await response.json();
+          
+          if (response.status === 429 && errorData.currentUsage !== undefined && errorData.limit !== undefined) {
+            // This is a rate limit error with detailed information
+            setRateLimitError(`Daily AI chat limit reached (${errorData.currentUsage}/${errorData.limit}). ${errorData.remaining === 0 ? 'Upgrade your subscription for more messages.' : `${errorData.remaining} remaining today.`}`);
+          } else {
+            console.error('Failed to send message:', errorData.error);
+          }
+        } catch (parseError) {
+          console.error('Failed to send message:', parseError);
         }
-        
-        const errorData = await response.json();
-        console.error('Failed to send message:', errorData.error);
       }
     } catch (error) {
       setMessages(prev => prev.filter(msg => msg.messageId !== tempUserMessage.messageId));
@@ -497,6 +526,20 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
                   View Pricing Plans
                 </button>
               </div>
+            ) : rateLimitError ? (
+              <div className="text-center mt-8 px-4">
+                <Lock className="h-12 w-12 mx-auto mb-4 text-orange-400" />
+                <h3 className="text-lg font-semibold mb-2">Daily Limit Reached</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  {rateLimitError}
+                </p>
+                <button
+                  onClick={() => router.push('/pricing')}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Upgrade Now
+                </button>
+              </div>
             ) : messages.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
                 <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
@@ -530,7 +573,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
             )}
           </div>
 
-          {chatAccess?.hasAccess && (
+          {chatAccess?.hasAccess && !rateLimitError ? (
             <form onSubmit={handleChatSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <textarea
@@ -561,7 +604,15 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
                 </button>
               </div>
             </form>
-          )}
+          ) : rateLimitError ? (
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-orange-50 dark:bg-orange-900/20">
+              <div className="text-center">
+                <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
+                  {rateLimitError}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 
