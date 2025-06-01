@@ -119,5 +119,95 @@ export default async function ArticlePage({ params }: PageProps) {
     notFound();
   }
 
-  return <ArticleContent article={article} />;
+  // Generate structured data on server side to avoid hydration issues
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yourdomain.com';
+  const articleUrl = `${baseUrl}/articles/${article.articleSlug}`;
+  const primaryCategory = article.categories?.[0]?.category?.categoryName;
+  
+  const articleStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": article.seoTitle || article.articleTitle,
+    "description": article.seoDescription || `Learn about ${article.articleTitle}. Comprehensive guide with examples and best practices.`,
+    "author": {
+      "@type": "Organization",
+      "name": "IT Learning Platform"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "IT Learning Platform",
+      "url": baseUrl
+    },
+    "datePublished": article.createdAt.toISOString(),
+    "dateModified": (article.seoLastModified || article.updatedAt).toISOString(),
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": articleUrl
+    },
+    "url": articleUrl,
+    "keywords": article.seoKeywords?.join(', ') || '',
+    "articleSection": primaryCategory || 'Technology',
+    ...(article.seoImageUrl && {
+      "image": {
+        "@type": "ImageObject",
+        "url": article.seoImageUrl,
+        "alt": article.seoImageAlt || article.articleTitle
+      }
+    })
+  };
+
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": baseUrl
+      },
+      ...(primaryCategory ? [
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Categories",
+          "item": `${baseUrl}/categories`
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": primaryCategory,
+          "item": `${baseUrl}/categories/${article.categories[0].category.categoryId}`
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": article.articleTitle,
+          "item": articleUrl
+        }
+      ] : [
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": article.articleTitle,
+          "item": articleUrl
+        }
+      ])
+    ]
+  };
+
+  return (
+    <>
+      {/* SEO Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleStructuredData) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData) }}
+      />
+      <ArticleContent article={article} />
+    </>
+  );
 }
