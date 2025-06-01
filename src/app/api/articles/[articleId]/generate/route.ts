@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService } from "@/lib/ai-service";
 import { checkFeatureAccessWithAdmin, checkFeatureUsageWithAdmin } from "@/lib/feature-access-admin";
+import { addSitemapToQueue } from "@/lib/bullmq";
 
 export async function POST(
   request: Request,
@@ -138,13 +139,24 @@ export async function POST(
       ...createdTags.map(tag => tag.tagId) // New tag IDs
     ];
 
-    // Update the article with generated content and tags
+    // Update the article with generated content, SEO data, and tags
     const updatedArticle = await prisma.article.update({
       where: { articleId },
       data: {
         contentHtml: generatedContent,
         isContentGenerated: true,
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        // Add SEO data from AI generation
+        seoTitle: result.seo?.seoTitle,
+        seoDescription: result.seo?.seoDescription,
+        seoKeywords: result.seo?.seoKeywords || [],
+        seoCanonicalUrl: result.seo?.seoCanonicalUrl,
+        seoImageAlt: result.seo?.seoImageAlt,
+        seoLastModified: result.seo?.seoLastModified || new Date(),
+        seoChangeFreq: result.seo?.seoChangeFreq || 'WEEKLY',
+        seoPriority: result.seo?.seoPriority || 0.7,
+        seoNoIndex: result.seo?.seoNoIndex || false,
+        seoNoFollow: result.seo?.seoNoFollow || false,
       },
       include: { 
         categories: {
@@ -186,6 +198,18 @@ export async function POST(
         }
       }
     });
+
+    // Trigger sitemap regeneration
+    try {
+      await addSitemapToQueue({
+        type: 'regenerate',
+        triggerBy: 'article_generation',
+        articleId: articleId,
+      });
+    } catch (sitemapError) {
+      console.error('Failed to queue sitemap regeneration:', sitemapError);
+      // Don't fail the main request if sitemap queueing fails
+    }
 
     return NextResponse.json({
       message: "Content generated successfully",

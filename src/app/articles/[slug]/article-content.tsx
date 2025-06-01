@@ -14,6 +14,7 @@ import LikeButton from "@/components/like-button";
 // import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
 import { ArticleChangeHistory } from "@/components/article-change-history";
 import { FloatingActionMenu } from "@/components/floating-action-menu";
+import { StructuredData } from "@/components/structured-data";
 
 interface Article {
   articleId: string;
@@ -22,6 +23,14 @@ interface Article {
   contentHtml: string | null;
   isContentGenerated: boolean;
   isFlagged: boolean;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoKeywords?: string[];
+  seoImageUrl?: string | null;
+  seoImageAlt?: string | null;
+  seoLastModified?: string | Date | null;
   categories: Array<{
     category: {
       categoryId: string;
@@ -63,6 +72,39 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const { isSignedIn } = useUser();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const { signInWithRedirect } = useRedirectUrl();
+
+  // SEO structured data
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || 'https://yourdomain.com');
+  const articleUrl = `${baseUrl}/articles/${article.articleSlug}`;
+  const primaryCategory = article.categories?.[0]?.category?.categoryName;
+  
+  const articleStructuredData = {
+    title: article.seoTitle || article.articleTitle,
+    description: article.seoDescription || `Learn about ${article.articleTitle}. Comprehensive guide with examples and best practices.`,
+    url: articleUrl,
+    baseUrl,
+    keywords: article.seoKeywords?.join(', ') || '',
+    category: primaryCategory || 'Technology',
+    publishedTime: article.createdAt ? new Date(article.createdAt).toISOString() : new Date().toISOString(),
+    modifiedTime: article.seoLastModified 
+      ? new Date(article.seoLastModified).toISOString() 
+      : article.updatedAt 
+        ? new Date(article.updatedAt).toISOString() 
+        : new Date().toISOString(),
+    imageUrl: article.seoImageUrl,
+    imageAlt: article.seoImageAlt || article.articleTitle,
+  };
+
+  const breadcrumbStructuredData = {
+    items: [
+      { name: 'Home', url: baseUrl },
+      ...(primaryCategory ? [
+        { name: 'Categories', url: `${baseUrl}/categories` },
+        { name: primaryCategory, url: `${baseUrl}/categories/${article.categories[0].category.categoryId}` }
+      ] : []),
+      { name: article.articleTitle, url: articleUrl }
+    ]
+  };
 
   useEffect(() => {
     if (!article.isContentGenerated && !article.contentHtml && isSignedIn && isSubscribed) {
@@ -128,6 +170,10 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
 
   return (
     <>
+      {/* SEO Structured Data */}
+      <StructuredData type="article" data={articleStructuredData} />
+      <StructuredData type="breadcrumb" data={breadcrumbStructuredData} />
+      
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Breadcrumb */}
       <nav className="mb-8">

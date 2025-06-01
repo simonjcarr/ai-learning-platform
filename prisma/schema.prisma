@@ -69,6 +69,19 @@ model Article {
   flaggedAt            DateTime?
   flaggedByClerkUserId String?
   isFlagged            Boolean              @default(false)
+  
+  // SEO Fields
+  seoTitle             String?
+  seoDescription       String?
+  seoKeywords          String[]             @default([])
+  seoCanonicalUrl      String?
+  seoImageUrl          String?
+  seoImageAlt          String?
+  seoLastModified      DateTime?
+  seoChangeFreq        SeoChangeFreq?       @default(WEEKLY)
+  seoPriority          Float?               @default(0.7)
+  seoNoIndex           Boolean              @default(false)
+  seoNoFollow          Boolean              @default(false)
   likes                ArticleLike[]
   tags                 ArticleTag[]
   categories           ArticleCategory[]
@@ -490,6 +503,16 @@ enum Role {
   EDITOR
   MODERATOR
   ADMIN
+}
+
+enum SeoChangeFreq {
+  ALWAYS
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  NEVER
 }
 
 model UserArticleView {

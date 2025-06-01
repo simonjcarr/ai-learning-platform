@@ -215,6 +215,24 @@ export const ArticleSuggestionValidationSchema = z.object({
   description: z.string().nullable(),
 });
 
+export const SeoDataSchema = z.object({
+  seoTitle: z.string(),
+  seoDescription: z.string(),
+  seoKeywords: z.array(z.string()),
+  seoCanonicalUrl: z.string().optional(),
+  seoImageAlt: z.string().optional(),
+  seoChangeFreq: z.enum(['ALWAYS', 'HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'NEVER']).default('WEEKLY'),
+  seoPriority: z.number().min(0).max(1).default(0.7),
+  seoNoIndex: z.boolean().default(false),
+  seoNoFollow: z.boolean().default(false),
+});
+
+export const ArticleWithSeoSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  seo: SeoDataSchema,
+});
+
 // Enhanced AI Service functions with database tracking
 export const aiService = {
   async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5, clerkUserId: string | null = null) {
@@ -324,13 +342,30 @@ EXAMPLE: An article about "LISP Programming Tutorial" should have:
   },
 
   async generateArticleContent(title: string, categoryName: string, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an expert IT technical writer. Create comprehensive, detailed articles in Markdown format with proper headings, code examples, and clear explanations. Include practical examples and real-world scenarios. 
+    const systemPrompt = `You are an expert IT technical writer and SEO specialist. Create comprehensive, detailed articles with SEO optimization.
 
-IMPORTANT: Output pure Markdown content only. Do NOT wrap the entire response in code blocks. Start directly with the article title using # heading.`;
+You must return both the article content and complete SEO data following these guidelines:
+
+CONTENT REQUIREMENTS:
+- Comprehensive IT article in Markdown format
+- Proper headings, code examples, and clear explanations
+- Include practical examples and real-world scenarios
+- Start directly with the title using # heading
+- Use proper Markdown formatting throughout
+- Include command-line examples where relevant
+- Aim for 1500-2500 words of high-quality content
+
+SEO REQUIREMENTS:
+- SEO Title: 50-60 characters, include primary keyword
+- SEO Description: 150-160 characters, compelling and descriptive
+- SEO Keywords: 5-10 relevant technical keywords
+- Change Frequency: Based on content type (tutorials=WEEKLY, reference=MONTHLY)
+- Priority: 0.6-0.8 for most articles, 0.9 for fundamental topics
+- Image Alt: If suggesting images, provide descriptive alt text`;
     
     const userPrompt = `Write a comprehensive IT article about "${title}" in the category "${categoryName}".
 
-Requirements:
+CONTENT STRUCTURE:
 1. Start directly with the title using # (h1 heading)
 2. Use proper Markdown formatting with # for h1, ## for h2, etc.
 3. Include code examples with proper syntax highlighting (use triple backticks with language specification for code blocks ONLY)
@@ -338,9 +373,15 @@ Requirements:
 5. Structure with clear sections: Introduction, Key Concepts, Examples, Best Practices, Common Issues, Conclusion
 6. Make it educational and practical for IT professionals
 7. Include command-line examples where relevant
-8. Aim for 1500-2500 words of high-quality content
 
-Remember: Output raw Markdown text, NOT wrapped in any code blocks.`;
+SEO OPTIMIZATION:
+- Create an SEO-optimized title (50-60 characters)
+- Write a compelling meta description (150-160 characters)
+- Identify 5-10 relevant technical keywords
+- Set appropriate change frequency and priority for sitemap
+- Consider search intent and user needs
+
+Return the article content as Markdown text and comprehensive SEO data.`;
 
     const startTime = new Date();
     let result, error;
@@ -349,18 +390,19 @@ Remember: Output raw Markdown text, NOT wrapped in any code blocks.`;
       const { model, interactionType } = await getModelForInteraction('article_generation');
       const aiModel = await createProviderForModel(model.modelId);
       
-      result = await generateText({
+      result = await generateObject({
         model: aiModel,
         system: systemPrompt,
         prompt: userPrompt,
+        schema: ArticleWithSeoSchema,
         temperature: 0.7,
         maxTokens: 4000,
       });
 
       const endTime = new Date();
       
-      // Clean up any accidental code block wrappers
-      let content = result.text.trim();
+      // Clean up any accidental code block wrappers in content
+      let content = result.object.content.trim();
       if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
         content = content.slice(12, -4).trim();
       } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
@@ -378,13 +420,17 @@ Remember: Output raw Markdown text, NOT wrapped in any code blocks.`;
         endTime,
         { title, categoryName },
         userPrompt,
-        content
+        JSON.stringify(result.object)
       );
 
       return {
-        title,
+        title: result.object.title,
         content,
-        metaDescription: `Learn about ${title} in ${categoryName}. Comprehensive guide with examples and best practices.`
+        seo: {
+          ...result.object.seo,
+          seoLastModified: new Date(),
+        },
+        metaDescription: result.object.seo.seoDescription // Keep for backward compatibility
       };
     } catch (err) {
       error = err;
@@ -992,3 +1038,5 @@ export type KeywordExtractionResponse = z.infer<typeof KeywordExtractionSchema>;
 export type TagSuggestion = z.infer<typeof TagSuggestionSchema>;
 export type TagSelectionResponse = z.infer<typeof TagSelectionResponseSchema>;
 export type ArticleSuggestionValidationResponse = z.infer<typeof ArticleSuggestionValidationSchema>;
+export type SeoData = z.infer<typeof SeoDataSchema>;
+export type ArticleWithSeo = z.infer<typeof ArticleWithSeoSchema>;

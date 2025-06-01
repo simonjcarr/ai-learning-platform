@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService, type AISearchResponse } from "@/lib/ai-service";
 import { slugify } from "@/lib/utils";
+import { addSitemapToQueue } from "@/lib/bullmq";
 
 // Configuration for content generation thresholds
 const CONTENT_THRESHOLDS = {
@@ -497,6 +498,19 @@ export async function POST(request: Request) {
       hasNextPage: pageNumber < totalPages,
       hasPreviousPage: pageNumber > 1
     };
+
+    // Trigger sitemap regeneration if new articles were created
+    if (newArticles.length > 0) {
+      try {
+        await addSitemapToQueue({
+          type: 'regenerate',
+          triggerBy: 'search_article_creation',
+        });
+      } catch (sitemapError) {
+        console.error('Failed to queue sitemap regeneration:', sitemapError);
+        // Don't fail the main request if sitemap queueing fails
+      }
+    }
 
     return NextResponse.json({
       query,

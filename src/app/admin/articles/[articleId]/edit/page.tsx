@@ -26,6 +26,17 @@ interface Article {
     streamId: string;
     streamName: string;
   } | null;
+  // SEO fields
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoKeywords?: string[];
+  seoCanonicalUrl?: string | null;
+  seoImageUrl?: string | null;
+  seoImageAlt?: string | null;
+  seoChangeFreq?: string | null;
+  seoPriority?: number | null;
+  seoNoIndex?: boolean;
+  seoNoFollow?: boolean;
 }
 
 interface Category {
@@ -59,6 +70,19 @@ export default function EditArticlePage({ params }: PageProps) {
   const [content, setContent] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  
+  // SEO form state
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [seoKeywords, setSeoKeywords] = useState("");
+  const [seoCanonicalUrl, setSeoCanonicalUrl] = useState("");
+  const [seoImageUrl, setSeoImageUrl] = useState("");
+  const [seoImageAlt, setSeoImageAlt] = useState("");
+  const [seoChangeFreq, setSeoChangeFreq] = useState("WEEKLY");
+  const [seoPriority, setSeoPriority] = useState("0.7");
+  const [seoNoIndex, setSeoNoIndex] = useState(false);
+  const [seoNoFollow, setSeoNoFollow] = useState(false);
+  const [showSeoFields, setShowSeoFields] = useState(false);
 
   useEffect(() => {
     if (!isLoadingRole && !hasMinRole(Role.EDITOR)) {
@@ -93,6 +117,22 @@ export default function EditArticlePage({ params }: PageProps) {
       setSlug(data.articleSlug);
       setContent(data.contentHtml || "");
       setCategoryId(data.categoryId || "");
+      
+      // Populate SEO fields
+      setSeoTitle(data.seoTitle || "");
+      setSeoDescription(data.seoDescription || "");
+      setSeoKeywords(data.seoKeywords?.join(", ") || "");
+      setSeoCanonicalUrl(data.seoCanonicalUrl || "");
+      setSeoImageUrl(data.seoImageUrl || "");
+      setSeoImageAlt(data.seoImageAlt || "");
+      setSeoChangeFreq(data.seoChangeFreq || "WEEKLY");
+      setSeoPriority(data.seoPriority?.toString() || "0.7");
+      setSeoNoIndex(data.seoNoIndex || false);
+      setSeoNoFollow(data.seoNoFollow || false);
+      
+      // Show SEO fields if any have content
+      const hasSeoContent = data.seoTitle || data.seoDescription || data.seoKeywords?.length;
+      setShowSeoFields(!!hasSeoContent);
     } catch (error) {
       console.error("Error fetching article:", error);
       setError(error instanceof Error ? error.message : "Failed to load article");
@@ -152,6 +192,18 @@ export default function EditArticlePage({ params }: PageProps) {
           articleSlug: slug,
           contentHtml: content,
           categoryId: categoryId || null,
+          // SEO fields
+          seoTitle: seoTitle || null,
+          seoDescription: seoDescription || null,
+          seoKeywords: seoKeywords ? seoKeywords.split(",").map(k => k.trim()).filter(k => k) : [],
+          seoCanonicalUrl: seoCanonicalUrl || null,
+          seoImageUrl: seoImageUrl || null,
+          seoImageAlt: seoImageAlt || null,
+          seoChangeFreq: seoChangeFreq,
+          seoPriority: parseFloat(seoPriority),
+          seoNoIndex: seoNoIndex,
+          seoNoFollow: seoNoFollow,
+          seoLastModified: new Date(),
         }),
       });
       
@@ -375,6 +427,175 @@ export default function EditArticlePage({ params }: PageProps) {
               <p className="mt-1 text-xs text-gray-500">
                 Use Markdown syntax for formatting. Click Preview to see rendered content.
               </p>
+            </div>
+
+            {/* SEO Fields Section */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">SEO Settings</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowSeoFields(!showSeoFields)}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  {showSeoFields ? "Hide SEO Fields" : "Show SEO Fields"}
+                </button>
+              </div>
+
+              {showSeoFields && (
+                <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        SEO Title <span className="text-gray-500">(50-60 characters)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={seoTitle}
+                        onChange={(e) => setSeoTitle(e.target.value)}
+                        maxLength={60}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        placeholder={title || "Enter SEO title..."}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {seoTitle.length}/60 characters
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Change Frequency
+                      </label>
+                      <select
+                        value={seoChangeFreq}
+                        onChange={(e) => setSeoChangeFreq(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      >
+                        <option value="ALWAYS">Always</option>
+                        <option value="HOURLY">Hourly</option>
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="YEARLY">Yearly</option>
+                        <option value="NEVER">Never</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SEO Description <span className="text-gray-500">(150-160 characters)</span>
+                    </label>
+                    <textarea
+                      value={seoDescription}
+                      onChange={(e) => setSeoDescription(e.target.value)}
+                      maxLength={160}
+                      rows={3}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      placeholder="Enter compelling meta description..."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      {seoDescription.length}/160 characters
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SEO Keywords <span className="text-gray-500">(comma-separated)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={seoKeywords}
+                      onChange={(e) => setSeoKeywords(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      placeholder="docker, containers, devops, tutorial"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Enter 5-10 relevant keywords separated by commas
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Canonical URL
+                      </label>
+                      <input
+                        type="url"
+                        value={seoCanonicalUrl}
+                        onChange={(e) => setSeoCanonicalUrl(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        placeholder="https://yourdomain.com/articles/example"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Priority <span className="text-gray-500">(0.0 - 1.0)</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={seoPriority}
+                        onChange={(e) => setSeoPriority(e.target.value)}
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        SEO Image URL
+                      </label>
+                      <input
+                        type="url"
+                        value={seoImageUrl}
+                        onChange={(e) => setSeoImageUrl(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        placeholder="https://yourdomain.com/images/article-image.jpg"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Image Alt Text
+                      </label>
+                      <input
+                        type="text"
+                        value={seoImageAlt}
+                        onChange={(e) => setSeoImageAlt(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        placeholder="Descriptive alt text for SEO image"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={seoNoIndex}
+                        onChange={(e) => setSeoNoIndex(e.target.checked)}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                      <span className="text-sm text-gray-700">No Index (hide from search engines)</span>
+                    </label>
+
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={seoNoFollow}
+                        onChange={(e) => setSeoNoFollow(e.target.checked)}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                      <span className="text-sm text-gray-700">No Follow (don't follow links)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
