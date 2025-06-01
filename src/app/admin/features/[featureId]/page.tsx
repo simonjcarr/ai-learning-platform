@@ -132,7 +132,6 @@ export default function FeatureDetailPage() {
     const colors: Record<string, string> = {
       'BOOLEAN': 'bg-emerald-100 text-emerald-800',
       'NUMERIC_LIMIT': 'bg-orange-100 text-orange-800',
-      'QUOTA': 'bg-cyan-100 text-cyan-800',
       'CUSTOM': 'bg-pink-100 text-pink-800',
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
@@ -263,7 +262,6 @@ export default function FeatureDetailPage() {
               >
                 <option value="BOOLEAN">Boolean</option>
                 <option value="NUMERIC_LIMIT">Numeric Limit</option>
-                <option value="QUOTA">Quota</option>
                 <option value="CUSTOM">Custom</option>
               </select>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, X, Edit2, Save, Plus, Trash2, Eye, Settings2 } from "lucide-react";
+import { Check, X, Edit2, Save, Plus, Trash2, Settings2 } from "lucide-react";
 import Link from "next/link";
 
 interface Feature {
@@ -135,7 +135,11 @@ export default function FeatureAssignmentsPage() {
   function startEdit(featureId: string, tierId: string, assignment: Assignment | null) {
     const cellId = getCellId(featureId, tierId);
     setEditingCell(cellId);
-    setEditValue(assignment || { isEnabled: false, limitValue: null });
+    setEditValue(assignment || { 
+      isEnabled: false, 
+      limitValue: null,
+      configValue: { timePeriod: 'daily' }
+    });
   }
 
   function saveEdit(featureId: string, tierId: string) {
@@ -145,7 +149,7 @@ export default function FeatureAssignmentsPage() {
 
   function cancelEdit() {
     setEditingCell(null);
-    setEditValue({ isEnabled: false });
+    setEditValue({ isEnabled: false, limitValue: null, configValue: { timePeriod: 'daily' } });
   }
 
   const categories = data ? Array.from(new Set(data.allFeatures.map(f => f.category))) : [];
@@ -271,18 +275,43 @@ export default function FeatureAssignmentsPage() {
                       const isEditing = editingCell === cellId;
                       
                       return (
-                        <td key={tier.pricingId} className="px-6 py-4 whitespace-nowrap text-center">
+                        <td key={tier.pricingId} className={`px-6 py-4 text-center ${isEditing ? '' : 'whitespace-nowrap'}`}>
                           {isEditing ? (
-                            <div className="space-y-2">
+                            <div className="min-w-0 max-w-28 mx-auto space-y-2">
                               <select
                                 value={editValue.isEnabled ? "true" : "false"}
                                 onChange={(e) => setEditValue({ ...editValue, isEnabled: e.target.value === "true" })}
-                                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1 min-w-0"
                               >
                                 <option value="false">Disabled</option>
                                 <option value="true">Enabled</option>
                               </select>
-                              {editValue.isEnabled && feature.featureType !== "BOOLEAN" && (
+                              {editValue.isEnabled && feature.featureType === "NUMERIC_LIMIT" && (
+                                <>
+                                  <input
+                                    type="number"
+                                    value={editValue.limitValue || ""}
+                                    onChange={(e) => setEditValue({ 
+                                      ...editValue, 
+                                      limitValue: e.target.value ? parseInt(e.target.value) : null 
+                                    })}
+                                    placeholder="Limit"
+                                    className="w-full text-xs border border-gray-300 rounded px-2 py-1 min-w-0"
+                                  />
+                                  <select
+                                    value={editValue.configValue?.timePeriod || 'daily'}
+                                    onChange={(e) => setEditValue({ 
+                                      ...editValue, 
+                                      configValue: { ...editValue.configValue, timePeriod: e.target.value }
+                                    })}
+                                    className="w-full text-xs border border-gray-300 rounded px-2 py-1 min-w-0"
+                                  >
+                                    <option value="daily">Daily</option>
+                                    <option value="monthly">Monthly</option>
+                                  </select>
+                                </>
+                              )}
+                              {editValue.isEnabled && feature.featureType === "CUSTOM" && (
                                 <input
                                   type="number"
                                   value={editValue.limitValue || ""}
@@ -290,8 +319,8 @@ export default function FeatureAssignmentsPage() {
                                     ...editValue, 
                                     limitValue: e.target.value ? parseInt(e.target.value) : null 
                                   })}
-                                  placeholder="Limit (-1 = unlimited)"
-                                  className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                                  placeholder="Limit"
+                                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 min-w-0"
                                 />
                               )}
                               <div className="flex gap-1 justify-center">
@@ -344,6 +373,11 @@ export default function FeatureAssignmentsPage() {
                               {assignment?.isEnabled && assignment.limitValue !== null && assignment.limitValue !== undefined && (
                                 <div className="text-xs text-gray-600">
                                   Limit: {assignment.limitValue === -1 ? "∞" : assignment.limitValue}
+                                  {feature.featureType === "NUMERIC_LIMIT" && assignment.configValue?.timePeriod && (
+                                    <div className="text-xs text-blue-600">
+                                      {assignment.configValue.timePeriod}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

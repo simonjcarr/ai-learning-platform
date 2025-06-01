@@ -339,8 +339,7 @@ enum FeatureCategory {
 
 enum FeatureType {
   BOOLEAN             // Simple on/off feature
-  NUMERIC_LIMIT       // Feature with numeric limit (daily chats, etc.)
-  QUOTA              // Renewable quota (monthly downloads)
+  NUMERIC_LIMIT       // Feature with numeric limit (daily/monthly chats, etc.)
   CUSTOM             // Custom configuration via JSON
 }
 

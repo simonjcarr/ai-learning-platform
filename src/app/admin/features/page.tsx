@@ -31,7 +31,6 @@ const FEATURE_CATEGORIES = [
 const FEATURE_TYPES = [
   'BOOLEAN',
   'NUMERIC_LIMIT',
-  'QUOTA', 
   'CUSTOM'
 ];
 
@@ -180,7 +179,6 @@ export default function AdminFeaturesPage() {
     const colors: Record<string, string> = {
       'BOOLEAN': 'bg-emerald-100 text-emerald-800',
       'NUMERIC_LIMIT': 'bg-orange-100 text-orange-800',
-      'QUOTA': 'bg-cyan-100 text-cyan-800',
       'CUSTOM': 'bg-pink-100 text-pink-800',
     };
     return colors[type] || 'bg-gray-100 text-gray-800';

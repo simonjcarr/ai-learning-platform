@@ -28,7 +28,6 @@ export default function AdminPricingPage() {
     stripePriceId: "",
     monthlyPriceCents: 0,
     yearlyPriceCents: 0,
-    features: [],
     isActive: true,
     freeTrialDays: 0,
     displayOrder: 0,
@@ -129,7 +128,6 @@ export default function AdminPricingPage() {
         stripePriceId: "",
         monthlyPriceCents: 0,
         yearlyPriceCents: 0,
-        features: [],
         isActive: true,
         freeTrialDays: 0,
         displayOrder: 0,
@@ -333,16 +331,11 @@ export default function AdminPricingPage() {
                   />
                 </div>
               </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Features (one per line)
-                </label>
-                <textarea
-                  value={newForm.features?.join("\n")}
-                  onChange={(e) => setNewForm({ ...newForm, features: e.target.value.split("\n") })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  rows={4}
-                />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Features are now managed through the Feature Assignments system. 
+                  Use the "Manage Features" button above to configure what features each tier includes.
+                </p>
               </div>
               <div className="mt-4 flex justify-end gap-2">
                 <button
@@ -443,16 +436,11 @@ export default function AdminPricingPage() {
                       />
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Features (one per line)
-                    </label>
-                    <textarea
-                      value={editForm.features?.join("\n")}
-                      onChange={(e) => setEditForm({ ...editForm, features: e.target.value.split("\n") })}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2"
-                      rows={4}
-                    />
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Note:</strong> Features are now managed through the Feature Assignments system. 
+                      Use the "Manage Features" button above to configure what features each tier includes.
+                    </p>
                   </div>
                   <div className="mt-4 flex justify-end gap-2">
                     <button
@@ -506,14 +494,14 @@ export default function AdminPricingPage() {
                           <p className="text-sm text-gray-500">per year</p>
                         </div>
                       </div>
-                      <ul className="space-y-2">
-                        {pricing.features.map((feature, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <span className="text-green-600 mt-0.5">✓</span>
-                            <span className="text-gray-700">{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <p className="text-sm text-gray-700">
+                          <strong>Features:</strong> Managed through Feature Assignments system. 
+                          <Link href="/admin/feature-assignments" className="text-blue-600 hover:text-blue-800 ml-1">
+                            View assignments →
+                          </Link>
+                        </p>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <div className="flex flex-col">

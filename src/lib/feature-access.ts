@@ -1,6 +1,5 @@
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { FeatureType } from '@prisma/client';
 
 export interface FeatureAccess {
   hasAccess: boolean;
@@ -219,17 +218,18 @@ export async function requireFeatureAccess(
 }
 
 /**
- * Check if user has reached a feature limit (for NUMERIC_LIMIT and QUOTA features)
+ * Check if user has reached a feature limit (for NUMERIC_LIMIT features)
  */
 export async function checkFeatureUsage(
   featureKey: string,
   userId?: string | null,
-  period: 'daily' | 'monthly' = 'daily'
+  overridePeriod?: 'daily' | 'monthly'
 ): Promise<{ 
   hasAccess: boolean; 
   currentUsage: number; 
   limit: number; 
   remaining: number;
+  period: 'daily' | 'monthly';
   reason?: string;
 }> {
   if (!userId) {
@@ -243,23 +243,62 @@ export async function checkFeatureUsage(
       currentUsage: 0,
       limit: 0,
       remaining: 0,
+      period: 'daily',
       reason: 'User not authenticated'
     };
   }
 
-  const access = await checkFeatureAccess(featureKey, userId);
-  
-  if (!access.hasAccess) {
+  // Get the feature assignment with config to determine time period
+  const user = await prisma.user.findUnique({
+    where: { clerkUserId: userId },
+    select: {
+      subscriptionTier: true,
+      subscriptionStatus: true,
+    },
+  });
+
+  if (!user) {
     return {
       hasAccess: false,
       currentUsage: 0,
       limit: 0,
       remaining: 0,
-      reason: access.reason
+      period: 'daily',
+      reason: 'User not found'
     };
   }
 
-  const limit = access.limitValue || 0;
+  const isActive = user.subscriptionStatus === 'ACTIVE';
+  const effectiveTier = isActive ? user.subscriptionTier : 'FREE';
+
+  // Get the feature assignment with configuration
+  const featureAssignment = await prisma.pricingTierFeature.findFirst({
+    where: {
+      feature: { featureKey },
+      pricingTier: { tier: effectiveTier },
+    },
+    include: {
+      feature: true,
+      pricingTier: true,
+    },
+  });
+
+  if (!featureAssignment || !featureAssignment.isEnabled) {
+    return {
+      hasAccess: false,
+      currentUsage: 0,
+      limit: 0,
+      remaining: 0,
+      period: 'daily',
+      reason: 'Feature not available for this tier'
+    };
+  }
+
+  // Determine time period from config or use override
+  const configuredPeriod = featureAssignment.configValue?.timePeriod as 'daily' | 'monthly' | undefined;
+  const period = overridePeriod || configuredPeriod || 'daily';
+  
+  const limit = featureAssignment.limitValue || 0;
   
   // -1 means unlimited
   if (limit === -1) {
@@ -267,7 +306,8 @@ export async function checkFeatureUsage(
       hasAccess: true,
       currentUsage: 0,
       limit: -1,
-      remaining: -1
+      remaining: -1,
+      period
     };
   }
 
@@ -283,36 +323,30 @@ export async function checkFeatureUsage(
       startDate.setHours(0, 0, 0, 0);
     }
 
-    // Feature-specific usage counting
-    switch (featureKey) {
-      case 'daily_ai_chat_limit':
-        currentUsage = await prisma.chatMessage.count({
-          where: {
-            clerkUserId: userId,
-            role: 'USER',
-            createdAt: { gte: startDate },
-          },
-        });
-        break;
-        
-      case 'daily_article_generation_limit':
-        currentUsage = await prisma.aIInteraction.count({
-          where: {
-            clerkUserId: userId,
-            interactionType: { typeName: 'article_generation' },
-            startedAt: { gte: startDate },
-            isSuccessful: true,
-          },
-        });
-        break;
-        
-      case 'monthly_download_limit':
-        // This would need to be tracked separately if downloads are implemented
-        currentUsage = 0;
-        break;
-        
-      default:
-        currentUsage = 0;
+    // Generic usage counting based on feature key patterns
+    if (featureKey.includes('ai_chat') || featureKey.includes('chat_limit')) {
+      currentUsage = await prisma.chatMessage.count({
+        where: {
+          clerkUserId: userId,
+          role: 'USER',
+          createdAt: { gte: startDate },
+        },
+      });
+    } else if (featureKey.includes('article_generation')) {
+      currentUsage = await prisma.aIInteraction.count({
+        where: {
+          clerkUserId: userId,
+          interactionType: { typeName: 'article_generation' },
+          startedAt: { gte: startDate },
+          isSuccessful: true,
+        },
+      });
+    } else if (featureKey.includes('download')) {
+      // This would need to be tracked separately if downloads are implemented
+      currentUsage = 0;
+    } else {
+      // For other features, we can't track usage without specific implementation
+      currentUsage = 0;
     }
   } catch (error) {
     console.error('Error checking feature usage:', error);
@@ -327,6 +361,7 @@ export async function checkFeatureUsage(
     currentUsage,
     limit,
     remaining,
+    period,
     reason: hasUsageAccess ? undefined : `${period} limit reached (${currentUsage}/${limit})`
   };
 }

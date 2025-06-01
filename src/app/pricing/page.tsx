@@ -3,7 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
-import { Check } from 'lucide-react';
+import { Check, X, Star } from 'lucide-react';
+
+interface FeatureAssignment {
+  featureKey: string;
+  featureName: string;
+  featureType: string;
+  category: string;
+  isEnabled: boolean;
+  limitValue?: number | null;
+  configValue?: any;
+}
 
 interface PricingTier {
   pricingId: string;
@@ -11,17 +21,31 @@ interface PricingTier {
   stripePriceId: string;
   monthlyPriceCents: number;
   yearlyPriceCents: number;
-  features: string[];
   isActive: boolean;
   freeTrialDays: number;
   displayOrder: number;
+  featureAssignments: FeatureAssignment[];
+}
+
+interface Feature {
+  featureId: string;
+  featureKey: string;
+  featureName: string;
+  description?: string;
+  category: string;
+  featureType: string;
+}
+
+interface PricingData {
+  pricing: PricingTier[];
+  allFeatures: Feature[];
 }
 
 export default function PricingPage() {
   const { isSignedIn } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
-  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
+  const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(true);
 
   useEffect(() => {
@@ -30,7 +54,7 @@ export default function PricingPage() {
         const response = await fetch('/api/pricing');
         if (response.ok) {
           const data = await response.json();
-          setPricingTiers(data.pricing);
+          setPricingData(data);
         }
       } catch (error) {
         console.error('Error fetching pricing:', error);
@@ -89,6 +113,72 @@ export default function PricingPage() {
     }
   };
 
+  const getFeatureForTier = (featureKey: string, tier: PricingTier): FeatureAssignment | null => {
+    return tier.featureAssignments.find(assignment => assignment.featureKey === featureKey) || null;
+  };
+
+  const formatFeatureValue = (assignment: FeatureAssignment | null): string => {
+    if (!assignment || !assignment.isEnabled) return '';
+    
+    if (assignment.featureType === 'BOOLEAN') {
+      return '✓';
+    }
+    
+    if (assignment.featureType === 'NUMERIC_LIMIT' && assignment.limitValue !== null) {
+      const limit = assignment.limitValue === -1 ? 'Unlimited' : assignment.limitValue.toString();
+      const period = assignment.configValue?.timePeriod || 'daily';
+      return `${limit} ${period}`;
+    }
+    
+    return '✓';
+  };
+
+  const getCategoryColor = (category: string): string => {
+    const colors: Record<string, string> = {
+      'CONTENT_MANAGEMENT': 'bg-blue-50 text-blue-800',
+      'SOCIAL_FEATURES': 'bg-green-50 text-green-800',
+      'AI_FEATURES': 'bg-purple-50 text-purple-800',
+      'ORGANIZATION': 'bg-yellow-50 text-yellow-800',
+      'ANALYTICS': 'bg-indigo-50 text-indigo-800',
+      'ADMIN_TOOLS': 'bg-red-50 text-red-800',
+      'LIMITS': 'bg-gray-50 text-gray-800',
+    };
+    return colors[category] || 'bg-gray-50 text-gray-800';
+  };
+
+  if (loadingPricing) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <div className="text-lg text-gray-600">Loading pricing...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!pricingData) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <div className="text-lg text-gray-600">Failed to load pricing information.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Group features by category
+  const featuresByCategory = pricingData.allFeatures.reduce((acc, feature) => {
+    if (!acc[feature.category]) {
+      acc[feature.category] = [];
+    }
+    acc[feature.category].push(feature);
+    return acc;
+  }, {} as Record<string, Feature[]>);
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -101,85 +191,155 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {loadingPricing ? (
-          <div className="mt-16 text-center">
-            <div className="text-lg text-gray-600">Loading pricing...</div>
-          </div>
-        ) : (
-          <div className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-3">
-            {pricingTiers.map((tier, index) => (
+        {/* Pricing Tiers Header */}
+        <div className="mt-16">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
+            {/* Feature column header */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full flex flex-col justify-center">
+                <h3 className="text-lg font-semibold text-gray-900">Features</h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Compare what's included in each plan
+                </p>
+              </div>
+            </div>
+
+            {/* Pricing tier cards */}
+            {pricingData.pricing.map((tier) => (
               <div
                 key={tier.pricingId}
-                className={`bg-white rounded-lg shadow-lg overflow-hidden ${
-                  tier.tier.toUpperCase() === 'STANDARD' ? 'border-2 border-blue-500' : ''
+                className={`bg-white rounded-lg shadow-sm overflow-hidden flex flex-col ${
+                  tier.tier.toUpperCase() === 'STANDARD' ? 'border-2 border-blue-500' : 'border border-gray-200'
                 }`}
               >
-                {tier.tier.toUpperCase() === 'STANDARD' && (
-                  <div className="bg-blue-500 text-white text-center py-2 px-4">
-                    <span className="text-sm font-semibold">MOST POPULAR</span>
-                  </div>
-                )}
-                <div className="px-6 py-8">
-                  <h3 className="text-2xl font-semibold text-gray-900">
-                    {tier.tier.charAt(0).toUpperCase() + tier.tier.slice(1).toLowerCase()}
-                  </h3>
-                  <p className="mt-4 text-gray-600">
-                    {tier.tier.toUpperCase() === 'FREE' 
-                      ? 'Perfect for getting started' 
-                      : tier.tier.toUpperCase() === 'STANDARD' 
-                      ? 'For serious learners' 
-                      : 'Enhanced features and capabilities'}
-                  </p>
-                  <p className="mt-8">
-                    <span className="text-4xl font-bold text-gray-900">
-                      ${(tier.monthlyPriceCents / 100).toFixed(2)}
-                    </span>
-                    <span className="text-gray-600">/month</span>
-                  </p>
-                  {tier.freeTrialDays > 0 && (
-                    <p className="mt-2 text-sm text-green-600">
-                      {tier.freeTrialDays} day free trial
-                    </p>
+                {/* Fixed height header area to ensure alignment */}
+                <div className="h-10 flex items-center justify-center">
+                  {tier.tier.toUpperCase() === 'STANDARD' && (
+                    <div className="bg-blue-500 text-white text-center py-2 px-4 w-full">
+                      <span className="text-sm font-semibold flex items-center justify-center gap-1">
+                        <Star className="h-4 w-4" />
+                        MOST POPULAR
+                      </span>
+                    </div>
                   )}
-                  <button
-                    onClick={() => tier.tier.toUpperCase() !== 'FREE' ? handleSubscribe(tier.tier, tier.stripePriceId) : undefined}
-                    disabled={loading !== null || tier.tier.toUpperCase() === 'FREE'}
-                    className={`mt-8 w-full py-3 px-6 rounded-md font-medium ${
-                      tier.tier.toUpperCase() === 'FREE'
-                        ? 'bg-gray-200 text-gray-800 cursor-not-allowed'
-                        : tier.tier.toUpperCase() === 'STANDARD'
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
-                        : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed'
-                    }`}
-                  >
-                    {tier.tier.toUpperCase() === 'FREE'
-                      ? 'Current Plan'
-                      : loading === tier.tier
-                      ? 'Loading...'
-                      : 'Subscribe'}
-                  </button>
                 </div>
-                <div className="px-6 pb-8">
-                  <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                    What&apos;s included
-                  </h4>
-                  <ul className="mt-4 space-y-3">
-                    {tier.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-start">
-                        <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                        <span className="ml-3 text-gray-600">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
+                
+                <div className="p-6 flex flex-col h-full">
+                  <div className="flex-grow">
+                    <h3 className="text-2xl font-semibold text-gray-900">
+                      {tier.tier.charAt(0).toUpperCase() + tier.tier.slice(1).toLowerCase()}
+                    </h3>
+                    <p className="mt-2 text-gray-600">
+                      {tier.tier.toUpperCase() === 'FREE' 
+                        ? 'Perfect for getting started' 
+                        : tier.tier.toUpperCase() === 'STANDARD' 
+                        ? 'For serious learners' 
+                        : 'Enhanced features and capabilities'}
+                    </p>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <p>
+                      <span className="text-4xl font-bold text-gray-900">
+                        ${(tier.monthlyPriceCents / 100).toFixed(2)}
+                      </span>
+                      <span className="text-gray-600">/month</span>
+                    </p>
+                    
+                    {/* Fixed height container for free trial text to ensure alignment */}
+                    <div className="h-6 mt-2">
+                      {tier.freeTrialDays > 0 && (
+                        <p className="text-sm text-green-600">
+                          {tier.freeTrialDays} day free trial
+                        </p>
+                      )}
+                    </div>
+                    
+                    <button
+                      onClick={() => tier.tier.toUpperCase() !== 'FREE' ? handleSubscribe(tier.tier, tier.stripePriceId) : undefined}
+                      disabled={loading !== null || tier.tier.toUpperCase() === 'FREE'}
+                      className={`mt-6 w-full py-3 px-6 rounded-md font-medium ${
+                        tier.tier.toUpperCase() === 'FREE'
+                          ? 'bg-gray-200 text-gray-800 cursor-not-allowed'
+                          : tier.tier.toUpperCase() === 'STANDARD'
+                          ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                          : 'bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      {tier.tier.toUpperCase() === 'FREE'
+                        ? 'Current Plan'
+                        : loading === tier.tier
+                        ? 'Loading...'
+                        : 'Subscribe'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        )}
+        </div>
+
+        {/* Feature Comparison Matrix */}
+        <div className="mt-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            {Object.entries(featuresByCategory).map(([category, features]) => (
+              <div key={category} className="border-b border-gray-200 last:border-b-0">
+                {/* Category Header */}
+                <div className="bg-gray-50 px-6 py-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <div className="lg:col-span-1">
+                      <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${getCategoryColor(category)}`}>
+                        {category.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="lg:col-span-3"></div>
+                  </div>
+                </div>
+
+                {/* Features in this category */}
+                {features.map((feature) => (
+                  <div key={feature.featureKey} className="px-6 py-4 border-b border-gray-100 last:border-b-0">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-center">
+                      {/* Feature name */}
+                      <div className="lg:col-span-1">
+                        <div className="font-medium text-gray-900">{feature.featureName}</div>
+                        {feature.description && (
+                          <div className="text-sm text-gray-500 mt-1">{feature.description}</div>
+                        )}
+                      </div>
+
+                      {/* Feature availability for each tier */}
+                      {pricingData.pricing.map((tier) => {
+                        const assignment = getFeatureForTier(feature.featureKey, tier);
+                        const value = formatFeatureValue(assignment);
+                        
+                        return (
+                          <div key={tier.pricingId} className="text-center">
+                            {assignment && assignment.isEnabled ? (
+                              <div className="flex items-center justify-center">
+                                {assignment.featureType === 'BOOLEAN' ? (
+                                  <Check className="h-5 w-5 text-green-600" />
+                                ) : (
+                                  <span className="text-sm font-medium text-gray-900">{value}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <X className="h-5 w-5 text-gray-400 mx-auto" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="mt-12 text-center">
           <p className="text-gray-600">
-            {pricingTiers.some(tier => tier.freeTrialDays > 0) 
+            {pricingData.pricing.some(tier => tier.freeTrialDays > 0) 
               ? `Free trials available. Cancel anytime.`
               : 'All plans include flexible billing. Cancel anytime.'}
           </p>
