@@ -25,6 +25,30 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/mastering-the-docker-cli-essential-commands-and-techniques</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/deploying-docker-containers-strategies-and-best-practices</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/working-with-fstab-automating-filesystem-mounting-in-linux</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/understanding-linux-file-permissions-a-detailed-guide</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/understanding-docker-networking-connecting-containers</loc>
       <lastmod>2025-06-01</lastmod>
       <changefreq>monthly</changefreq>

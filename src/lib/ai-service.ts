@@ -413,7 +413,7 @@ EXAMPLE: An article about "LISP Programming Tutorial" should have:
   },
 
   async generateArticleContent(title: string, categoryName: string, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an expert IT technical writer and SEO specialist. Create comprehensive, detailed articles with SEO optimization.
+    const hardcodedSystemPrompt = `You are an expert IT technical writer and SEO specialist. Create comprehensive, detailed articles with SEO optimization.
 
 You must return both the article content and complete SEO data following these guidelines:
 
@@ -459,20 +459,24 @@ IMPORTANT: Return ONLY valid JSON with "title", "content", and "seo" fields. Ens
     let result, error;
     let attempts = 0;
     const maxAttempts = 2;
+    let model, interactionType;
     
     while (attempts < maxAttempts) {
       try {
         attempts++;
-        const { model, interactionType } = await getModelForInteraction('article_generation');
+        const config = await getAIConfigForInteraction('article_generation');
+        model = config.model;
+        interactionType = config.interactionType;
+        const { temperature, maxTokens, systemPrompt } = config;
         const aiModel = await createProviderForModel(model.modelId);
         
         result = await generateObject({
           model: aiModel,
-          system: systemPrompt,
+          system: systemPrompt || hardcodedSystemPrompt,
           prompt: userPrompt,
           schema: ArticleWithSeoSchema,
-          temperature: 0.7,
-          maxTokens: Math.min(8000, model.maxTokens || 8000), // Use model's max tokens if available
+          temperature,
+          maxTokens,
         });
         
         // If we get here, generation was successful
@@ -510,8 +514,7 @@ IMPORTANT: Return ONLY valid JSON with "title", "content", and "seo" fields. Ens
       content = content.slice(4, -4).trim();
     }
     
-    // Get model info for tracking (we'll use the last attempt's model info)
-    const { model, interactionType } = await getModelForInteraction('article_generation');
+    // Use model info from the successful generation attempt
     
     // Track the interaction
     await trackAIInteraction(
@@ -539,7 +542,7 @@ IMPORTANT: Return ONLY valid JSON with "title", "content", and "seo" fields. Ens
   },
 
   async generateInteractiveExamples(articleTitle: string, categoryName: string, existingQuestions: string[], clerkUserId: string | null = null) {
-    const systemPrompt = `You are an IT education expert creating interactive examples. Generate diverse, practical questions that test real understanding. Focus on real-world scenarios that IT professionals would encounter.`;
+    const hardcodedSystemPrompt = `You are an IT education expert creating interactive examples. Generate diverse, practical questions that test real understanding. Focus on real-world scenarios that IT professionals would encounter.`;
     
     const userPrompt = `Based on the IT article titled "${articleTitle}" in the category "${categoryName}", generate 3-5 unique interactive examples to test understanding.
 
@@ -556,16 +559,16 @@ For each example:
     let result, error;
     
     try {
-      const { model, interactionType } = await getModelForInteraction('interactive_examples');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('interactive_examples');
       const aiModel = await createProviderForModel(model.modelId);
       
       result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: ExampleGenerationResponseSchema,
-        temperature: 0.8,
-        maxTokens: 2000,
+        temperature,
+        maxTokens,
       });
       
       const endTime = new Date();
@@ -613,7 +616,7 @@ For each example:
   },
 
   async markUserAnswer(questionText: string, userAnswer: string, questionType: string, markingHint?: string, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an IT education expert marking student answers. Be encouraging but accurate. Provide constructive feedback that helps learning.`;
+    const hardcodedSystemPrompt = `You are an IT education expert marking student answers. Be encouraging but accurate. Provide constructive feedback that helps learning.`;
     
     const userPrompt = `Question: ${questionText}
 Question Type: ${questionType}
@@ -626,16 +629,16 @@ Evaluate if the answer is correct and provide helpful feedback. For command line
     let result, error;
     
     try {
-      const { model, interactionType } = await getModelForInteraction('answer_marking');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('answer_marking');
       const aiModel = await createProviderForModel(model.modelId);
       
       result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: MarkingResponseSchema,
-        temperature: 0.3,
-        maxTokens: 500,
+        temperature,
+        maxTokens,
       });
       
       const endTime = new Date();
@@ -683,7 +686,7 @@ Evaluate if the answer is correct and provide helpful feedback. For command line
   },
 
   async extractSearchKeywords(query: string, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an AI assistant that analyzes user search queries to extract relevant keywords and understand search intent. Your goal is to help find the most relevant content by identifying key terms and concepts.`;
+    const hardcodedSystemPrompt = `You are an AI assistant that analyzes user search queries to extract relevant keywords and understand search intent. Your goal is to help find the most relevant content by identifying key terms and concepts.`;
 
     const userPrompt = `User's search query: "${query}"
 
@@ -701,16 +704,16 @@ Examples:
     const startTime = new Date();
     
     try {
-      const { model, interactionType } = await getModelForInteraction('keyword_extraction');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('keyword_extraction');
       const aiModel = await createProviderForModel(model.modelId);
       
       const result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: KeywordExtractionSchema,
-        temperature: 0.3,
-        maxTokens: 500,
+        temperature,
+        maxTokens,
       });
       
       const endTime = new Date();
@@ -742,7 +745,7 @@ Examples:
   },
 
   async reorderSearchResults(query: string, articles: Array<{articleId: string, articleTitle: string, category: {categoryName: string}, isContentGenerated: boolean}>, categories: Array<{categoryId: string, categoryName: string, description: string | null}>, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an AI assistant that helps reorder search results based on relevance to the user's query. Your goal is to put the most relevant and helpful content first.
+    const hardcodedSystemPrompt = `You are an AI assistant that helps reorder search results based on relevance to the user's query. Your goal is to put the most relevant and helpful content first.
 
 Consider:
 1. Direct relevance to the query
@@ -773,16 +776,16 @@ Consider what someone searching for "${query}" would most likely want to learn a
     const startTime = new Date();
     
     try {
-      const { model, interactionType } = await getModelForInteraction('search_reordering');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('search_reordering');
       const aiModel = await createProviderForModel(model.modelId);
       
       const result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: ReorderResultsSchema,
-        temperature: 0.3, // Lower temperature for more consistent ordering
-        maxTokens: 1000,
+        temperature,
+        maxTokens,
       });
       
       const endTime = new Date();
@@ -843,7 +846,7 @@ Consider what someone searching for "${query}" would most likely want to learn a
       };
     }
     
-    const systemPrompt = `You are an AI assistant helping to validate and apply user suggestions to educational IT articles. Be concise but thorough.`;
+    const hardcodedSystemPrompt = `You are an AI assistant helping to validate and apply user suggestions to educational IT articles. Be concise but thorough.`;
     
     // For very large articles, we might need to be more strategic
     const contentLength = articleContent.length;
@@ -901,20 +904,21 @@ IMPORTANT:
     let result, error;
     
     try {
-      const { model, interactionType } = await getModelForInteraction('article_suggestion_validation');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('article_suggestion_validation');
       const aiModel = await createProviderForModel(model.modelId);
       
-      // Calculate needed tokens based on article size
+      // Calculate needed tokens based on article size, but use database value if it's sufficient
       const estimatedOutputTokens = Math.ceil(contentLength / 3) + 1000; // Extra for the added content
       const maxTokensNeeded = Math.min(estimatedOutputTokens, 16000); // Cap at 16k tokens
+      const finalMaxTokens = Math.max(maxTokensNeeded, maxTokens || 4000);
       
       result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: ArticleSuggestionValidationSchema,
-        temperature: 0.3,
-        maxTokens: Math.max(maxTokensNeeded, model.maxTokens || 4000),
+        temperature,
+        maxTokens: finalMaxTokens,
       });
       
       const endTime = new Date();
@@ -975,7 +979,7 @@ IMPORTANT:
   },
 
   async selectAndCreateTags(articleTitle: string, categoryName: string, existingTags: Array<{tagId: string, tagName: string, description: string | null}>, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an AI assistant that helps select and create relevant tags for IT articles. Your goal is to choose appropriate existing tags and suggest new ones when necessary.
+    const hardcodedSystemPrompt = `You are an AI assistant that helps select and create relevant tags for IT articles. Your goal is to choose appropriate existing tags and suggest new ones when necessary.
 
 IMPORTANT GUIDELINES:
 1. Always prefer existing tags when they are relevant
@@ -1006,16 +1010,16 @@ RULES:
     const startTime = new Date();
     
     try {
-      const { model, interactionType } = await getModelForInteraction('tag_selection');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('tag_selection');
       const aiModel = await createProviderForModel(model.modelId);
       
       const result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: TagSelectionResponseSchema,
-        temperature: 0.3, // Lower temperature for more consistent tagging
-        maxTokens: 1000,
+        temperature,
+        maxTokens,
       });
       
       const endTime = new Date();
