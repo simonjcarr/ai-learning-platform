@@ -353,7 +353,7 @@ CONTENT REQUIREMENTS:
 - Start directly with the title using # heading
 - Use proper Markdown formatting throughout
 - Include command-line examples where relevant
-- Aim for 1500-2500 words of high-quality content
+- Aim for 1200-1800 words of high-quality content (concise but thorough)
 
 SEO REQUIREMENTS:
 - SEO Title: 50-60 characters, include primary keyword
@@ -363,7 +363,7 @@ SEO REQUIREMENTS:
 - Priority: 0.6-0.8 for most articles, 0.9 for fundamental topics
 - Image Alt: If suggesting images, provide descriptive alt text`;
     
-    const userPrompt = `Write a comprehensive IT article about "${title}" in the category "${categoryName}".
+    let userPrompt = `Write a comprehensive IT article about "${title}" in the category "${categoryName}".
 
 CONTENT STRUCTURE:
 1. Start directly with the title using # (h1 heading)
@@ -373,6 +373,7 @@ CONTENT STRUCTURE:
 5. Structure with clear sections: Introduction, Key Concepts, Examples, Best Practices, Common Issues, Conclusion
 6. Make it educational and practical for IT professionals
 7. Include command-line examples where relevant
+8. Keep content focused and concise - aim for 1200-1800 words total
 
 SEO OPTIMIZATION:
 - Create an SEO-optimized title (50-60 characters)
@@ -381,83 +382,89 @@ SEO OPTIMIZATION:
 - Set appropriate change frequency and priority for sitemap
 - Consider search intent and user needs
 
-Return the article content as Markdown text and comprehensive SEO data.`;
+IMPORTANT: Return ONLY valid JSON with "title", "content", and "seo" fields. Ensure the content is complete but concise.`;
 
     const startTime = new Date();
     let result, error;
+    let attempts = 0;
+    const maxAttempts = 2;
     
-    try {
-      const { model, interactionType } = await getModelForInteraction('article_generation');
-      const aiModel = await createProviderForModel(model.modelId);
-      
-      result = await generateObject({
-        model: aiModel,
-        system: systemPrompt,
-        prompt: userPrompt,
-        schema: ArticleWithSeoSchema,
-        temperature: 0.7,
-        maxTokens: 4000,
-      });
-
-      const endTime = new Date();
-      
-      // Clean up any accidental code block wrappers in content
-      let content = result.object.content.trim();
-      if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
-        content = content.slice(12, -4).trim();
-      } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
-        content = content.slice(4, -4).trim();
-      }
-      
-      // Track the interaction
-      await trackAIInteraction(
-        model.modelId,
-        interactionType.typeId,
-        clerkUserId,
-        result.usage?.promptTokens || 0,
-        result.usage?.completionTokens || 0,
-        startTime,
-        endTime,
-        { title, categoryName },
-        userPrompt,
-        JSON.stringify(result.object)
-      );
-
-      return {
-        title: result.object.title,
-        content,
-        seo: {
-          ...result.object.seo,
-          seoLastModified: new Date(),
-        },
-        metaDescription: result.object.seo.seoDescription // Keep for backward compatibility
-      };
-    } catch (err) {
-      error = err;
-      const endTime = new Date();
-      
-      // Try to get model info for error tracking
+    while (attempts < maxAttempts) {
       try {
+        attempts++;
         const { model, interactionType } = await getModelForInteraction('article_generation');
-        await trackAIInteraction(
-          model.modelId,
-          interactionType.typeId,
-          clerkUserId,
-          0,
-          0,
-          startTime,
-          endTime,
-          { title, categoryName },
-          userPrompt,
-          undefined,
-          String(err)
-        );
-      } catch (trackingError) {
-        console.error('Failed to track error:', trackingError);
+        const aiModel = await createProviderForModel(model.modelId);
+        
+        result = await generateObject({
+          model: aiModel,
+          system: systemPrompt,
+          prompt: userPrompt,
+          schema: ArticleWithSeoSchema,
+          temperature: 0.7,
+          maxTokens: Math.min(8000, model.maxTokens || 8000), // Use model's max tokens if available
+        });
+        
+        // If we get here, generation was successful
+        break;
+        
+      } catch (genError) {
+        console.error(`Article generation attempt ${attempts} failed:`, genError);
+        
+        if (attempts >= maxAttempts) {
+          error = genError;
+          break;
+        }
+        
+        // If it's a JSON parsing error, try with stricter prompting
+        if (genError instanceof Error && genError.message.includes('JSON parsing failed')) {
+          userPrompt = userPrompt + '\n\nIMPORTANT: Ensure the response is valid JSON. If content is too long, make it more concise.';
+        }
+        
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
+    }
+    
+    if (error) {
       throw error;
     }
+
+    const endTime = new Date();
+    
+    // Clean up any accidental code block wrappers in content
+    let content = result.object.content.trim();
+    if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
+      content = content.slice(12, -4).trim();
+    } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
+      content = content.slice(4, -4).trim();
+    }
+    
+    // Get model info for tracking (we'll use the last attempt's model info)
+    const { model, interactionType } = await getModelForInteraction('article_generation');
+    
+    // Track the interaction
+    await trackAIInteraction(
+      model.modelId,
+      interactionType.typeId,
+      clerkUserId,
+      result.usage?.promptTokens || 0,
+      result.usage?.completionTokens || 0,
+      startTime,
+      endTime,
+      { title, categoryName },
+      userPrompt,
+      JSON.stringify(result.object)
+    );
+
+    return {
+      title: result.object.title,
+      content,
+      seo: {
+        ...result.object.seo,
+        seoLastModified: new Date(),
+      },
+      metaDescription: result.object.seo.seoDescription // Keep for backward compatibility
+    };
   },
 
   async generateInteractiveExamples(articleTitle: string, categoryName: string, existingQuestions: string[], clerkUserId: string | null = null) {
