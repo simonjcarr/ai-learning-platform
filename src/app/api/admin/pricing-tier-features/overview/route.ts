@@ -13,10 +13,14 @@ export async function GET() {
       include: {
         featureAssignments: {
           include: {
-            feature: true,
+            feature: {
+              include: {
+                category: true
+              }
+            }
           },
           orderBy: [
-            { feature: { category: 'asc' } },
+            { feature: { category: { displayOrder: 'asc' } } },
             { feature: { featureName: 'asc' } }
           ],
         },
@@ -26,8 +30,11 @@ export async function GET() {
     // Get all features for the matrix view
     const allFeatures = await prisma.feature.findMany({
       where: { isActive: true },
+      include: {
+        category: true
+      },
       orderBy: [
-        { category: 'asc' },
+        { category: { displayOrder: 'asc' } },
         { featureName: 'asc' }
       ],
     });
@@ -67,8 +74,8 @@ export async function GET() {
       totalFeatures: tier.featureAssignments.length,
       featuresByCategory: tier.featureAssignments.reduce((acc, assignment) => {
         if (assignment.isEnabled) {
-          const category = assignment.feature.category;
-          acc[category] = (acc[category] || 0) + 1;
+          const categoryKey = assignment.feature.category.categoryKey;
+          acc[categoryKey] = (acc[categoryKey] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>),

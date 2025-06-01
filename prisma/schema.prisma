@@ -285,12 +285,31 @@ model SubscriptionPricing {
   @@map("subscription_pricing")
 }
 
+model FeatureCategory {
+  categoryId      String    @id @default(cuid())
+  categoryKey     String    @unique  // e.g., "CONTENT_MANAGEMENT", "AI_FEATURES"
+  categoryName    String    // Human readable name
+  description     String?   // Description of what this category covers
+  displayOrder    Int       @default(0)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relationships
+  features        Feature[]
+
+  @@index([categoryKey])
+  @@index([displayOrder])
+  @@index([isActive])
+  @@map("feature_categories")
+}
+
 model Feature {
   featureId           String               @id @default(cuid())
   featureKey          String               @unique  // e.g., "manage_lists", "ai_chat", "article_generation"
   featureName         String               // Human readable name
   description         String?              // Description of what this feature does
-  category            FeatureCategory      // UI organization category
+  categoryId          String               // Reference to FeatureCategory
   featureType         FeatureType          // boolean, numeric_limit, etc.
   isActive            Boolean              @default(true)
   defaultValue        Json?                // Default value/config for this feature
@@ -299,10 +318,11 @@ model Feature {
   updatedAt           DateTime             @updatedAt
   
   // Relationships
+  category            FeatureCategory      @relation(fields: [categoryId], references: [categoryId])
   pricingTierFeatures PricingTierFeature[]
 
   @@index([featureKey])
-  @@index([category])
+  @@index([categoryId])
   @@index([isActive])
   @@map("features")
 }
@@ -327,15 +347,6 @@ model PricingTierFeature {
   @@map("pricing_tier_features")
 }
 
-enum FeatureCategory {
-  CONTENT_MANAGEMENT     // Article creation, editing, etc.
-  SOCIAL_FEATURES       // Comments, likes, flagging
-  AI_FEATURES          // AI chat, content generation
-  ORGANIZATION         // Lists, groups, tags
-  ANALYTICS           // Reports, insights
-  ADMIN_TOOLS         // User management, system admin
-  LIMITS              // Usage limits and quotas
-}
 
 enum FeatureType {
   BOOLEAN             // Simple on/off feature

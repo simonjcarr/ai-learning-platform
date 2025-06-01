@@ -50,14 +50,8 @@ export async function PATCH(
       }
     }
 
-    // Filter empty lines from features if provided
-    if (body.features) {
-      body.features = body.features.filter((f: string) => f.trim());
-    }
-
-    // If features, tier, or pricing changed, update Stripe
-    if (body.features || body.tier || body.monthlyPriceCents || body.freeTrialDays !== undefined) {
-      const features = body.features || currentPricing.features;
+    // If tier or pricing changed, update Stripe
+    if (body.tier || body.monthlyPriceCents || body.freeTrialDays !== undefined) {
       const tier = body.tier || currentPricing.tier;
       const monthlyPriceCents = body.monthlyPriceCents || currentPricing.monthlyPriceCents;
       const freeTrialDays = body.freeTrialDays !== undefined ? body.freeTrialDays : currentPricing.freeTrialDays;
@@ -70,11 +64,11 @@ export async function PATCH(
         newTrialDays: freeTrialDays
       });
 
-      // Update or create Stripe product if features or tier changed
+      // Update or create Stripe product if tier changed
       let stripeProductId = currentPricing.stripeProductId;
-      if (body.features || body.tier) {
-        console.log(`📦 Updating Stripe product for features/tier change`);
-        stripeProductId = await createOrUpdateStripeProduct(tier, features);
+      if (body.tier) {
+        console.log(`📦 Updating Stripe product for tier change`);
+        stripeProductId = await createOrUpdateStripeProduct(tier);
         if (stripeProductId !== currentPricing.stripeProductId) {
           body.stripeProductId = stripeProductId;
           console.log(`✅ Product updated: ${currentPricing.stripeProductId} → ${stripeProductId}`);

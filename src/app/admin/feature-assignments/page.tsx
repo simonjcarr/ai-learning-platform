@@ -9,7 +9,10 @@ interface Feature {
   featureKey: string;
   featureName: string;
   description?: string;
-  category: string;
+  category: {
+    categoryKey: string;
+    categoryName: string;
+  };
   featureType: string;
   isActive: boolean;
 }
@@ -152,9 +155,13 @@ export default function FeatureAssignmentsPage() {
     setEditValue({ isEnabled: false, limitValue: null, configValue: { timePeriod: 'daily' } });
   }
 
-  const categories = data ? Array.from(new Set(data.allFeatures.map(f => f.category))) : [];
+  const categories = data ? Array.from(new Set(data.allFeatures.map(f => f.category.categoryKey))) : [];
+  const categoryMap = data ? data.allFeatures.reduce((acc, f) => {
+    acc[f.category.categoryKey] = f.category.categoryName;
+    return acc;
+  }, {} as Record<string, string>) : {};
   const filteredFeatures = data?.featureMatrix.filter(fm => 
-    selectedCategory === "all" || fm.feature.category === selectedCategory
+    selectedCategory === "all" || fm.feature.category.categoryKey === selectedCategory
   ) || [];
 
   if (loading) {
@@ -229,7 +236,7 @@ export default function FeatureAssignmentsPage() {
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
-            {category.replace('_', ' ')}
+            {categoryMap[category] || category.replace('_', ' ')}
           </button>
         ))}
       </div>
@@ -265,7 +272,7 @@ export default function FeatureAssignmentsPage() {
                         <div className="text-sm font-medium text-gray-900">{feature.featureName}</div>
                         <div className="text-sm text-gray-500">{feature.featureKey}</div>
                         <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded mt-1">
-                          {feature.category.replace('_', ' ')}
+                          {feature.category.categoryName}
                         </span>
                       </div>
                     </td>

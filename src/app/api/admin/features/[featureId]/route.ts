@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireMinRole } from "@/lib/auth";
-import { Role, FeatureCategory, FeatureType } from "@prisma/client";
+import { Role, FeatureType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export async function GET(
@@ -14,12 +14,19 @@ export async function GET(
     const feature = await prisma.feature.findUnique({
       where: { featureId },
       include: {
+        category: true,
         pricingTierFeatures: {
           include: {
             pricingTier: true,
           },
         },
       },
+    });
+    
+    // Also fetch feature categories for the edit form
+    const featureCategories = await prisma.featureCategory.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: "asc" }
     });
     
     if (!feature) {
@@ -29,7 +36,7 @@ export async function GET(
       );
     }
     
-    return NextResponse.json({ feature });
+    return NextResponse.json({ feature, featureCategories });
   } catch (error) {
     console.error("Error fetching feature:", error);
     return NextResponse.json(
@@ -48,7 +55,7 @@ export async function PATCH(
     const { featureId } = await params;
     
     const body = await request.json();
-    const { featureKey, featureName, description, category, featureType, defaultValue, metadata, isActive } = body;
+    const { featureKey, featureName, description, categoryId, featureType, defaultValue, metadata, isActive } = body;
     
     // Check if feature exists
     const existingFeature = await prisma.feature.findUnique({
@@ -76,12 +83,18 @@ export async function PATCH(
       }
     }
     
-    // Validate category if provided
-    if (category && !Object.values(FeatureCategory).includes(category)) {
-      return NextResponse.json(
-        { error: "Valid feature category is required" },
-        { status: 400 }
-      );
+    // Validate categoryId if provided
+    if (categoryId) {
+      const categoryExists = await prisma.featureCategory.findUnique({
+        where: { categoryId }
+      });
+      
+      if (!categoryExists) {
+        return NextResponse.json(
+          { error: "Valid feature category is required" },
+          { status: 400 }
+        );
+      }
     }
     
     // Validate featureType if provided
@@ -96,7 +109,7 @@ export async function PATCH(
     if (featureKey !== undefined) updateData.featureKey = featureKey;
     if (featureName !== undefined) updateData.featureName = featureName;
     if (description !== undefined) updateData.description = description;
-    if (category !== undefined) updateData.category = category;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
     if (featureType !== undefined) updateData.featureType = featureType;
     if (defaultValue !== undefined) updateData.defaultValue = defaultValue;
     if (metadata !== undefined) updateData.metadata = metadata;

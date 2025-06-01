@@ -14,7 +14,11 @@ export async function GET() {
             feature: { isActive: true }
           },
           include: {
-            feature: true
+            feature: {
+              include: {
+                category: true
+              }
+            }
           }
         }
       }
@@ -23,8 +27,11 @@ export async function GET() {
     // Get all active features for the feature matrix
     const allFeatures = await prisma.feature.findMany({
       where: { isActive: true },
+      include: {
+        category: true
+      },
       orderBy: [
-        { category: "asc" },
+        { category: { displayOrder: "asc" } },
         { featureName: "asc" }
       ]
     });
@@ -43,7 +50,10 @@ export async function GET() {
         featureKey: assignment.feature.featureKey,
         featureName: assignment.feature.featureName,
         featureType: assignment.feature.featureType,
-        category: assignment.feature.category,
+        category: {
+          categoryKey: assignment.feature.category.categoryKey,
+          categoryName: assignment.feature.category.categoryName
+        },
         isEnabled: assignment.isEnabled,
         limitValue: assignment.limitValue,
         configValue: assignment.configValue
@@ -57,7 +67,10 @@ export async function GET() {
         featureKey: feature.featureKey,
         featureName: feature.featureName,
         description: feature.description,
-        category: feature.category,
+        category: {
+          categoryKey: feature.category.categoryKey,
+          categoryName: feature.category.categoryName
+        },
         featureType: feature.featureType
       }))
     });

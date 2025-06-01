@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     await requireMinRole(Role.ADMIN);
     
     const body = await request.json();
-    const { tier, monthlyPriceCents, yearlyPriceCents, features, isActive, freeTrialDays, displayOrder } = body;
+    const { tier, monthlyPriceCents, yearlyPriceCents, isActive, freeTrialDays, displayOrder } = body;
     
     // Validate tier name
     if (!tier || !tier.trim()) {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create or update Stripe product
-    const stripeProductId = await createOrUpdateStripeProduct(tier, features);
+    const stripeProductId = await createOrUpdateStripeProduct(tier);
     
     // Create Stripe price for monthly billing
     const stripePriceId = await createOrUpdateStripePrice(
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         stripeProductId,
         monthlyPriceCents,
         yearlyPriceCents,
-        features: features ? features.filter((f: string) => f.trim()) : [],
+        features: [], // Legacy field - features now managed through Feature Assignments
         isActive,
         freeTrialDays: freeTrialDays || 0,
         displayOrder: finalDisplayOrder,

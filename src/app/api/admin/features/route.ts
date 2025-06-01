@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireMinRole } from "@/lib/auth";
-import { Role, FeatureCategory, FeatureType } from "@prisma/client";
+import { Role, FeatureType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export async function GET() {
@@ -8,13 +8,22 @@ export async function GET() {
     await requireMinRole(Role.ADMIN);
     
     const features = await prisma.feature.findMany({
+      include: {
+        category: true
+      },
       orderBy: [
-        { category: "asc" },
+        { category: { displayOrder: "asc" } },
         { featureName: "asc" }
       ],
     });
     
-    return NextResponse.json({ features });
+    // Also fetch feature categories for dropdowns
+    const featureCategories = await prisma.featureCategory.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: "asc" }
+    });
+    
+    return NextResponse.json({ features, featureCategories });
   } catch (error) {
     console.error("Error fetching features:", error);
     return NextResponse.json(
@@ -29,7 +38,7 @@ export async function POST(request: NextRequest) {
     await requireMinRole(Role.ADMIN);
     
     const body = await request.json();
-    const { featureKey, featureName, description, category, featureType, defaultValue, metadata, isActive } = body;
+    const { featureKey, featureName, description, categoryId, featureType, defaultValue, metadata, isActive } = body;
     
     // Validate required fields
     if (!featureKey || !featureKey.trim()) {
@@ -46,9 +55,21 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    if (!category || !Object.values(FeatureCategory).includes(category)) {
+    if (!categoryId || !categoryId.trim()) {
       return NextResponse.json(
-        { error: "Valid feature category is required" },
+        { error: "Feature category is required" },
+        { status: 400 }
+      );
+    }
+    
+    // Validate that the category exists
+    const categoryExists = await prisma.featureCategory.findUnique({
+      where: { categoryId }
+    });
+    
+    if (!categoryExists) {
+      return NextResponse.json(
+        { error: "Invalid feature category" },
         { status: 400 }
       );
     }
@@ -77,12 +98,15 @@ export async function POST(request: NextRequest) {
         featureKey,
         featureName,
         description: description || null,
-        category,
+        categoryId,
         featureType,
         defaultValue: defaultValue || null,
         metadata: metadata || null,
         isActive: isActive !== undefined ? isActive : true,
       },
+      include: {
+        category: true
+      }
     });
     
     return NextResponse.json({ feature });

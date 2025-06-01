@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Edit2, Save, X, Plus, Trash2, Eye, Settings } from "lucide-react";
+import { Edit2, Save, X, Plus, Trash2, Eye, ArrowUp, ArrowDown } from "lucide-react";
 import Link from "next/link";
 
 interface FeatureCategory {
@@ -11,79 +11,52 @@ interface FeatureCategory {
   description?: string;
   displayOrder: number;
   isActive: boolean;
+  _count: {
+    features: number;
+  };
 }
 
-interface Feature {
-  featureId: string;
-  featureKey: string;
-  featureName: string;
-  description?: string;
-  categoryId: string;
-  category: FeatureCategory;
-  featureType: string;
-  isActive: boolean;
-  defaultValue?: any;
-  metadata?: any;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const FEATURE_TYPES = [
-  'BOOLEAN',
-  'NUMERIC_LIMIT',
-  'CUSTOM'
-];
-
-export default function AdminFeaturesPage() {
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const [featureCategories, setFeatureCategories] = useState<FeatureCategory[]>([]);
+export default function AdminFeatureCategoriesPage() {
+  const [categories, setCategories] = useState<FeatureCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<Feature>>({});
+  const [editForm, setEditForm] = useState<Partial<FeatureCategory>>({});
   const [isCreating, setIsCreating] = useState(false);
-  const [newForm, setNewForm] = useState<Partial<Feature>>({
-    featureKey: "",
-    featureName: "",
+  const [newForm, setNewForm] = useState<Partial<FeatureCategory>>({
+    categoryKey: "",
+    categoryName: "",
     description: "",
-    categoryId: "",
-    featureType: "BOOLEAN",
+    displayOrder: 1,
     isActive: true,
-    defaultValue: { enabled: false },
   });
 
   useEffect(() => {
-    fetchFeatures();
+    fetchCategories();
   }, []);
 
-  async function fetchFeatures() {
+  async function fetchCategories() {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/features");
-      if (!response.ok) throw new Error("Failed to fetch features");
+      const response = await fetch("/api/admin/feature-categories");
+      if (!response.ok) throw new Error("Failed to fetch categories");
       
       const data = await response.json();
-      setFeatures(data.features);
-      setFeatureCategories(data.featureCategories);
-      
-      // Set default category for new form if not already set
-      if (!newForm.categoryId && data.featureCategories.length > 0) {
-        setNewForm(prev => ({ ...prev, categoryId: data.featureCategories[0].categoryId }));
-      }
+      setCategories(data.categories);
     } catch (error) {
-      console.error("Error fetching features:", error);
+      console.error("Error fetching categories:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleSave(featureId: string) {
-    if (!editForm.featureName?.trim()) {
-      alert("Feature name is required");
+  async function handleSave(categoryId: string) {
+    if (!editForm.categoryName?.trim()) {
+      alert("Category name is required");
       return;
     }
     
     try {
-      const response = await fetch(`/api/admin/features/${featureId}`, {
+      const response = await fetch(`/api/admin/feature-categories/${categoryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm),
@@ -91,31 +64,31 @@ export default function AdminFeaturesPage() {
       
       if (!response.ok) {
         const data = await response.json();
-        alert(data.error || "Failed to update feature");
+        alert(data.error || "Failed to update category");
         return;
       }
       
       setEditingId(null);
-      await fetchFeatures();
+      await fetchCategories();
     } catch (error) {
-      console.error("Error updating feature:", error);
-      alert("Failed to update feature");
+      console.error("Error updating category:", error);
+      alert("Failed to update category");
     }
   }
 
   async function handleCreate() {
-    if (!newForm.featureKey?.trim()) {
-      alert("Feature key is required");
+    if (!newForm.categoryKey?.trim()) {
+      alert("Category key is required");
       return;
     }
     
-    if (!newForm.featureName?.trim()) {
-      alert("Feature name is required");
+    if (!newForm.categoryName?.trim()) {
+      alert("Category name is required");
       return;
     }
     
     try {
-      const response = await fetch("/api/admin/features", {
+      const response = await fetch("/api/admin/feature-categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newForm),
@@ -123,53 +96,86 @@ export default function AdminFeaturesPage() {
       
       if (!response.ok) {
         const data = await response.json();
-        alert(data.error || "Failed to create feature");
+        alert(data.error || "Failed to create category");
         return;
       }
       
       setIsCreating(false);
       setNewForm({
-        featureKey: "",
-        featureName: "",
+        categoryKey: "",
+        categoryName: "",
         description: "",
-        categoryId: "",
-        featureType: "BOOLEAN",
+        displayOrder: 1,
         isActive: true,
-        defaultValue: { enabled: false },
       });
-      await fetchFeatures();
+      await fetchCategories();
     } catch (error) {
-      console.error("Error creating feature:", error);
-      alert("Failed to create feature");
+      console.error("Error creating category:", error);
+      alert("Failed to create category");
     }
   }
 
-  async function handleDelete(featureId: string) {
-    if (!confirm("Are you sure you want to delete this feature?")) return;
+  async function handleDelete(categoryId: string) {
+    if (!confirm("Are you sure you want to delete this feature category?")) return;
     
     try {
-      const response = await fetch(`/api/admin/features/${featureId}`, {
+      const response = await fetch(`/api/admin/feature-categories/${categoryId}`, {
         method: "DELETE",
       });
       
       if (!response.ok) {
         const data = await response.json();
-        if (data.assignedTiers) {
-          alert(`Cannot delete: Feature is assigned to ${data.assignedTiers} pricing tier(s). ${data.suggestion}`);
+        if (data.featureCount) {
+          alert(`Cannot delete: Category contains ${data.featureCount} feature(s). ${data.suggestion}`);
         } else {
-          alert("Failed to delete feature");
+          alert("Failed to delete category");
         }
         return;
       }
       
-      await fetchFeatures();
+      await fetchCategories();
     } catch (error) {
-      console.error("Error deleting feature:", error);
-      alert("Failed to delete feature");
+      console.error("Error deleting category:", error);
+      alert("Failed to delete category");
     }
   }
 
-  function getCategoryColor(category: string): string {
+  async function handleReorder(categoryId: string, direction: 'up' | 'down') {
+    const category = categories.find(c => c.categoryId === categoryId);
+    if (!category) return;
+
+    const sortedCategories = [...categories].sort((a, b) => a.displayOrder - b.displayOrder);
+    const currentIndex = sortedCategories.findIndex(c => c.categoryId === categoryId);
+    
+    if (direction === 'up' && currentIndex === 0) return;
+    if (direction === 'down' && currentIndex === sortedCategories.length - 1) return;
+
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    const swapCategory = sortedCategories[swapIndex];
+
+    try {
+      // Swap display orders
+      await Promise.all([
+        fetch(`/api/admin/feature-categories/${category.categoryId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayOrder: swapCategory.displayOrder }),
+        }),
+        fetch(`/api/admin/feature-categories/${swapCategory.categoryId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayOrder: category.displayOrder }),
+        }),
+      ]);
+
+      await fetchCategories();
+    } catch (error) {
+      console.error("Error reordering categories:", error);
+      alert("Failed to reorder categories");
+    }
+  }
+
+  function getCategoryColor(categoryKey: string): string {
     const colors: Record<string, string> = {
       'CONTENT_MANAGEMENT': 'bg-blue-100 text-blue-800',
       'SOCIAL_FEATURES': 'bg-green-100 text-green-800',
@@ -178,34 +184,25 @@ export default function AdminFeaturesPage() {
       'ANALYTICS': 'bg-indigo-100 text-indigo-800',
       'LIMITS': 'bg-gray-100 text-gray-800',
     };
-    return colors[category] || 'bg-gray-100 text-gray-800';
-  }
-
-  function getTypeColor(type: string): string {
-    const colors: Record<string, string> = {
-      'BOOLEAN': 'bg-emerald-100 text-emerald-800',
-      'NUMERIC_LIMIT': 'bg-orange-100 text-orange-800',
-      'CUSTOM': 'bg-pink-100 text-pink-800',
-    };
-    return colors[type] || 'bg-gray-100 text-gray-800';
+    return colors[categoryKey] || 'bg-orange-100 text-orange-800';
   }
 
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Feature Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Feature Categories</h1>
           <p className="mt-2 text-gray-600">
-            Manage application features and their configurations.
+            Manage feature categories to organize your application features.
           </p>
         </div>
         <div className="flex gap-3">
           <Link
-            href="/admin/feature-assignments"
+            href="/admin/features"
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <Settings className="h-5 w-5" />
-            Manage Assignments
+            <Eye className="h-5 w-5" />
+            Manage Features
           </Link>
           {!isCreating && (
             <button
@@ -213,7 +210,7 @@ export default function AdminFeaturesPage() {
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               <Plus className="h-5 w-5" />
-              Add Feature
+              Add Category
             </button>
           )}
         </div>
@@ -225,60 +222,57 @@ export default function AdminFeaturesPage() {
         <div className="space-y-6">
           {isCreating && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold mb-4">New Feature</h3>
+              <h3 className="text-lg font-semibold mb-4">New Feature Category</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Feature Key *
+                    Category Key *
                   </label>
                   <input
                     type="text"
-                    value={newForm.featureKey}
-                    onChange={(e) => setNewForm({ ...newForm, featureKey: e.target.value })}
+                    value={newForm.categoryKey}
+                    onChange={(e) => setNewForm({ ...newForm, categoryKey: e.target.value })}
                     className="w-full rounded-md border border-gray-300 px-3 py-2"
-                    placeholder="e.g., ai_chat, manage_lists"
+                    placeholder="e.g., AI_FEATURES, SOCIAL_FEATURES"
                     required
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Feature Name *
+                    Category Name *
                   </label>
                   <input
                     type="text"
-                    value={newForm.featureName}
-                    onChange={(e) => setNewForm({ ...newForm, featureName: e.target.value })}
+                    value={newForm.categoryName}
+                    onChange={(e) => setNewForm({ ...newForm, categoryName: e.target.value })}
                     className="w-full rounded-md border border-gray-300 px-3 py-2"
-                    placeholder="e.g., AI Chat, Manage Lists"
+                    placeholder="e.g., AI Features, Social Features"
                     required
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category
+                    Display Order
                   </label>
-                  <select
-                    value={newForm.categoryId}
-                    onChange={(e) => setNewForm({ ...newForm, categoryId: e.target.value })}
+                  <input
+                    type="number"
+                    value={newForm.displayOrder}
+                    onChange={(e) => setNewForm({ ...newForm, displayOrder: parseInt(e.target.value) || 1 })}
                     className="w-full rounded-md border border-gray-300 px-3 py-2"
-                  >
-                    {featureCategories.map(cat => (
-                      <option key={cat.categoryId} value={cat.categoryId}>{cat.categoryName}</option>
-                    ))}
-                  </select>
+                    min="1"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Feature Type
+                    Status
                   </label>
                   <select
-                    value={newForm.featureType}
-                    onChange={(e) => setNewForm({ ...newForm, featureType: e.target.value })}
+                    value={newForm.isActive ? "true" : "false"}
+                    onChange={(e) => setNewForm({ ...newForm, isActive: e.target.value === "true" })}
                     className="w-full rounded-md border border-gray-300 px-3 py-2"
                   >
-                    {FEATURE_TYPES.map(type => (
-                      <option key={type} value={type}>{type.replace('_', ' ')}</option>
-                    ))}
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
                   </select>
                 </div>
               </div>
@@ -291,7 +285,7 @@ export default function AdminFeaturesPage() {
                   onChange={(e) => setNewForm({ ...newForm, description: e.target.value })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2"
                   rows={3}
-                  placeholder="Describe what this feature does..."
+                  placeholder="Describe what types of features belong in this category..."
                 />
               </div>
               <div className="mt-4 flex justify-end gap-2">
@@ -311,65 +305,49 @@ export default function AdminFeaturesPage() {
             </div>
           )}
 
-          {features.map((feature) => (
+          {categories.map((category) => (
             <div
-              key={feature.featureId}
+              key={category.categoryId}
               className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
             >
-              {editingId === feature.featureId ? (
+              {editingId === category.categoryId ? (
                 <div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Feature Key
+                        Category Key
                       </label>
                       <input
                         type="text"
-                        value={editForm.featureKey}
-                        onChange={(e) => setEditForm({ ...editForm, featureKey: e.target.value })}
+                        value={editForm.categoryKey}
+                        onChange={(e) => setEditForm({ ...editForm, categoryKey: e.target.value })}
                         className="w-full rounded-md border border-gray-300 px-3 py-2"
                         required
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Feature Name
+                        Category Name
                       </label>
                       <input
                         type="text"
-                        value={editForm.featureName}
-                        onChange={(e) => setEditForm({ ...editForm, featureName: e.target.value })}
+                        value={editForm.categoryName}
+                        onChange={(e) => setEditForm({ ...editForm, categoryName: e.target.value })}
                         className="w-full rounded-md border border-gray-300 px-3 py-2"
                         required
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Category
+                        Display Order
                       </label>
-                      <select
-                        value={editForm.categoryId}
-                        onChange={(e) => setEditForm({ ...editForm, categoryId: e.target.value })}
+                      <input
+                        type="number"
+                        value={editForm.displayOrder}
+                        onChange={(e) => setEditForm({ ...editForm, displayOrder: parseInt(e.target.value) || 1 })}
                         className="w-full rounded-md border border-gray-300 px-3 py-2"
-                      >
-                        {featureCategories.map(cat => (
-                          <option key={cat.categoryId} value={cat.categoryId}>{cat.categoryName}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Feature Type
-                      </label>
-                      <select
-                        value={editForm.featureType}
-                        onChange={(e) => setEditForm({ ...editForm, featureType: e.target.value })}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2"
-                      >
-                        {FEATURE_TYPES.map(type => (
-                          <option key={type} value={type}>{type.replace('_', ' ')}</option>
-                        ))}
-                      </select>
+                        min="1"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -404,7 +382,7 @@ export default function AdminFeaturesPage() {
                       <X className="h-5 w-5" />
                     </button>
                     <button
-                      onClick={() => handleSave(feature.featureId)}
+                      onClick={() => handleSave(category.categoryId)}
                       className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                     >
                       <Save className="h-5 w-5" />
@@ -416,56 +394,58 @@ export default function AdminFeaturesPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">{feature.featureName}</h3>
-                        <span className={`px-2 py-1 text-xs rounded-full ${getCategoryColor(feature.category.categoryKey)}`}>
-                          {feature.category.categoryKey.replace('_', ' ')}
+                        <h3 className="text-xl font-semibold text-gray-900">{category.categoryName}</h3>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getCategoryColor(category.categoryKey)}`}>
+                          {category.categoryKey}
                         </span>
-                        <span className={`px-2 py-1 text-xs rounded-full ${getTypeColor(feature.featureType)}`}>
-                          {feature.featureType.replace('_', ' ')}
+                        <span className="px-2 py-1 bg-blue-50 text-blue-800 text-xs rounded-full">
+                          Order: {category.displayOrder}
                         </span>
-                        {!feature.isActive && (
+                        <span className="px-2 py-1 bg-green-50 text-green-800 text-xs rounded-full">
+                          {category._count.features} features
+                        </span>
+                        {!category.isActive && (
                           <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
                             Inactive
                           </span>
                         )}
                       </div>
                       <p className="text-sm text-gray-500 mb-2">
-                        Key: <code className="bg-gray-100 px-1 rounded">{feature.featureKey}</code>
+                        Key: <code className="bg-gray-100 px-1 rounded">{category.categoryKey}</code>
                       </p>
-                      {feature.description && (
-                        <p className="text-gray-700 mb-4">{feature.description}</p>
-                      )}
-                      {feature.defaultValue && (
-                        <div className="mb-4">
-                          <span className="text-sm font-medium text-gray-700">Default Value:</span>
-                          <pre className="mt-1 text-xs bg-gray-50 p-2 rounded overflow-x-auto">
-                            {JSON.stringify(feature.defaultValue, null, 2)}
-                          </pre>
-                        </div>
+                      {category.description && (
+                        <p className="text-gray-700 mb-4">{category.description}</p>
                       )}
                     </div>
                     <div className="flex gap-2">
-                      <Link
-                        href={`/admin/features/${feature.featureId}`}
-                        className="p-2 text-blue-600 hover:text-blue-800"
-                        title="View details"
+                      <button
+                        onClick={() => handleReorder(category.categoryId, 'up')}
+                        className="p-2 text-gray-600 hover:text-gray-800"
+                        title="Move up"
                       >
-                        <Eye className="h-5 w-5" />
-                      </Link>
+                        <ArrowUp className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleReorder(category.categoryId, 'down')}
+                        className="p-2 text-gray-600 hover:text-gray-800"
+                        title="Move down"
+                      >
+                        <ArrowDown className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => {
-                          setEditingId(feature.featureId);
-                          setEditForm(feature);
+                          setEditingId(category.categoryId);
+                          setEditForm(category);
                         }}
                         className="p-2 text-blue-600 hover:text-blue-800"
-                        title="Edit feature"
+                        title="Edit category"
                       >
                         <Edit2 className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(feature.featureId)}
+                        onClick={() => handleDelete(category.categoryId)}
                         className="p-2 text-red-600 hover:text-red-800"
-                        title="Delete feature"
+                        title="Delete category"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>

@@ -1,9 +1,17 @@
-import { PrismaClient, FeatureCategory, FeatureType } from "@prisma/client";
+import { PrismaClient, FeatureType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding features...");
+
+  // First, get all feature categories
+  const categories = await prisma.featureCategory.findMany();
+  const categoryMap = new Map<string, string>();
+  
+  for (const category of categories) {
+    categoryMap.set(category.categoryKey, category.categoryId);
+  }
 
   const features = [
     // Content Management Features
@@ -11,7 +19,7 @@ async function main() {
       featureKey: "view_articles",
       featureName: "View Articles",
       description: "Access to read articles and learning content",
-      category: FeatureCategory.CONTENT_MANAGEMENT,
+      categoryKey: "CONTENT_MANAGEMENT",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: true },
       isActive: true,
@@ -20,7 +28,7 @@ async function main() {
       featureKey: "generate_article_content",
       featureName: "Generate Article Content",
       description: "AI-powered article content generation",
-      category: FeatureCategory.AI_FEATURES,
+      categoryKey: "AI_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -29,7 +37,7 @@ async function main() {
       featureKey: "daily_article_generation_limit",
       featureName: "Daily Article Generation Limit",
       description: "Maximum number of articles that can be generated per day",
-      category: FeatureCategory.LIMITS,
+      categoryKey: "LIMITS",
       featureType: FeatureType.NUMERIC_LIMIT,
       defaultValue: { limit: 0 },
       isActive: true,
@@ -38,7 +46,7 @@ async function main() {
       featureKey: "generate_example_questions",
       featureName: "Generate Example Questions",
       description: "AI-powered interactive quiz question generation",
-      category: FeatureCategory.AI_FEATURES,
+      categoryKey: "AI_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -49,7 +57,7 @@ async function main() {
       featureKey: "comment_on_articles",
       featureName: "Comment on Articles",
       description: "Post comments and participate in discussions",
-      category: FeatureCategory.SOCIAL_FEATURES,
+      categoryKey: "SOCIAL_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -58,7 +66,7 @@ async function main() {
       featureKey: "like_articles",
       featureName: "Like Articles",
       description: "Like and bookmark articles",
-      category: FeatureCategory.SOCIAL_FEATURES,
+      categoryKey: "SOCIAL_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: true },
       isActive: true,
@@ -67,7 +75,7 @@ async function main() {
       featureKey: "flag_content",
       featureName: "Flag Content",
       description: "Report inappropriate articles or comments",
-      category: FeatureCategory.SOCIAL_FEATURES,
+      categoryKey: "SOCIAL_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -76,7 +84,7 @@ async function main() {
       featureKey: "suggest_article_improvements",
       featureName: "Suggest Article Improvements",
       description: "Submit suggestions to improve article content",
-      category: FeatureCategory.SOCIAL_FEATURES,
+      categoryKey: "SOCIAL_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -87,7 +95,7 @@ async function main() {
       featureKey: "ai_chat",
       featureName: "AI Chat",
       description: "Chat with AI about article content and get help",
-      category: FeatureCategory.AI_FEATURES,
+      categoryKey: "AI_FEATURES",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -96,7 +104,7 @@ async function main() {
       featureKey: "daily_ai_chat_limit",
       featureName: "Daily AI Chat Limit",
       description: "Maximum number of AI chat messages per day",
-      category: FeatureCategory.LIMITS,
+      categoryKey: "LIMITS",
       featureType: FeatureType.NUMERIC_LIMIT,
       defaultValue: { limit: 0 },
       isActive: true,
@@ -107,7 +115,7 @@ async function main() {
       featureKey: "manage_curated_lists",
       featureName: "Manage Curated Lists",
       description: "Create and manage custom article lists",
-      category: FeatureCategory.ORGANIZATION,
+      categoryKey: "ORGANIZATION",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -116,7 +124,7 @@ async function main() {
       featureKey: "article_groups",
       featureName: "Article Groups",
       description: "Create and manage groups of related articles",
-      category: FeatureCategory.ORGANIZATION,
+      categoryKey: "ORGANIZATION",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -125,7 +133,7 @@ async function main() {
       featureKey: "article_search",
       featureName: "Article Search",
       description: "Advanced search functionality for articles",
-      category: FeatureCategory.ORGANIZATION,
+      categoryKey: "ORGANIZATION",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: true },
       isActive: true,
@@ -136,7 +144,7 @@ async function main() {
       featureKey: "view_article_analytics",
       featureName: "View Article Analytics",
       description: "Access to reading progress and statistics",
-      category: FeatureCategory.ANALYTICS,
+      categoryKey: "ANALYTICS",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -145,7 +153,7 @@ async function main() {
       featureKey: "priority_support",
       featureName: "Priority Support",
       description: "Faster response times for support requests",
-      category: FeatureCategory.ANALYTICS,
+      categoryKey: "ANALYTICS",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -156,45 +164,17 @@ async function main() {
       featureKey: "monthly_download_limit",
       featureName: "Monthly Download Limit",
       description: "Maximum number of content downloads per month",
-      category: FeatureCategory.LIMITS,
-      featureType: FeatureType.QUOTA,
+      categoryKey: "LIMITS",
+      featureType: FeatureType.NUMERIC_LIMIT,
       defaultValue: { limit: 0 },
       isActive: true,
     },
 
-    // Admin Features
-    {
-      featureKey: "admin_user_management",
-      featureName: "User Management",
-      description: "Manage users, roles, and permissions",
-      category: FeatureCategory.ADMIN_TOOLS,
-      featureType: FeatureType.BOOLEAN,
-      defaultValue: { enabled: false },
-      isActive: true,
-    },
-    {
-      featureKey: "admin_content_management",
-      featureName: "Content Management",
-      description: "Admin access to manage all content",
-      category: FeatureCategory.ADMIN_TOOLS,
-      featureType: FeatureType.BOOLEAN,
-      defaultValue: { enabled: false },
-      isActive: true,
-    },
-    {
-      featureKey: "admin_analytics",
-      featureName: "Admin Analytics",
-      description: "Access to platform analytics and reports",
-      category: FeatureCategory.ADMIN_TOOLS,
-      featureType: FeatureType.BOOLEAN,
-      defaultValue: { enabled: false },
-      isActive: true,
-    },
     {
       featureKey: "view_change_history",
       featureName: "View Change History",
       description: "View article change history and track modifications",
-      category: FeatureCategory.CONTENT_MANAGEMENT,
+      categoryKey: "CONTENT_MANAGEMENT",
       featureType: FeatureType.BOOLEAN,
       defaultValue: { enabled: false },
       isActive: true,
@@ -202,10 +182,24 @@ async function main() {
   ];
 
   for (const feature of features) {
+    const categoryId = categoryMap.get(feature.categoryKey);
+    
+    if (!categoryId) {
+      console.error(`❌ Category ${feature.categoryKey} not found for feature ${feature.featureKey}`);
+      continue;
+    }
+    
+    // Create feature data with categoryId instead of categoryKey
+    const { categoryKey, ...featureData } = feature;
+    const featureWithCategoryId = {
+      ...featureData,
+      categoryId
+    };
+    
     await prisma.feature.upsert({
       where: { featureKey: feature.featureKey },
-      update: feature,
-      create: feature,
+      update: featureWithCategoryId,
+      create: featureWithCategoryId,
     });
     console.log(`✅ Seeded feature: ${feature.featureName}`);
   }

@@ -175,7 +175,7 @@ export async function createPortalSession(
 
 export async function createOrUpdateStripeProduct(
   tierName: string,
-  features: string[]
+  features?: string[]
 ): Promise<string> {
   if (!stripe) {
     throw new Error('Stripe is not initialized');
@@ -188,22 +188,27 @@ export async function createOrUpdateStripeProduct(
     });
 
     let product = products.data.find(p => p.name === tierName);
+    
+    // Generate description based on tier name since features are now managed dynamically
+    const description = `${tierName} subscription tier - Features managed through Feature Assignments system`;
 
     if (product) {
       // Update existing product
       product = await stripe.products.update(product.id, {
-        description: features.join(', '),
+        description,
         metadata: {
-          features: JSON.stringify(features),
+          tier: tierName,
+          features_managed_dynamically: 'true',
         },
       });
     } else {
       // Create new product
       product = await stripe.products.create({
         name: tierName,
-        description: features.join(', '),
+        description,
         metadata: {
-          features: JSON.stringify(features),
+          tier: tierName,
+          features_managed_dynamically: 'true',
         },
       });
     }
