@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { checkFeatureAccessWithAdmin } from '@/lib/feature-access-admin';
 
 export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check feature access (admins bypass all restrictions)
+    const listAccess = await checkFeatureAccessWithAdmin('manage_curated_lists', userId);
+    
+    if (!listAccess.hasAccess) {
+      return NextResponse.json(
+        { error: listAccess.reason || 'Subscription required to manage lists' },
+        { status: 403 }
+      );
     }
 
     // Ensure user exists in database
@@ -46,6 +57,16 @@ export async function POST(request: Request) {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check feature access (admins bypass all restrictions)
+    const listAccess = await checkFeatureAccessWithAdmin('manage_curated_lists', userId);
+    
+    if (!listAccess.hasAccess) {
+      return NextResponse.json(
+        { error: listAccess.reason || 'Subscription required to manage lists' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

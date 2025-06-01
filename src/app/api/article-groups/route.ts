@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { checkFeatureAccessWithAdmin } from "@/lib/feature-access-admin";
 
 export async function GET(req: NextRequest) {
-  const { userId } = await getAuth(req);
+  const { userId } = await auth();
   
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Check feature access (admins bypass all restrictions)
+  const groupAccess = await checkFeatureAccessWithAdmin('article_groups', userId);
+  
+  if (!groupAccess.hasAccess) {
+    return NextResponse.json(
+      { error: groupAccess.reason || 'Subscription required to use article groups' },
+      { status: 403 }
+    );
   }
 
   try {
@@ -40,10 +51,20 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await getAuth(req);
+  const { userId } = await auth();
   
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Check feature access (admins bypass all restrictions)
+  const groupAccess = await checkFeatureAccessWithAdmin('article_groups', userId);
+  
+  if (!groupAccess.hasAccess) {
+    return NextResponse.json(
+      { error: groupAccess.reason || 'Subscription required to use article groups' },
+      { status: 403 }
+    );
   }
 
   try {

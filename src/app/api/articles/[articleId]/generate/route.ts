@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { aiService } from "@/lib/ai-service";
-import { checkSubscription } from "@/lib/subscription-check";
+import { checkFeatureAccessWithAdmin, checkFeatureUsageWithAdmin } from "@/lib/feature-access-admin";
 
 export async function POST(
   request: Request,
@@ -18,13 +18,28 @@ export async function POST(
       );
     }
 
-    // Check subscription status
-    const subscription = await checkSubscription(userId);
+    // Check feature access (admins bypass all restrictions)
+    const contentAccess = await checkFeatureAccessWithAdmin('generate_article_content', userId);
     
-    if (!subscription.permissions.canGenerateContent) {
+    if (!contentAccess.hasAccess) {
       return NextResponse.json(
-        { error: "Subscription required", message: "Please subscribe to generate article content" },
+        { error: contentAccess.reason || "Subscription required to generate article content" },
         { status: 403 }
+      );
+    }
+
+    // Check usage limits (admins have unlimited access)
+    const usageCheck = await checkFeatureUsageWithAdmin('daily_article_generation_limit', userId, 'daily');
+    
+    if (!usageCheck.hasAccess) {
+      return NextResponse.json(
+        { 
+          error: usageCheck.reason || `Daily generation limit reached (${usageCheck.currentUsage}/${usageCheck.limit}). Upgrade for more generations.`,
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          remaining: usageCheck.remaining
+        },
+        { status: 429 }
       );
     }
 

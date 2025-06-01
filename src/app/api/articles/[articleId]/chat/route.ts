@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { checkSubscription } from '@/lib/subscription-check';
+import { checkFeatureAccessWithAdmin, checkFeatureUsageWithAdmin } from '@/lib/feature-access-admin';
 import { generateText } from 'ai';
 import { createProviderForModel, getModelForInteraction, trackAIInteraction } from '@/lib/ai-service';
 
@@ -48,37 +48,29 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check subscription
-  const subscription = await checkSubscription(userId);
+  // Check feature access (admins bypass all restrictions)
+  const chatAccess = await checkFeatureAccessWithAdmin('ai_chat', userId);
   
-  if (!subscription.permissions.canUseAIChat) {
+  if (!chatAccess.hasAccess) {
     return NextResponse.json(
-      { error: 'AI chat requires a Standard or Max subscription' },
+      { error: chatAccess.reason || 'AI chat requires a subscription upgrade' },
       { status: 403 }
     );
   }
 
-  // Check daily limit for Standard tier
-  if (subscription.permissions.dailyAIChatsLimit > 0) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const todayChatsCount = await prisma.chatMessage.count({
-      where: {
-        clerkUserId: userId,
-        role: 'USER',
-        createdAt: {
-          gte: today,
-        },
+  // Check usage limits (admins have unlimited access)
+  const usageCheck = await checkFeatureUsageWithAdmin('daily_ai_chat_limit', userId, 'daily');
+  
+  if (!usageCheck.hasAccess) {
+    return NextResponse.json(
+      { 
+        error: usageCheck.reason || `Daily chat limit reached (${usageCheck.currentUsage}/${usageCheck.limit}). Upgrade for more chats.`,
+        currentUsage: usageCheck.currentUsage,
+        limit: usageCheck.limit,
+        remaining: usageCheck.remaining
       },
-    });
-
-    if (todayChatsCount >= subscription.permissions.dailyAIChatsLimit) {
-      return NextResponse.json(
-        { error: `Daily chat limit reached (${subscription.permissions.dailyAIChatsLimit} per day). Upgrade to Max for unlimited chats.` },
-        { status: 429 }
-      );
-    }
+      { status: 429 }
+    );
   }
 
   try {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { emails } from "@/lib/email-service";
+import { checkFeatureAccessWithAdmin } from "@/lib/feature-access-admin";
 
 export async function GET(
   request: Request,
@@ -77,11 +78,21 @@ export async function POST(
   const { articleId } = await params;
   
   try {
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    // Check feature access (admins bypass all restrictions)
+    const commentAccess = await checkFeatureAccessWithAdmin('comment_on_articles', userId);
+    
+    if (!commentAccess.hasAccess) {
+      return NextResponse.json(
+        { error: commentAccess.reason || 'Subscription required to comment on articles' },
+        { status: 403 }
       );
     }
 
@@ -95,76 +106,23 @@ export async function POST(
       );
     }
 
-    // Check if user exists in our database
-    let dbUser = await prisma.user.findUnique({
-      where: { clerkUserId: user.id }
+    // Ensure user exists in our database
+    await prisma.user.upsert({
+      where: { clerkUserId: userId },
+      update: {
+        lastLoginToApp: new Date(),
+      },
+      create: {
+        clerkUserId: userId,
+        email: 'temp@example.com', // Will be updated by webhook
+      },
     });
-
-    // Determine the best username to use
-    const baseUsername = user.username || user.firstName || user.lastName || 
-                        user.emailAddresses[0]?.emailAddress?.split('@')[0] || null;
-
-    if (!dbUser) {
-      // Create user if they don't exist
-      let username = baseUsername;
-      
-      // If username is taken, append a number
-      if (username) {
-        let counter = 1;
-        while (await prisma.user.findUnique({ where: { username } })) {
-          username = `${baseUsername}${counter}`;
-          counter++;
-        }
-      }
-      
-      dbUser = await prisma.user.create({
-        data: {
-          clerkUserId: user.id,
-          email: user.emailAddresses[0]?.emailAddress || '',
-          username,
-          firstName: user.firstName || null,
-          lastName: user.lastName || null,
-          imageUrl: user.imageUrl || null,
-        }
-      });
-    } else if (!dbUser.username) {
-      // Update username if it's missing
-      let username = baseUsername;
-      
-      // If username is taken, append a number
-      if (username) {
-        let counter = 1;
-        while (await prisma.user.findUnique({ where: { username } })) {
-          username = `${baseUsername}${counter}`;
-          counter++;
-        }
-        
-        dbUser = await prisma.user.update({
-          where: { clerkUserId: user.id },
-          data: { username }
-        });
-      }
-    }
-    
-    // Always update user info to keep it in sync with Clerk
-    if (dbUser.firstName !== user.firstName || 
-        dbUser.lastName !== user.lastName || 
-        dbUser.imageUrl !== user.imageUrl) {
-      dbUser = await prisma.user.update({
-        where: { clerkUserId: user.id },
-        data: {
-          firstName: user.firstName || null,
-          lastName: user.lastName || null,
-          imageUrl: user.imageUrl || null,
-        }
-      });
-    }
 
     // Create the comment
     const comment = await prisma.comment.create({
       data: {
         articleId,
-        clerkUserId: user.id,
+        clerkUserId: userId,
         content: content.trim(),
         parentId: parentId || null,
       },

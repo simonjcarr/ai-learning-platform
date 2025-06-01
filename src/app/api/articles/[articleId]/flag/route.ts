@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { emails } from "@/lib/email-service";
+import { checkFeatureAccessWithAdmin } from "@/lib/feature-access-admin";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { articleId: string } }
 ) {
   try {
-    const authUser = await requireAuth();
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check feature access (admins bypass all restrictions)
+    const flagAccess = await checkFeatureAccessWithAdmin('flag_content', userId);
+    
+    if (!flagAccess.hasAccess) {
+      return NextResponse.json(
+        { error: flagAccess.reason || 'Subscription required to flag content' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { flagReason } = body;
 
@@ -24,7 +39,7 @@ export async function POST(
       data: {
         isFlagged: true,
         flaggedAt: new Date(),
-        flaggedByClerkUserId: authUser.clerkUserId,
+        flaggedByClerkUserId: userId,
         flagReason: flagReason.trim(),
       },
       include: {

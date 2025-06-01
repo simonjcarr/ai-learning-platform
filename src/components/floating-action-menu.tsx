@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import {
   useFloating,
   autoUpdate,
@@ -80,7 +81,8 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<{ canUseAI: boolean; loading: boolean }>({ canUseAI: false, loading: true });
+  const { access: chatAccess, loading: chatAccessLoading } = useFeatureAccess('ai_chat');
+  const { access: groupAccess, loading: groupAccessLoading } = useFeatureAccess('article_groups');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
@@ -132,26 +134,9 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
 
   useEffect(() => {
     if (isChatOpen && isSignedIn) {
-      checkSubscriptionStatus();
       fetchChatHistory();
     }
   }, [isChatOpen, isSignedIn]);
-
-  const checkSubscriptionStatus = async () => {
-    try {
-      const response = await fetch('/api/subscription/status');
-      if (response.ok) {
-        const data = await response.json();
-        const canUseAI = data.permissions?.canUseAIChat || false;
-        setSubscriptionStatus({ canUseAI, loading: false });
-      } else {
-        setSubscriptionStatus({ canUseAI: false, loading: false });
-      }
-    } catch (error) {
-      console.error('Error checking subscription status:', error);
-      setSubscriptionStatus({ canUseAI: false, loading: false });
-    }
-  };
 
   const fetchChatHistory = async () => {
     setIsFetchingHistory(true);
@@ -494,16 +479,16 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {subscriptionStatus.loading || isFetchingHistory ? (
+            {chatAccessLoading || isFetchingHistory ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
-            ) : !subscriptionStatus.canUseAI ? (
+            ) : !chatAccess?.hasAccess ? (
               <div className="text-center mt-8 px-4">
                 <Lock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                 <h3 className="text-lg font-semibold mb-2">AI Chat is a Premium Feature</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  Upgrade to Standard or Max plan to get unlimited access to our AI tutor who can help you understand concepts and answer questions about the articles.
+                  {chatAccess?.reason || "Upgrade your subscription to get access to our AI tutor who can help you understand concepts and answer questions about the articles."}
                 </p>
                 <button
                   onClick={() => router.push('/pricing')}
@@ -545,7 +530,7 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
             )}
           </div>
 
-          {subscriptionStatus.canUseAI && (
+          {chatAccess?.hasAccess && (
             <form onSubmit={handleChatSubmit} className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex gap-2">
                 <textarea
@@ -609,70 +594,92 @@ export function FloatingActionMenu({ articleId, currentExampleId }: FloatingActi
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {showNewGroupInput && (
-              <form onSubmit={(e) => { e.preventDefault(); createGroup(); }} className="mb-4 flex gap-2">
-                <Input
-                  placeholder="Group name..."
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  className="flex-1"
-                  autoFocus
-                />
-                <Button 
-                  size="sm" 
-                  type="submit"
-                  disabled={!newGroupName.trim() || creating}
-                  className="bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 text-white disabled:opacity-50"
-                >
-                  {creating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Add"
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowNewGroupInput(false);
-                    setNewGroupName("");
-                  }}
-                  className="hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </form>
-            )}
-
-            {groupsLoading ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                Loading...
+            {groupAccessLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
-            ) : groups.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <FolderOpen className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-                <p className="text-sm">No groups yet.</p>
-                <p className="text-sm">Click the + button to create one!</p>
+            ) : !groupAccess?.hasAccess ? (
+              <div className="text-center mt-8 px-4">
+                <Lock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-semibold mb-2">Article Groups is a Premium Feature</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  {groupAccess?.reason || "Upgrade your subscription to organize articles into groups for easier navigation."}
+                </p>
+                <button
+                  onClick={() => router.push('/pricing')}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  View Pricing Plans
+                </button>
               </div>
             ) : (
-              <div className="space-y-2">
-                {groups.map((group) => (
-                  <GroupItem
-                    key={group.groupId}
-                    group={group}
-                    currentArticleId={currentArticleId}
-                    currentArticleSlug={currentArticleSlug}
-                    onDelete={deleteGroup}
-                    onAddCurrentArticle={addCurrentArticleToGroup}
-                    onRemoveArticle={removeArticleFromGroup}
-                    onNavigateToArticle={navigateToArticle}
-                    isExpanded={expandedGroup === group.groupId}
-                    onToggleExpand={(groupId) => setExpandedGroup(expandedGroup === groupId ? null : groupId)}
-                  />
-                ))}
-              </div>
+              <>
+                {showNewGroupInput && (
+                  <form onSubmit={(e) => { e.preventDefault(); createGroup(); }} className="mb-4 flex gap-2">
+                    <Input
+                      placeholder="Group name..."
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button 
+                      size="sm" 
+                      type="submit"
+                      disabled={!newGroupName.trim() || creating}
+                      className="bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 text-white disabled:opacity-50"
+                    >
+                      {creating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Add"
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setShowNewGroupInput(false);
+                        setNewGroupName("");
+                      }}
+                      className="hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </form>
+                )}
+
+                {groupsLoading ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                    Loading...
+                  </div>
+                ) : groups.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                    <p className="text-sm">No groups yet.</p>
+                    <p className="text-sm">Click the + button to create one!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {groups.map((group) => (
+                      <GroupItem
+                        key={group.groupId}
+                        group={group}
+                        currentArticleId={currentArticleId}
+                        currentArticleSlug={currentArticleSlug}
+                        onDelete={deleteGroup}
+                        onAddCurrentArticle={addCurrentArticleToGroup}
+                        onRemoveArticle={removeArticleFromGroup}
+                        onNavigateToArticle={navigateToArticle}
+                        isExpanded={expandedGroup === group.groupId}
+                        onToggleExpand={(groupId) => setExpandedGroup(expandedGroup === groupId ? null : groupId)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

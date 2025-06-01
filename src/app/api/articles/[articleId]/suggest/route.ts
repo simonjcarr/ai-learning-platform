@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { checkSubscription } from '@/lib/subscription-check';
+import { checkFeatureAccessWithAdmin } from '@/lib/feature-access-admin';
 import { aiService } from '@/lib/ai-service';
 import { emails } from '@/lib/email-service';
 
@@ -20,11 +20,12 @@ export async function POST(
     // Await params in Next.js 15
     const { articleId } = await params;
 
-    // Check subscription
-    const subscription = await checkSubscription(userId);
-    if (!subscription.isActive || subscription.tier === 'FREE') {
+    // Check feature access (admins bypass all restrictions)
+    const suggestionAccess = await checkFeatureAccessWithAdmin('suggest_article_improvements', userId);
+    
+    if (!suggestionAccess.hasAccess) {
       return NextResponse.json(
-        { error: 'Subscription required for suggestions' },
+        { error: suggestionAccess.reason || 'Subscription required for suggestions' },
         { status: 403 }
       );
     }
