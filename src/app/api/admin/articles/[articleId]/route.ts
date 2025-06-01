@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireMinRole } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { addSitemapToQueue } from "@/lib/bullmq";
 
 export async function GET(
   request: NextRequest,
@@ -46,7 +47,24 @@ export async function PATCH(
     
     const { articleId } = await params;
     const body = await request.json();
-    const { articleTitle, articleSlug, contentHtml, categoryId } = body;
+    const { 
+      articleTitle, 
+      articleSlug, 
+      contentHtml, 
+      categoryId,
+      // SEO fields
+      seoTitle,
+      seoDescription,
+      seoKeywords,
+      seoCanonicalUrl,
+      seoImageUrl,
+      seoImageAlt,
+      seoChangeFreq,
+      seoPriority,
+      seoNoIndex,
+      seoNoFollow,
+      seoLastModified
+    } = body;
     
     // Check if slug is already taken by another article
     if (articleSlug) {
@@ -65,6 +83,8 @@ export async function PATCH(
       }
     }
     
+    console.log('📝 Updating article with SEO data:', articleId);
+    
     const article = await prisma.article.update({
       where: { articleId },
       data: {
@@ -73,8 +93,34 @@ export async function PATCH(
         contentHtml,
         categoryId,
         isContentGenerated: contentHtml ? true : false,
+        // SEO fields
+        seoTitle,
+        seoDescription,
+        seoKeywords,
+        seoCanonicalUrl,
+        seoImageUrl,
+        seoImageAlt,
+        seoChangeFreq,
+        seoPriority,
+        seoNoIndex,
+        seoNoFollow,
+        seoLastModified: seoLastModified || new Date(),
       },
     });
+    
+    // Trigger sitemap regeneration when articles are updated
+    try {
+      console.log('🗺️ Triggering sitemap regeneration after article update:', articleId);
+      const job = await addSitemapToQueue({
+        type: 'regenerate',
+        triggerBy: 'admin_article_update',
+        articleId: articleId,
+      });
+      console.log('🗺️ Sitemap job queued:', job ? job.id : 'null (job was skipped)');
+    } catch (sitemapError) {
+      console.error('❌ Failed to queue sitemap regeneration:', sitemapError);
+      // Don't fail the main request if sitemap queueing fails
+    }
     
     return NextResponse.json({ success: true, article });
   } catch (error) {
@@ -95,9 +141,25 @@ export async function DELETE(
     
     const { articleId } = await params;
     
+    console.log('🗑️ Deleting article:', articleId);
+    
     const article = await prisma.article.delete({
       where: { articleId },
     });
+    
+    // Trigger sitemap regeneration when articles are deleted
+    try {
+      console.log('🗺️ Triggering sitemap regeneration after article deletion:', articleId);
+      const job = await addSitemapToQueue({
+        type: 'regenerate',
+        triggerBy: 'admin_article_delete',
+        articleId: articleId,
+      });
+      console.log('🗺️ Sitemap job queued:', job ? job.id : 'null (job was skipped)');
+    } catch (sitemapError) {
+      console.error('❌ Failed to queue sitemap regeneration:', sitemapError);
+      // Don't fail the main request if sitemap queueing fails
+    }
     
     return NextResponse.json({ success: true, article });
   } catch (error) {

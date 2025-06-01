@@ -201,13 +201,15 @@ export async function POST(
 
     // Trigger sitemap regeneration
     try {
-      await addSitemapToQueue({
+      console.log('🗺️ Attempting to queue sitemap regeneration for article:', articleId);
+      const job = await addSitemapToQueue({
         type: 'regenerate',
         triggerBy: 'article_generation',
         articleId: articleId,
       });
+      console.log('🗺️ Sitemap job queued:', job ? job.id : 'null (job was skipped)');
     } catch (sitemapError) {
-      console.error('Failed to queue sitemap regeneration:', sitemapError);
+      console.error('❌ Failed to queue sitemap regeneration:', sitemapError);
       // Don't fail the main request if sitemap queueing fails
     }
 

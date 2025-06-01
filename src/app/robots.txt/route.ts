@@ -21,7 +21,7 @@ Disallow: /sign-up/
 Disallow: /api/
 
 # Sitemap location
-Sitemap: ${baseUrl}/api/sitemap
+Sitemap: ${baseUrl}/sitemap.xml
 
 # Crawl delay (optional - 1 second)
 Crawl-delay: 1`;

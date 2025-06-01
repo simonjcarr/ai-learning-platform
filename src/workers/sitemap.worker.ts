@@ -91,7 +91,9 @@ function mapChangeFreq(changeFreq: string | null): string {
 
 // Process sitemap generation job
 async function processSitemapJob(job: Job<SitemapJobData>) {
-  console.log(`Processing sitemap job: ${job.id}`);
+  console.log(`🚀 [WORKER] Processing sitemap job: ${job.id}`);
+  console.log(`🚀 [WORKER] Job data:`, job.data);
+  console.log(`🚀 [WORKER] Job timestamp: ${new Date(job.timestamp).toISOString()}`);
   
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yourdomain.com';
@@ -244,17 +246,25 @@ export const sitemapWorker = new Worker('sitemap', processSitemapJob, {
 });
 
 sitemapWorker.on('completed', (job, result) => {
-  console.log(`Sitemap job ${job.id} completed:`, result);
+  console.log(`✅ [WORKER] Sitemap job ${job.id} completed:`, result);
 });
 
 sitemapWorker.on('failed', (job, err) => {
-  console.error(`Sitemap job ${job?.id} failed:`, err);
+  console.error(`❌ [WORKER] Sitemap job ${job?.id} failed:`, err);
 });
 
 sitemapWorker.on('error', (err) => {
-  console.error('Sitemap worker error:', err);
+  console.error('❌ [WORKER] Sitemap worker error:', err);
 });
 
-console.log('Sitemap worker started');
+sitemapWorker.on('ready', () => {
+  console.log('🔄 [WORKER] Sitemap worker is ready and listening for jobs');
+});
+
+sitemapWorker.on('active', (job) => {
+  console.log(`🔄 [WORKER] Starting job ${job.id}`);
+});
+
+console.log('🔄 [WORKER] Sitemap worker started');
 
 export default sitemapWorker;

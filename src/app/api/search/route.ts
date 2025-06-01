@@ -499,18 +499,8 @@ export async function POST(request: Request) {
       hasPreviousPage: pageNumber > 1
     };
 
-    // Trigger sitemap regeneration if new articles were created
-    if (newArticles.length > 0) {
-      try {
-        await addSitemapToQueue({
-          type: 'regenerate',
-          triggerBy: 'search_article_creation',
-        });
-      } catch (sitemapError) {
-        console.error('Failed to queue sitemap regeneration:', sitemapError);
-        // Don't fail the main request if sitemap queueing fails
-      }
-    }
+    // Note: Sitemap regeneration is not triggered for stub articles created during search.
+    // Sitemap will be updated when articles receive actual content via generation.
 
     return NextResponse.json({
       query,

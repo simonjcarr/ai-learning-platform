@@ -80,19 +80,44 @@ export async function addEmailToQueue(data: EmailJobData) {
 }
 
 export async function addSitemapToQueue(data: SitemapJobData) {
-  // Check if there's already a pending sitemap job
-  const waiting = await sitemapQueue.getWaiting();
-  const active = await sitemapQueue.getActive();
-  
-  if (waiting.length > 0 || active.length > 0) {
-    console.log('Sitemap generation already in progress, skipping...');
-    return null;
+  try {
+    // Check if there's already a pending sitemap job
+    console.log('🔍 Checking sitemap queue status...');
+    console.log('🔍 Redis connection test before queue check...');
+    
+    const waiting = await sitemapQueue.getWaiting();
+    const active = await sitemapQueue.getActive();
+    
+    console.log(`📊 Queue status - Waiting: ${waiting.length}, Active: ${active.length}`);
+    
+    if (waiting.length > 0 || active.length > 0) {
+      console.log('⏭️ Sitemap generation already in progress, skipping...');
+      return null;
+    }
+    
+    console.log('➕ Adding sitemap job to queue with 30s delay...');
+    
+    // Use timestamp to ensure unique job IDs and avoid Redis rejecting duplicates
+    const uniqueJobId = `sitemap-regenerate-${Date.now()}`;
+    
+    const job = await sitemapQueue.add('regenerate-sitemap', data, {
+      // Delay sitemap generation by 30 seconds to batch multiple article updates
+      delay: 30000,
+      // Use unique job ID to avoid conflicts
+      jobId: uniqueJobId,
+    });
+    
+    console.log(`✅ Sitemap job added with ID: ${job.id}`);
+    console.log(`🕐 Job will execute at: ${new Date(Date.now() + 30000).toISOString()}`);
+    
+    return job;
+  } catch (error) {
+    console.error('❌ Error in addSitemapToQueue:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    throw error;
   }
-  
-  return await sitemapQueue.add('regenerate-sitemap', data, {
-    // Delay sitemap generation by 30 seconds to batch multiple article updates
-    delay: 30000,
-    // Remove duplicate jobs
-    jobId: 'sitemap-regenerate',
-  });
 }
