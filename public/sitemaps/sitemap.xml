@@ -25,6 +25,36 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/building-docker-images-a-step-by-step-guide-to-dockerfiles</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/working-with-dockerfiles-a-step-by-step-guide</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/orchestrating-multi-container-applications-with-docker-compose</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/sharing-and-managing-docker-images-with-docker-hub</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/managing-filesystems-in-linux-mounting-unmounting-and-fstab-configuration</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/mastering-the-docker-cli-essential-commands-and-techniques</loc>
       <lastmod>2025-06-01</lastmod>
       <changefreq>weekly</changefreq>

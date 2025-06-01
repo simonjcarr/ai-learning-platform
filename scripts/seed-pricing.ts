@@ -7,7 +7,7 @@ async function main() {
 
   const pricingData = [
     {
-      tier: "FREE",
+      tier: "Free",
       stripePriceId: "price_free",
       monthlyPriceCents: 0,
       yearlyPriceCents: 0,
@@ -20,7 +20,7 @@ async function main() {
       displayOrder: 0,
     },
     {
-      tier: "STANDARD",
+      tier: "Standard",
       stripePriceId: process.env.STRIPE_STANDARD_PRICE_ID || "price_standard",
       monthlyPriceCents: 999, // $9.99
       yearlyPriceCents: 9990, // $99.90
@@ -49,7 +49,7 @@ async function main() {
       displayOrder: 2,
     },
     {
-      tier: "MAX",
+      tier: "Max",
       stripePriceId: process.env.STRIPE_MAX_PRICE_ID || "price_max",
       monthlyPriceCents: 1999, // $19.99
       yearlyPriceCents: 19990, // $199.90

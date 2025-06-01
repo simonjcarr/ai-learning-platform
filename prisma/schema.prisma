@@ -8,37 +8,37 @@ datasource db {
 }
 
 model User {
-  clerkUserId                  String                @id @unique
-  email                        String                @unique
-  username                     String?               @unique
-  appSpecificCreatedAt         DateTime              @default(now())
+  clerkUserId                  String                 @id @unique
+  email                        String                 @unique
+  username                     String?                @unique
+  appSpecificCreatedAt         DateTime               @default(now())
   lastLoginToApp               DateTime?
   firstName                    String?
   imageUrl                     String?
   lastName                     String?
-  stripeCustomerId             String?               @unique
+  stripeCustomerId             String?                @unique
   subscriptionCurrentPeriodEnd DateTime?
-  subscriptionCancelledAt      DateTime?
   subscriptionId               String?
-  subscriptionStatus           SubscriptionStatus    @default(INACTIVE)
-  subscriptionTier             String                @default("FREE")
-  role                         Role                  @default(USER)
+  subscriptionStatus           SubscriptionStatus     @default(INACTIVE)
+  role                         Role                   @default(USER)
+  subscriptionTier             String                 @default("Free")
+  subscriptionCancelledAt      DateTime?
   aiInteractions               AIInteraction[]
-  likedArticles                ArticleLike[]
-  articles                     Article[]
-  flaggedArticles              Article[]             @relation("FlaggedArticles")
-  chatMessages                 ChatMessage[]
-  comments                     Comment[]
-  flaggedComments              Comment[]             @relation("FlaggedComments")
-  curatedLists                 CuratedList[]
-  subscriptionHistory          SubscriptionHistory[]
-  userResponses                UserResponse[]
-  articleViews                 UserArticleView[]
-  articleSuggestions           ArticleSuggestion[]
-  suggestionRateLimits         SuggestionRateLimit[]
   articleChangeHistories       ArticleChangeHistory[]
   rollbackChangeHistories      ArticleChangeHistory[] @relation("RollbackUser")
   articleGroups                ArticleGroup[]
+  likedArticles                ArticleLike[]
+  articleSuggestions           ArticleSuggestion[]
+  articles                     Article[]
+  flaggedArticles              Article[]              @relation("FlaggedArticles")
+  chatMessages                 ChatMessage[]
+  comments                     Comment[]
+  flaggedComments              Comment[]              @relation("FlaggedComments")
+  curatedLists                 CuratedList[]
+  subscriptionHistory          SubscriptionHistory[]
+  suggestionRateLimits         SuggestionRateLimit[]
+  articleViews                 UserArticleView[]
+  userResponses                UserResponse[]
 
   @@map("users")
 }
@@ -56,46 +56,44 @@ model Category {
 }
 
 model Article {
-  articleId            String               @id @default(cuid())
+  articleId            String                 @id @default(cuid())
   articleTitle         String
-  articleSlug          String               @unique
+  articleSlug          String                 @unique
   contentHtml          String?
-  isContentGenerated   Boolean              @default(false)
+  isContentGenerated   Boolean                @default(false)
   createdByClerkUserId String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
   streamId             String?
   flagReason           String?
   flaggedAt            DateTime?
   flaggedByClerkUserId String?
-  isFlagged            Boolean              @default(false)
-  
-  // SEO Fields
-  seoTitle             String?
-  seoDescription       String?
-  seoKeywords          String[]             @default([])
+  isFlagged            Boolean                @default(false)
   seoCanonicalUrl      String?
-  seoImageUrl          String?
+  seoChangeFreq        SeoChangeFreq?         @default(WEEKLY)
+  seoDescription       String?
   seoImageAlt          String?
+  seoImageUrl          String?
+  seoKeywords          String[]               @default([])
   seoLastModified      DateTime?
-  seoChangeFreq        SeoChangeFreq?       @default(WEEKLY)
-  seoPriority          Float?               @default(0.7)
-  seoNoIndex           Boolean              @default(false)
-  seoNoFollow          Boolean              @default(false)
-  likes                ArticleLike[]
-  tags                 ArticleTag[]
+  seoNoFollow          Boolean                @default(false)
+  seoNoIndex           Boolean                @default(false)
+  seoPriority          Float?                 @default(0.7)
+  seoTitle             String?
   categories           ArticleCategory[]
-  createdBy            User?                @relation(fields: [createdByClerkUserId], references: [clerkUserId])
-  flaggedBy            User?                @relation("FlaggedArticles", fields: [flaggedByClerkUserId], references: [clerkUserId])
-  stream               Stream?              @relation(fields: [streamId], references: [streamId])
+  changeHistories      ArticleChangeHistory[]
+  articleGroups        ArticleGroupArticle[]
+  likes                ArticleLike[]
+  suggestions          ArticleSuggestion[]
+  tags                 ArticleTag[]
+  createdBy            User?                  @relation(fields: [createdByClerkUserId], references: [clerkUserId])
+  flaggedBy            User?                  @relation("FlaggedArticles", fields: [flaggedByClerkUserId], references: [clerkUserId])
+  stream               Stream?                @relation(fields: [streamId], references: [streamId])
   chatMessages         ChatMessage[]
   comments             Comment[]
   curatedListItems     CuratedListItem[]
   interactiveExamples  InteractiveExample[]
   views                UserArticleView[]
-  suggestions          ArticleSuggestion[]
-  changeHistories      ArticleChangeHistory[]
-  articleGroups        ArticleGroupArticle[]
 
   @@index([streamId])
   @@index([articleSlug])
@@ -259,8 +257,6 @@ model SubscriptionHistory {
   clerkUserId    String
   subscriptionId String
   eventType      String
-  previousTier   String?
-  newTier        String
   previousStatus SubscriptionStatus?
   newStatus      SubscriptionStatus
   amount         Int?
@@ -268,6 +264,8 @@ model SubscriptionHistory {
   stripeEventId  String?             @unique
   metadata       Json?
   createdAt      DateTime            @default(now())
+  previousTier   String?
+  newTier        String
   user           User                @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
 
   @@index([clerkUserId])
@@ -277,20 +275,18 @@ model SubscriptionHistory {
 }
 
 model SubscriptionPricing {
-  pricingId         String                  @id @default(cuid())
-  tier              String                  @unique
-  stripePriceId     String                  @unique
-  stripeProductId   String?
-  monthlyPriceCents Int
-  yearlyPriceCents  Int
-  features          String[]                // Legacy field - will be deprecated
-  isActive          Boolean                 @default(true)
-  freeTrialDays     Int                     @default(0)
-  displayOrder      Int                     @default(0)
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  
-  // New feature assignments
+  pricingId          String               @id @default(cuid())
+  stripePriceId      String               @unique
+  monthlyPriceCents  Int
+  yearlyPriceCents   Int
+  features           String[]
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  freeTrialDays      Int                  @default(0)
+  stripeProductId    String?
+  tier               String               @unique
+  displayOrder       Int                  @default(0)
   featureAssignments PricingTierFeature[]
 
   @@index([tier])
@@ -299,17 +295,15 @@ model SubscriptionPricing {
 }
 
 model FeatureCategory {
-  categoryId      String    @id @default(cuid())
-  categoryKey     String    @unique  // e.g., "CONTENT_MANAGEMENT", "AI_FEATURES"
-  categoryName    String    // Human readable name
-  description     String?   // Description of what this category covers
-  displayOrder    Int       @default(0)
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  // Relationships
-  features        Feature[]
+  categoryId   String    @id @default(cuid())
+  categoryKey  String    @unique
+  categoryName String
+  description  String?
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  features     Feature[]
 
   @@index([categoryKey])
   @@index([displayOrder])
@@ -319,18 +313,16 @@ model FeatureCategory {
 
 model Feature {
   featureId           String               @id @default(cuid())
-  featureKey          String               @unique  // e.g., "manage_lists", "ai_chat", "article_generation"
-  featureName         String               // Human readable name
-  description         String?              // Description of what this feature does
-  categoryId          String               // Reference to FeatureCategory
-  featureType         FeatureType          // boolean, numeric_limit, etc.
+  featureKey          String               @unique
+  featureName         String
+  description         String?
+  featureType         FeatureType
   isActive            Boolean              @default(true)
-  defaultValue        Json?                // Default value/config for this feature
-  metadata            Json?                // Additional feature metadata
+  defaultValue        Json?
+  metadata            Json?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  
-  // Relationships
+  categoryId          String
   category            FeatureCategory      @relation(fields: [categoryId], references: [categoryId])
   pricingTierFeatures PricingTierFeature[]
 
@@ -341,30 +333,21 @@ model Feature {
 }
 
 model PricingTierFeature {
-  id                String              @id @default(cuid())
-  pricingTierId     String
-  featureId         String
-  isEnabled         Boolean             @default(true)
-  limitValue        Int?                // For numeric limits (e.g., daily chat limit)
-  configValue       Json?               // For complex feature config
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  
-  // Relationships
-  pricingTier       SubscriptionPricing @relation(fields: [pricingTierId], references: [pricingId], onDelete: Cascade)
-  feature           Feature             @relation(fields: [featureId], references: [featureId], onDelete: Cascade)
+  id            String              @id @default(cuid())
+  pricingTierId String
+  featureId     String
+  isEnabled     Boolean             @default(true)
+  limitValue    Int?
+  configValue   Json?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  feature       Feature             @relation(fields: [featureId], references: [featureId], onDelete: Cascade)
+  pricingTier   SubscriptionPricing @relation(fields: [pricingTierId], references: [pricingId], onDelete: Cascade)
 
   @@unique([pricingTierId, featureId])
   @@index([pricingTierId])
   @@index([featureId])
   @@map("pricing_tier_features")
-}
-
-
-enum FeatureType {
-  BOOLEAN             // Simple on/off feature
-  NUMERIC_LIMIT       // Feature with numeric limit (daily/monthly chats, etc.)
-  CUSTOM             // Custom configuration via JSON
 }
 
 model Tag {
@@ -438,11 +421,11 @@ model AIInteractionType {
   displayName    String
   description    String?
   defaultModelId String?
-  systemPrompt   String?         @db.Text
-  maxTokens      Int?
-  temperature    Float?          @default(0.7)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  maxTokens      Int?
+  systemPrompt   String?
+  temperature    Float?          @default(0.7)
   defaultModel   AIModel?        @relation(fields: [defaultModelId], references: [modelId])
   interactions   AIInteraction[]
 
@@ -480,6 +463,179 @@ model AIInteraction {
   @@map("ai_interactions")
 }
 
+model UserArticleView {
+  viewId      String   @id @default(cuid())
+  clerkUserId String
+  articleId   String
+  viewedAt    DateTime @default(now())
+  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@unique([clerkUserId, articleId])
+  @@index([clerkUserId])
+  @@index([articleId])
+  @@index([viewedAt])
+  @@map("user_article_views")
+}
+
+model ArticleSuggestion {
+  suggestionId         String                @id @default(cuid())
+  articleId            String
+  clerkUserId          String
+  suggestionType       SuggestionType
+  suggestionDetails    String
+  aiValidationResponse String?
+  isApproved           Boolean               @default(false)
+  isApplied            Boolean               @default(false)
+  rejectionReason      String?
+  suggestedAt          DateTime              @default(now())
+  processedAt          DateTime?
+  appliedAt            DateTime?
+  aiInteractionId      String?
+  changeHistory        ArticleChangeHistory?
+  article              Article               @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user                 User                  @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@index([isApproved])
+  @@index([suggestedAt])
+  @@map("article_suggestions")
+}
+
+model SuggestionRateLimit {
+  rateLimitId      String   @id @default(cuid())
+  clerkUserId      String
+  articleId        String
+  lastSuggestionAt DateTime
+  user             User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@unique([clerkUserId, articleId])
+  @@index([clerkUserId])
+  @@index([articleId])
+  @@index([lastSuggestionAt])
+  @@map("suggestion_rate_limits")
+}
+
+model SuggestionSettings {
+  settingsId            String   @id @default(cuid())
+  rateLimitMinutes      Int      @default(60)
+  maxSuggestionsPerUser Int      @default(10)
+  badgeThresholds       Json     @default("{\"gold\": 25, \"bronze\": 5, \"silver\": 10}")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("suggestion_settings")
+}
+
+model ArticleChangeHistory {
+  id            String            @id @default(cuid())
+  articleId     String
+  suggestionId  String            @unique
+  clerkUserId   String
+  diff          String
+  beforeContent String
+  afterContent  String
+  changeType    String
+  description   String
+  isActive      Boolean           @default(true)
+  rolledBackAt  DateTime?
+  rolledBackBy  String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  article       Article           @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user          User              @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  rollbackUser  User?             @relation("RollbackUser", fields: [rolledBackBy], references: [clerkUserId])
+  suggestion    ArticleSuggestion @relation(fields: [suggestionId], references: [suggestionId], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("article_change_histories")
+}
+
+model EmailTemplate {
+  templateId   String     @id @default(cuid())
+  templateKey  String     @unique
+  templateName String
+  description  String?
+  subject      String
+  htmlContent  String
+  textContent  String?
+  fromEmail    String?
+  fromName     String?
+  isActive     Boolean    @default(true)
+  variables    Json?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  emailLogs    EmailLog[]
+
+  @@index([templateKey])
+  @@index([isActive])
+  @@map("email_templates")
+}
+
+model EmailLog {
+  logId        String         @id @default(cuid())
+  templateId   String?
+  to           String
+  from         String
+  subject      String
+  status       EmailStatus
+  messageId    String?
+  error        String?
+  metadata     Json?
+  sentAt       DateTime       @default(now())
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  bouncedAt    DateTime?
+  complainedAt DateTime?
+  template     EmailTemplate? @relation(fields: [templateId], references: [templateId])
+
+  @@index([to])
+  @@index([status])
+  @@index([sentAt])
+  @@index([templateId])
+  @@map("email_logs")
+}
+
+model ArticleGroup {
+  groupId     String                @id @default(cuid())
+  name        String
+  clerkUserId String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  articles    ArticleGroupArticle[]
+  user        User                  @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@index([clerkUserId])
+  @@map("article_groups")
+}
+
+model ArticleGroupArticle {
+  id             String       @id @default(cuid())
+  groupId        String
+  articleId      String
+  scrollPosition Int          @default(0)
+  addedAt        DateTime     @default(now())
+  lastViewedAt   DateTime?
+  article        Article      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  group          ArticleGroup @relation(fields: [groupId], references: [groupId], onDelete: Cascade)
+
+  @@unique([groupId, articleId])
+  @@index([groupId])
+  @@index([articleId])
+  @@map("article_group_articles")
+}
+
+enum FeatureType {
+  BOOLEAN
+  NUMERIC_LIMIT
+  CUSTOM
+}
+
 enum QuestionType {
   MULTIPLE_CHOICE
   TEXT_INPUT
@@ -490,8 +646,6 @@ enum ChatRole {
   USER
   ASSISTANT
 }
-
-// SubscriptionTier removed - now using dynamic string values from subscription_pricing table
 
 enum SubscriptionStatus {
   ACTIVE
@@ -517,73 +671,6 @@ enum SeoChangeFreq {
   NEVER
 }
 
-model UserArticleView {
-  viewId      String   @id @default(cuid())
-  clerkUserId String
-  articleId   String
-  viewedAt    DateTime @default(now())
-  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  article     Article  @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-
-  @@unique([clerkUserId, articleId])
-  @@index([clerkUserId])
-  @@index([articleId])
-  @@index([viewedAt])
-  @@map("user_article_views")
-}
-
-model ArticleSuggestion {
-  suggestionId         String              @id @default(cuid())
-  articleId            String
-  clerkUserId          String
-  suggestionType       SuggestionType
-  suggestionDetails    String
-  aiValidationResponse String?
-  isApproved           Boolean             @default(false)
-  isApplied            Boolean             @default(false)
-  rejectionReason      String?
-  suggestedAt          DateTime            @default(now())
-  processedAt          DateTime?
-  appliedAt            DateTime?
-  aiInteractionId      String?
-  article              Article             @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  user                 User                @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  
-  // Link to the change history if this suggestion was approved
-  changeHistory        ArticleChangeHistory?
-
-  @@index([articleId])
-  @@index([clerkUserId])
-  @@index([isApproved])
-  @@index([suggestedAt])
-  @@map("article_suggestions")
-}
-
-model SuggestionRateLimit {
-  rateLimitId String   @id @default(cuid())
-  clerkUserId String
-  articleId   String
-  lastSuggestionAt DateTime
-  user        User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-
-  @@unique([clerkUserId, articleId])
-  @@index([clerkUserId])
-  @@index([articleId])
-  @@index([lastSuggestionAt])
-  @@map("suggestion_rate_limits")
-}
-
-model SuggestionSettings {
-  settingsId String @id @default(cuid())
-  rateLimitMinutes Int @default(60)
-  maxSuggestionsPerUser Int @default(10)
-  badgeThresholds Json @default("{\"bronze\": 5, \"silver\": 10, \"gold\": 25}")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("suggestion_settings")
-}
-
 enum SuggestionType {
   CONTENT_ADDITION
   CONTENT_CORRECTION
@@ -595,86 +682,6 @@ enum SuggestionType {
   OTHER
 }
 
-model ArticleChangeHistory {
-  id                String       @id @default(cuid())
-  articleId         String
-  article           Article      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-  suggestionId      String       @unique
-  suggestion        ArticleSuggestion @relation(fields: [suggestionId], references: [suggestionId], onDelete: Cascade)
-  clerkUserId       String
-  user              User         @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  
-  // Diff information
-  diff              String       @db.Text // The actual diff in unified diff format
-  beforeContent     String       @db.Text // Full content before change (for rollback)
-  afterContent      String       @db.Text // Full content after change
-  
-  // Change metadata
-  changeType        String       // e.g., "suggestion", "admin_edit", "rollback"
-  description       String       @db.Text // Human-readable description of the change
-  
-  // Status tracking
-  isActive          Boolean      @default(true) // Whether this change is currently applied
-  rolledBackAt      DateTime?
-  rolledBackBy      String?
-  rollbackUser      User?        @relation("RollbackUser", fields: [rolledBackBy], references: [clerkUserId], onDelete: SetNull)
-  
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-
-  @@index([articleId])
-  @@index([clerkUserId])
-  @@index([isActive])
-  @@index([createdAt])
-  @@map("article_change_histories")
-}
-
-model EmailTemplate {
-  templateId    String               @id @default(cuid())
-  templateKey   String               @unique
-  templateName  String
-  description   String?
-  subject       String
-  htmlContent   String               @db.Text
-  textContent   String?              @db.Text
-  fromEmail     String?
-  fromName      String?
-  isActive      Boolean              @default(true)
-  variables     Json?                // JSON array of variable names and descriptions
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  emailLogs     EmailLog[]
-
-  @@index([templateKey])
-  @@index([isActive])
-  @@map("email_templates")
-}
-
-model EmailLog {
-  logId         String          @id @default(cuid())
-  templateId    String?
-  template      EmailTemplate?  @relation(fields: [templateId], references: [templateId])
-  to            String
-  from          String
-  subject       String
-  status        EmailStatus
-  messageId     String?         // Mailgun message ID
-  error         String?
-  metadata      Json?           // Additional data like user ID, article ID, etc.
-  sentAt        DateTime        @default(now())
-  deliveredAt   DateTime?
-  openedAt      DateTime?
-  clickedAt     DateTime?
-  bouncedAt     DateTime?
-  complainedAt   DateTime?
-
-  @@index([to])
-  @@index([status])
-  @@index([sentAt])
-  @@index([templateId])
-  @@map("email_logs")
-}
-
 enum EmailStatus {
   PENDING
   SENT
@@ -684,33 +691,4 @@ enum EmailStatus {
   BOUNCED
   FAILED
   COMPLAINED
-}
-
-model ArticleGroup {
-  groupId       String                @id @default(cuid())
-  name          String
-  clerkUserId   String
-  user          User                  @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  articles      ArticleGroupArticle[]
-
-  @@index([clerkUserId])
-  @@map("article_groups")
-}
-
-model ArticleGroupArticle {
-  id             String       @id @default(cuid())
-  groupId        String
-  articleId      String
-  scrollPosition Int          @default(0)
-  addedAt        DateTime     @default(now())
-  lastViewedAt   DateTime?
-  group          ArticleGroup @relation(fields: [groupId], references: [groupId], onDelete: Cascade)
-  article        Article      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
-
-  @@unique([groupId, articleId])
-  @@index([groupId])
-  @@index([articleId])
-  @@map("article_group_articles")
 }

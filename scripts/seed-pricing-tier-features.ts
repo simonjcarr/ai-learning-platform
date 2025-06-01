@@ -24,7 +24,7 @@ async function main() {
 
   // Define feature assignments for each tier
   const tierFeatureAssignments: Record<string, Record<string, { enabled: boolean; limitValue?: number; configValue?: any }>> = {
-    "FREE": {
+    "Free": {
       // Basic features for free tier
       "view_articles": { enabled: true },
       "like_articles": { enabled: true },
@@ -45,7 +45,7 @@ async function main() {
       "priority_support": { enabled: false },
       "view_change_history": { enabled: false },
     },
-    "STANDARD": {
+    "Standard": {
       // All basic features plus more
       "view_articles": { enabled: true },
       "like_articles": { enabled: true },
@@ -86,7 +86,7 @@ async function main() {
       "daily_article_generation_limit": { enabled: true, limitValue: 5 },
       "monthly_download_limit": { enabled: true, limitValue: 500 },
     },
-    "MAX": {
+    "Max": {
       // Everything unlimited
       "view_articles": { enabled: true },
       "like_articles": { enabled: true },

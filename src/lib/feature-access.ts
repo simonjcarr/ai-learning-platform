@@ -54,7 +54,7 @@ export async function checkFeatureAccess(
 
     // Check if subscription is active
     const isActive = user.subscriptionStatus === 'ACTIVE';
-    const userTier = isActive ? user.subscriptionTier : 'FREE';
+    const userTier = isActive ? user.subscriptionTier : 'Free';
 
     // Get the feature and its assignment for this tier (case insensitive)
     const featureAssignment = await prisma.pricingTierFeature.findFirst({
@@ -154,7 +154,7 @@ export async function getUserFeatureAccess(userId?: string | null): Promise<User
     }
 
     const isActive = user.subscriptionStatus === 'ACTIVE';
-    const userTier = isActive ? user.subscriptionTier : 'FREE';
+    const userTier = isActive ? user.subscriptionTier : 'Free';
 
     // Get all features and their assignments for this tier
     const features = await prisma.feature.findMany({
@@ -200,7 +200,7 @@ export async function getUserFeatureAccess(userId?: string | null): Promise<User
 
     return {
       userId,
-      tier: effectiveTier,
+      tier: userTier,
       isActive,
       features: featureMap,
     };
@@ -398,7 +398,7 @@ export async function checkSubscription(userId?: string | null) {
   
   if (!userAccess) {
     return {
-      tier: 'FREE',
+      tier: 'Free',
       isActive: false,
       permissions: {
         canAccessArticles: false,
