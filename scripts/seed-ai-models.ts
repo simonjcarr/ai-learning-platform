@@ -40,7 +40,6 @@ async function seedAIModels() {
         apiKey: encryptApiKey(openaiKey),
         inputTokenCostPer1M: 10.0,  // $10 per 1M input tokens
         outputTokenCostPer1M: 30.0, // $30 per 1M output tokens
-        maxTokens: 4096,
         isDefault: true,
         isActive: true,
       }
@@ -58,7 +57,6 @@ async function seedAIModels() {
         apiKey: encryptApiKey(openaiKey),
         inputTokenCostPer1M: 5.0,   // $5 per 1M input tokens
         outputTokenCostPer1M: 15.0, // $15 per 1M output tokens
-        maxTokens: 4096,
         isDefault: false,
         isActive: true,
       }
@@ -76,7 +74,6 @@ async function seedAIModels() {
         apiKey: encryptApiKey(openaiKey),
         inputTokenCostPer1M: 0.15,  // $0.15 per 1M input tokens
         outputTokenCostPer1M: 0.60, // $0.60 per 1M output tokens
-        maxTokens: 16384,
         isDefault: false,
         isActive: true,
       }
@@ -97,7 +94,6 @@ async function seedAIModels() {
         apiKey: encryptApiKey(googleKey),
         inputTokenCostPer1M: 0.075,  // $0.075 per 1M input tokens
         outputTokenCostPer1M: 0.30,  // $0.30 per 1M output tokens
-        maxTokens: 8192,
         isDefault: false,
         isActive: true,
       }
@@ -118,7 +114,6 @@ async function seedAIModels() {
         apiKey: encryptApiKey(anthropicKey),
         inputTokenCostPer1M: 3.0,   // $3 per 1M input tokens
         outputTokenCostPer1M: 15.0, // $15 per 1M output tokens
-        maxTokens: 4096,
         isDefault: false,
         isActive: true,
       }
@@ -136,7 +131,6 @@ async function seedAIModels() {
         apiKey: encryptApiKey(anthropicKey),
         inputTokenCostPer1M: 1.0,   // $1 per 1M input tokens
         outputTokenCostPer1M: 5.0,  // $5 per 1M output tokens
-        maxTokens: 4096,
         isDefault: false,
         isActive: true,
       }

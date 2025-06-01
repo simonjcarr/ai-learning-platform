@@ -68,7 +68,7 @@ async function createProviderForModel(modelId: string) {
   }
 }
 
-// Get model for specific interaction type
+// Get model and configuration for specific interaction type
 async function getModelForInteraction(interactionTypeName: string) {
   const interactionType = await prisma.aIInteractionType.findUnique({
     where: { typeName: interactionTypeName },
@@ -89,6 +89,77 @@ async function getModelForInteraction(interactionTypeName: string) {
   }
   
   return { model: interactionType.defaultModel, interactionType };
+}
+
+// Get AI configuration for interaction type (with fallbacks for legacy hardcoded values)
+async function getAIConfigForInteraction(interactionTypeName: string) {
+  const { model, interactionType } = await getModelForInteraction(interactionTypeName);
+  
+  // Determine temperature (database > defaults based on interaction type)
+  let temperature = interactionType.temperature;
+  if (temperature === null || temperature === undefined) {
+    // Fallback to hardcoded defaults based on interaction type
+    switch (interactionTypeName) {
+      case 'answer_marking':
+      case 'keyword_extraction':
+      case 'search_reordering':
+        temperature = 0.3;
+        break;
+      case 'interactive_examples':
+        temperature = 0.8;
+        break;
+      default:
+        temperature = 0.7;
+    }
+  }
+  
+  // Determine max tokens (database > defaults based on interaction type)
+  let maxTokens = interactionType.maxTokens;
+  if (maxTokens === null || maxTokens === undefined) {
+    // Fallback to hardcoded defaults based on interaction type
+    switch (interactionTypeName) {
+      case 'search_suggestions':
+        maxTokens = 1000;
+        break;
+      case 'article_generation':
+        maxTokens = 16000;
+        break;
+      case 'interactive_examples':
+        maxTokens = 2000;
+        break;
+      case 'answer_marking':
+        maxTokens = 500;
+        break;
+      case 'keyword_extraction':
+        maxTokens = 500;
+        break;
+      case 'search_reordering':
+        maxTokens = 1000;
+        break;
+      case 'tag_selection':
+        maxTokens = 1000;
+        break;
+      case 'chat':
+        maxTokens = 500;
+        break;
+      case 'article_suggestion_validation':
+        maxTokens = 8000;
+        break;
+      default:
+        maxTokens = 4000;
+    }
+  }
+  
+  // System prompt (database takes precedence, fallback to hardcoded if not set)
+  let systemPrompt = interactionType.systemPrompt;
+  
+  return {
+    model,
+    interactionType,
+    temperature,
+    maxTokens,
+    systemPrompt
+  };
 }
 
 // Track AI interaction
@@ -236,7 +307,7 @@ export const ArticleWithSeoSchema = z.object({
 // Enhanced AI Service functions with database tracking
 export const aiService = {
   async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5, clerkUserId: string | null = null) {
-    const systemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. 
+    const hardcodedSystemPrompt = `You are an AI assistant helping users find and discover IT-related content. Based on their search query, suggest relevant categories and article titles that would be helpful. 
 
 IMPORTANT: 
 1. Articles can belong to MULTIPLE categories. Assign articles to ALL relevant categories, not just one.
@@ -284,16 +355,16 @@ EXAMPLE: An article about "LISP Programming Tutorial" should have:
     let result, error;
     
     try {
-      const { model, interactionType } = await getModelForInteraction('search_suggestions');
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('search_suggestions');
       const aiModel = await createProviderForModel(model.modelId);
       
       result = await generateObject({
         model: aiModel,
-        system: systemPrompt,
+        system: systemPrompt || hardcodedSystemPrompt,
         prompt: userPrompt,
         schema: AISearchResponseSchema,
-        temperature: 0.7,
-        maxTokens: 1000,
+        temperature,
+        maxTokens,
       });
       
       const endTime = new Date();
@@ -1000,7 +1071,6 @@ RULES:
     apiKey: string;
     inputTokenCostPer1M: number;
     outputTokenCostPer1M: number;
-    maxTokens?: number;
     isDefault?: boolean;
   }) {
     return await prisma.aIModel.create({

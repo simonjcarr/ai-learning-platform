@@ -419,7 +419,6 @@ model AIModel {
   apiKey               String
   inputTokenCostPer1M  Decimal             @db.Decimal(10, 6)
   outputTokenCostPer1M Decimal             @db.Decimal(10, 6)
-  maxTokens            Int?
   isActive             Boolean             @default(true)
   isDefault            Boolean             @default(false)
   createdAt            DateTime            @default(now())
@@ -439,6 +438,9 @@ model AIInteractionType {
   displayName    String
   description    String?
   defaultModelId String?
+  systemPrompt   String?         @db.Text
+  maxTokens      Int?
+  temperature    Float?          @default(0.7)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   defaultModel   AIModel?        @relation(fields: [defaultModelId], references: [modelId])

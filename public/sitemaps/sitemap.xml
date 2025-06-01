@@ -25,123 +25,21 @@
       <priority>0.5</priority>
     </url>
     <url>
-      <loc>https://yourdomain.com/articles/how-to-install-and-set-up-docker-a-step-by-step-tutorial</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/nomad-vs-kubernetes-choosing-the-right-orchestration-tool</loc>
+      <loc>https://yourdomain.com/articles/understanding-docker-networking-connecting-containers</loc>
       <lastmod>2025-06-01</lastmod>
       <changefreq>monthly</changefreq>
       <priority>0.8</priority>
     </url>
     <url>
-      <loc>https://yourdomain.com/articles/securing-hashicorp-nomad-deployments-best-practices</loc>
+      <loc>https://yourdomain.com/articles/exploring-the-linux-directory-structure-a-beginners-guide</loc>
       <lastmod>2025-06-01</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.8</priority>
     </url>
     <url>
-      <loc>https://yourdomain.com/articles/networking-with-nomad-exposing-services-and-managing-traffic</loc>
+      <loc>https://yourdomain.com/articles/docker-tutorial-a-comprehensive-guide-for-beginners</loc>
       <lastmod>2025-06-01</lastmod>
       <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/using-docker-compose-for-multi-container-applications</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/nomad-for-beginners-deploying-and-managing-applications</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/a-comprehensive-guide-to-sed-stream-editor-in-linux</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>monthly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/how-to-use-sed-for-text-manipulation-practical-examples-and-commands</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/configuring-network-interfaces-in-linux-a-practical-guide</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/setting-up-a-firewall-with-iptables-on-linux-a-step-by-step-tutorial</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/sed-for-beginners-a-practical-guide-to-text-manipulation-in-linux</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/docker-security-best-practices-securing-your-containers</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/securing-docker-containers-best-practices</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/networking-in-docker-bridging-overlay-networks-and-docker-compose</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/multi-stage-docker-builds-a-practical-guide</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/managing-docker-volumes-data-persistence-and-sharing</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/docker-compose-vs-docker-swarm-choosing-the-right-orchestration-tool</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/docker-tutorial-for-beginners-a-comprehensive-introduction</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/step-by-step-guide-to-installing-and-setting-up-docker</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/docker-for-beginners-a-comprehensive-guide</loc>
-      <lastmod>2025-06-01</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
+      <priority>0.9</priority>
     </url>
 </urlset>

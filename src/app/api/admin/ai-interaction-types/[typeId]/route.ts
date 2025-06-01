@@ -36,6 +36,9 @@ export async function PUT(
     if (body.displayName !== undefined) updateData.displayName = body.displayName;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.defaultModelId !== undefined) updateData.defaultModelId = body.defaultModelId;
+    if (body.systemPrompt !== undefined) updateData.systemPrompt = body.systemPrompt;
+    if (body.maxTokens !== undefined) updateData.maxTokens = body.maxTokens;
+    if (body.temperature !== undefined) updateData.temperature = body.temperature;
 
     const interactionType = await prisma.aIInteractionType.update({
       where: { typeId },

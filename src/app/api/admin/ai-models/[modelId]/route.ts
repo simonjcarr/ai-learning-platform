@@ -38,7 +38,6 @@ export async function PUT(
     if (body.description !== undefined) updateData.description = body.description;
     if (body.inputTokenCostPer1M !== undefined) updateData.inputTokenCostPer1M = parseFloat(body.inputTokenCostPer1M);
     if (body.outputTokenCostPer1M !== undefined) updateData.outputTokenCostPer1M = parseFloat(body.outputTokenCostPer1M);
-    if (body.maxTokens !== undefined) updateData.maxTokens = body.maxTokens ? parseInt(body.maxTokens) : null;
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
     if (body.isDefault !== undefined) updateData.isDefault = body.isDefault;
     if (body.apiKey !== undefined) updateData.apiKey = body.apiKey; // Will be encrypted in aiService

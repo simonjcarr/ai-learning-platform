@@ -67,7 +67,6 @@ export async function POST(request: Request) {
       apiKey,
       inputTokenCostPer1M,
       outputTokenCostPer1M,
-      maxTokens,
       isDefault
     } = body;
 
@@ -96,7 +95,6 @@ export async function POST(request: Request) {
       apiKey,
       inputTokenCostPer1M: parseFloat(inputTokenCostPer1M),
       outputTokenCostPer1M: parseFloat(outputTokenCostPer1M),
-      maxTokens: maxTokens ? parseInt(maxTokens) : undefined,
       isDefault: isDefault || false
     });
 

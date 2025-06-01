@@ -21,7 +21,6 @@ interface AIModel {
   description?: string;
   inputTokenCostPer1M: number;
   outputTokenCostPer1M: number;
-  maxTokens?: number;
   isActive: boolean;
   isDefault: boolean;
   createdAt: string;
@@ -36,7 +35,6 @@ interface ModelFormData {
   apiKey: string;
   inputTokenCostPer1M: string;
   outputTokenCostPer1M: string;
-  maxTokens: string;
   isDefault: boolean;
 }
 
@@ -48,7 +46,6 @@ const initialFormData: ModelFormData = {
   apiKey: '',
   inputTokenCostPer1M: '',
   outputTokenCostPer1M: '',
-  maxTokens: '',
   isDefault: false,
 };
 
@@ -100,13 +97,11 @@ export default function AIModelsPage() {
         apiKey?: string;
         inputTokenCostPer1M: number;
         outputTokenCostPer1M: number;
-        maxTokens: number | null;
         isDefault: boolean;
       } = {
         ...formData,
         inputTokenCostPer1M: parseFloat(formData.inputTokenCostPer1M),
         outputTokenCostPer1M: parseFloat(formData.outputTokenCostPer1M),
-        maxTokens: formData.maxTokens ? parseInt(formData.maxTokens) : null,
       };
 
       // Only include API key if it's provided (for updates, empty means no change)
@@ -147,7 +142,6 @@ export default function AIModelsPage() {
       apiKey: '', // Don't show existing API key
       inputTokenCostPer1M: model.inputTokenCostPer1M.toString(),
       outputTokenCostPer1M: model.outputTokenCostPer1M.toString(),
-      maxTokens: model.maxTokens?.toString() || '',
       isDefault: model.isDefault,
     });
     setIsCreateOpen(true);
@@ -309,7 +303,7 @@ export default function AIModelsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="inputCost">Input Cost (per 1M tokens)</Label>
                   <Input
@@ -332,16 +326,6 @@ export default function AIModelsPage() {
                     onChange={(e) => setFormData({ ...formData, outputTokenCostPer1M: e.target.value })}
                     placeholder="30.0"
                     required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxTokens">Max Tokens (optional)</Label>
-                  <Input
-                    id="maxTokens"
-                    type="number"
-                    value={formData.maxTokens}
-                    onChange={(e) => setFormData({ ...formData, maxTokens: e.target.value })}
-                    placeholder="4096"
                   />
                 </div>
               </div>
@@ -429,7 +413,7 @@ export default function AIModelsPage() {
                 {model.description && (
                   <p className="text-gray-600 mb-4">{model.description}</p>
                 )}
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="font-medium text-gray-900">Input Cost:</span>
                     <div className="flex items-center text-green-600">
@@ -442,12 +426,6 @@ export default function AIModelsPage() {
                     <div className="flex items-center text-green-600">
                       <DollarSign className="h-3 w-3 mr-1" />
                       {model.outputTokenCostPer1M}/1M tokens
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-900">Max Tokens:</span>
-                    <div className="text-gray-600">
-                      {model.maxTokens ? model.maxTokens.toLocaleString() : 'Unlimited'}
                     </div>
                   </div>
                 </div>

@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { typeName, displayName, description, defaultModelId } = body;
+    const { typeName, displayName, description, defaultModelId, systemPrompt, maxTokens, temperature } = body;
 
     // Validate required fields
     if (!typeName || !displayName) {
@@ -85,7 +85,10 @@ export async function POST(request: Request) {
         typeName,
         displayName,
         description,
-        defaultModelId
+        defaultModelId,
+        systemPrompt,
+        maxTokens,
+        temperature
       },
       include: {
         defaultModel: {
