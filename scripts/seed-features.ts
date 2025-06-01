@@ -46,9 +46,9 @@ async function main() {
       featureKey: "generate_example_questions",
       featureName: "Generate Example Questions",
       description: "AI-powered interactive quiz question generation",
-      categoryKey: "AI_FEATURES",
-      featureType: FeatureType.BOOLEAN,
-      defaultValue: { enabled: false },
+      categoryKey: "LIMITS",
+      featureType: FeatureType.NUMERIC_LIMIT,
+      defaultValue: { limit: 0 },
       isActive: true,
     },
 

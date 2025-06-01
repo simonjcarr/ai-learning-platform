@@ -54,13 +54,18 @@ export async function checkFeatureAccess(
 
     // Check if subscription is active
     const isActive = user.subscriptionStatus === 'ACTIVE';
-    const effectiveTier = isActive ? user.subscriptionTier : 'FREE';
+    const userTier = isActive ? user.subscriptionTier : 'FREE';
 
-    // Get the feature and its assignment for this tier
+    // Get the feature and its assignment for this tier (case insensitive)
     const featureAssignment = await prisma.pricingTierFeature.findFirst({
       where: {
         feature: { featureKey },
-        pricingTier: { tier: effectiveTier },
+        pricingTier: { 
+          tier: {
+            equals: userTier,
+            mode: 'insensitive'
+          }
+        },
       },
       include: {
         feature: true,
@@ -149,7 +154,7 @@ export async function getUserFeatureAccess(userId?: string | null): Promise<User
     }
 
     const isActive = user.subscriptionStatus === 'ACTIVE';
-    const effectiveTier = isActive ? user.subscriptionTier : 'FREE';
+    const userTier = isActive ? user.subscriptionTier : 'FREE';
 
     // Get all features and their assignments for this tier
     const features = await prisma.feature.findMany({
@@ -157,7 +162,12 @@ export async function getUserFeatureAccess(userId?: string | null): Promise<User
       include: {
         pricingTierFeatures: {
           where: {
-            pricingTier: { tier: effectiveTier },
+            pricingTier: { 
+              tier: {
+                equals: userTier,
+                mode: 'insensitive'
+              }
+            },
           },
           include: {
             pricingTier: true,
@@ -269,13 +279,18 @@ export async function checkFeatureUsage(
   }
 
   const isActive = user.subscriptionStatus === 'ACTIVE';
-  const effectiveTier = isActive ? user.subscriptionTier : 'FREE';
+  const userTier = isActive ? user.subscriptionTier : 'FREE';
 
   // Get the feature assignment with configuration
   const featureAssignment = await prisma.pricingTierFeature.findFirst({
     where: {
       feature: { featureKey },
-      pricingTier: { tier: effectiveTier },
+      pricingTier: { 
+        tier: {
+          equals: userTier,
+          mode: 'insensitive'
+        }
+      },
     },
     include: {
       feature: true,

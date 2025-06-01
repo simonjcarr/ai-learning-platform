@@ -35,7 +35,7 @@ async function main() {
       // Disabled features
       "ai_chat": { enabled: false },
       "generate_article_content": { enabled: false },
-      "generate_example_questions": { enabled: false },
+      "generate_example_questions": { enabled: true, limitValue: 1 },
       "comment_on_articles": { enabled: false },
       "flag_content": { enabled: false },
       "suggest_article_improvements": { enabled: false },
