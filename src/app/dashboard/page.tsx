@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon } from "lucide-react";
+import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionStatus } from "@/components/subscription-status";
@@ -199,7 +199,7 @@ export default async function DashboardPage() {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Your Dashboard</h1>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
         <Link href="/dashboard/articles" className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex items-center">
             <BookOpen className="h-8 w-8 text-blue-600" />
@@ -256,6 +256,16 @@ export default async function DashboardPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">My Lists</p>
               <p className="text-2xl font-semibold text-gray-900">Manage</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/courses" className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+          <div className="flex items-center">
+            <GraduationCap className="h-8 w-8 text-orange-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Courses</p>
+              <p className="text-2xl font-semibold text-gray-900">Browse</p>
             </div>
           </div>
         </Link>

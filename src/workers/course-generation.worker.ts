@@ -1,0 +1,399 @@
+import { Worker, Job } from 'bullmq';
+import Redis from 'ioredis';
+import { PrismaClient, CourseGenerationStatus, CourseStatus, CourseLevel } from '@prisma/client';
+import { CourseGenerationJobData } from '@/lib/bullmq';
+import { callAI } from '@/lib/ai-service';
+
+const prisma = new PrismaClient();
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+
+const connection = new Redis(redisUrl, {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+});
+
+interface CourseOutline {
+  sections: Array<{
+    title: string;
+    description: string;
+    articles: Array<{
+      title: string;
+      description: string;
+    }>;
+  }>;
+}
+
+async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
+  const { courseId, jobType, sectionId, articleId, context } = job.data;
+  
+  console.log(`🎓 Processing course generation job: ${jobType} for course ${courseId}`);
+
+  try {
+    switch (jobType) {
+      case 'outline':
+        return await generateCourseOutline(courseId, context);
+      case 'article_content':
+        return await generateArticleContent(courseId, articleId!, context);
+      case 'quiz_generation':
+        return await generateQuizzes(courseId, sectionId, articleId, context);
+      default:
+        throw new Error(`Unknown job type: ${jobType}`);
+    }
+  } catch (error) {
+    console.error(`❌ Course generation job failed: ${error.message}`);
+    
+    // Update course status to indicate error
+    await prisma.course.update({
+      where: { courseId },
+      data: {
+        generationStatus: CourseGenerationStatus.FAILED,
+        generationError: error instanceof Error ? error.message : 'Unknown error',
+      },
+    });
+    
+    throw error;
+  }
+}
+
+async function generateCourseOutline(courseId: string, context?: any) {
+  console.log(`📝 Generating course outline for course ${courseId}`);
+  
+  // Update course status
+  await prisma.course.update({
+    where: { courseId },
+    data: {
+      generationStatus: CourseGenerationStatus.IN_PROGRESS,
+      generationStartedAt: new Date(),
+    },
+  });
+
+  const course = await prisma.course.findUnique({
+    where: { courseId },
+  });
+
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  const prompt = `Create a comprehensive course outline for a ${course.level.toLowerCase()} level course.
+
+Course Title: ${course.title}
+Course Description: ${course.description}
+Target Audience: ${course.level}
+
+Please generate a detailed course outline with 4-8 sections. Each section should have 3-6 articles that break down the section content into manageable chunks.
+
+Return the response as a valid JSON object with the following structure:
+{
+  "sections": [
+    {
+      "title": "Section Title",
+      "description": "Brief description of what this section covers",
+      "articles": [
+        {
+          "title": "Article Title",
+          "description": "Brief description of what this article covers"
+        }
+      ]
+    }
+  ]
+}
+
+Make sure the content is:
+- Appropriate for the ${course.level.toLowerCase()} skill level
+- Comprehensive and covers the subject matter thoroughly
+- Logically structured from basic to advanced concepts
+- Practical with real-world applications
+- Engaging and educational
+
+Return ONLY the JSON object, no additional text.`;
+
+  const response = await callAI('course_outline_generation', prompt, {
+    courseId,
+    courseTitle: course.title,
+    courseDescription: course.description,
+    courseLevel: course.level,
+  });
+
+  let outline: CourseOutline;
+  try {
+    outline = JSON.parse(response);
+  } catch (parseError) {
+    throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+  }
+
+  // Store the outline in the course
+  await prisma.course.update({
+    where: { courseId },
+    data: {
+      courseOutlineJson: outline,
+      generationStatus: CourseGenerationStatus.COMPLETED,
+    },
+  });
+
+  // Create sections and articles based on the outline
+  for (let sectionIndex = 0; sectionIndex < outline.sections.length; sectionIndex++) {
+    const sectionData = outline.sections[sectionIndex];
+    
+    const section = await prisma.courseSection.create({
+      data: {
+        courseId,
+        title: sectionData.title,
+        description: sectionData.description,
+        orderIndex: sectionIndex,
+      },
+    });
+
+    // Create articles for this section
+    for (let articleIndex = 0; articleIndex < sectionData.articles.length; articleIndex++) {
+      const articleData = sectionData.articles[articleIndex];
+      
+      const slugBase = articleData.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      
+      const articleSlug = `${course.slug}-${slugBase}`;
+
+      await prisma.courseArticle.create({
+        data: {
+          sectionId: section.sectionId,
+          title: articleData.title,
+          slug: articleSlug,
+          description: articleData.description,
+          orderIndex: articleIndex,
+        },
+      });
+    }
+  }
+
+  // Update course status to published
+  await prisma.course.update({
+    where: { courseId },
+    data: {
+      status: CourseStatus.PUBLISHED,
+      publishedAt: new Date(),
+    },
+  });
+
+  console.log(`✅ Course outline generated successfully for course ${courseId}`);
+  return { success: true, outline };
+}
+
+async function generateArticleContent(courseId: string, articleId: string, context?: any) {
+  console.log(`📄 Generating article content for article ${articleId}`);
+
+  const article = await prisma.courseArticle.findUnique({
+    where: { articleId },
+    include: {
+      section: {
+        include: {
+          course: true,
+        },
+      },
+    },
+  });
+
+  if (!article) {
+    throw new Error('Article not found');
+  }
+
+  const course = article.section.course;
+  const section = article.section;
+
+  const prompt = `Generate comprehensive educational content for this course article.
+
+Course: ${course.title} (${course.level} level)
+Course Description: ${course.description}
+Section: ${section.title}
+Section Description: ${section.description}
+Article: ${article.title}
+Article Description: ${article.description}
+
+Please write detailed, educational content that:
+- Is appropriate for ${course.level.toLowerCase()} level learners
+- Covers the topic thoroughly with practical examples
+- Uses clear explanations and step-by-step instructions where applicable
+- Includes code examples if relevant to the subject matter
+- Uses proper HTML formatting with headings, paragraphs, lists, and code blocks
+- Is engaging and educational
+- Builds upon previous concepts appropriately
+
+The content should be substantial (at least 1000 words) and include:
+1. Introduction to the topic
+2. Key concepts and explanations
+3. Practical examples and demonstrations
+4. Best practices and common pitfalls
+5. Summary and next steps
+
+Return the content as properly formatted HTML suitable for educational purposes.`;
+
+  const content = await callAI('course_article_generation', prompt, {
+    courseId,
+    sectionId: section.sectionId,
+    articleId,
+    courseTitle: course.title,
+    courseLevel: course.level,
+    sectionTitle: section.title,
+    articleTitle: article.title,
+  });
+
+  // Update the article with generated content
+  await prisma.courseArticle.update({
+    where: { articleId },
+    data: {
+      contentHtml: content,
+      isGenerated: true,
+      generatedAt: new Date(),
+    },
+  });
+
+  console.log(`✅ Article content generated successfully for article ${articleId}`);
+  return { success: true, articleId };
+}
+
+async function generateQuizzes(courseId: string, sectionId?: string, articleId?: string, context?: any) {
+  console.log(`❓ Generating quizzes for course ${courseId}`);
+
+  if (articleId) {
+    // Generate quiz for specific article
+    return await generateArticleQuiz(articleId);
+  } else if (sectionId) {
+    // Generate quiz for entire section
+    return await generateSectionQuiz(sectionId);
+  } else {
+    // Generate final exam for entire course
+    return await generateFinalExam(courseId);
+  }
+}
+
+async function generateArticleQuiz(articleId: string) {
+  const article = await prisma.courseArticle.findUnique({
+    where: { articleId },
+    include: {
+      section: {
+        include: {
+          course: true,
+        },
+      },
+    },
+  });
+
+  if (!article || !article.contentHtml) {
+    throw new Error('Article not found or has no content');
+  }
+
+  const course = article.section.course;
+
+  const prompt = `Generate a quiz with 3-5 questions based on this course article content.
+
+Course: ${course.title} (${course.level} level)
+Section: ${article.section.title}
+Article: ${article.title}
+Content: ${article.contentHtml.substring(0, 2000)}...
+
+Create questions that test understanding of the key concepts covered in this article. Use a mix of question types:
+- Multiple choice questions
+- True/false questions
+- Fill in the blank questions
+
+Return the response as a JSON object with this structure:
+{
+  "questions": [
+    {
+      "type": "MULTIPLE_CHOICE",
+      "question": "Question text here?",
+      "options": {
+        "a": "Option A",
+        "b": "Option B", 
+        "c": "Option C",
+        "d": "Option D"
+      },
+      "correctAnswer": "a",
+      "explanation": "Explanation of why this is correct"
+    },
+    {
+      "type": "TRUE_FALSE",
+      "question": "Statement to evaluate",
+      "correctAnswer": "true",
+      "explanation": "Explanation"
+    }
+  ]
+}
+
+Return ONLY the JSON object.`;
+
+  const response = await callAI('course_quiz_generation', prompt, {
+    articleId,
+    courseId: course.courseId,
+  });
+
+  const quizData = JSON.parse(response);
+
+  // Create the quiz
+  const quiz = await prisma.courseQuiz.create({
+    data: {
+      articleId,
+      title: `${article.title} - Quiz`,
+      description: `Test your knowledge of ${article.title}`,
+      quizType: 'article',
+      passMarkPercentage: 70.0,
+    },
+  });
+
+  // Create questions
+  for (let i = 0; i < quizData.questions.length; i++) {
+    const questionData = quizData.questions[i];
+    
+    await prisma.courseQuizQuestion.create({
+      data: {
+        quizId: quiz.quizId,
+        questionType: questionData.type,
+        questionText: questionData.question,
+        optionsJson: questionData.options || null,
+        correctAnswer: questionData.correctAnswer,
+        explanation: questionData.explanation,
+        orderIndex: i,
+        points: 1.0,
+      },
+    });
+  }
+
+  return { success: true, quizId: quiz.quizId };
+}
+
+async function generateSectionQuiz(sectionId: string) {
+  // Similar implementation for section-level quizzes
+  console.log(`📝 Generating section quiz for section ${sectionId}`);
+  return { success: true, message: 'Section quiz generation not yet implemented' };
+}
+
+async function generateFinalExam(courseId: string) {
+  // Similar implementation for final exam
+  console.log(`🎓 Generating final exam for course ${courseId}`);
+  return { success: true, message: 'Final exam generation not yet implemented' };
+}
+
+// Create the worker
+export const courseGenerationWorker = new Worker('course-generation', processCourseGenerationJob, {
+  connection: connection.duplicate(),
+  concurrency: 2, // Limit concurrency to avoid overwhelming AI APIs
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
+});
+
+courseGenerationWorker.on('completed', (job) => {
+  console.log(`🎓 Course generation job ${job.id} completed`);
+});
+
+courseGenerationWorker.on('failed', (job, err) => {
+  console.error(`❌ Course generation job ${job?.id} failed:`, err);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Shutting down course generation worker...');
+  await courseGenerationWorker.close();
+  await prisma.$disconnect();
+  process.exit(0);
+});

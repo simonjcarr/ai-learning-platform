@@ -61,9 +61,82 @@ export async function POST(
       }
     });
 
-    console.log(`Article view tracked: User ${userId} viewed article ${articleId}`);
+    // Check if this article is part of any course the user is enrolled in
+    const courseArticle = await prisma.courseArticle.findFirst({
+      where: { 
+        articleId: articleId,
+        section: {
+          course: {
+            enrollments: {
+              some: {
+                userId: user.userId,
+              },
+            },
+          },
+        },
+      },
+      include: {
+        section: {
+          include: {
+            course: {
+              include: {
+                enrollments: {
+                  where: {
+                    userId: user.userId,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
 
-    return NextResponse.json({ success: true });
+    let courseProgressUpdated = false;
+    
+    if (courseArticle && courseArticle.section.course.enrollments.length > 0) {
+      const enrollment = courseArticle.section.course.enrollments[0];
+      
+      // Update course progress - mark as visited if not already completed
+      const existingProgress = await prisma.courseProgress.findUnique({
+        where: {
+          enrollmentId_articleId: {
+            enrollmentId: enrollment.enrollmentId,
+            articleId: articleId,
+          },
+        },
+      });
+
+      if (!existingProgress?.isCompleted) {
+        await prisma.courseProgress.upsert({
+          where: {
+            enrollmentId_articleId: {
+              enrollmentId: enrollment.enrollmentId,
+              articleId: articleId,
+            },
+          },
+          update: {
+            timeSpent: { increment: 1 }, // Increment by 1 minute for each view
+            updatedAt: new Date(),
+          },
+          create: {
+            enrollmentId: enrollment.enrollmentId,
+            articleId: articleId,
+            isCompleted: false,
+            timeSpent: 1,
+          },
+        });
+        
+        courseProgressUpdated = true;
+      }
+    }
+
+    console.log(`Article view tracked: User ${userId} viewed article ${articleId}${courseProgressUpdated ? ' (course progress updated)' : ''}`);
+
+    return NextResponse.json({ 
+      success: true,
+      courseProgressUpdated,
+    });
   } catch (error) {
     console.error("Article view tracking error:", error);
     return NextResponse.json(

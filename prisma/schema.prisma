@@ -39,6 +39,11 @@ model User {
   suggestionRateLimits         SuggestionRateLimit[]
   articleViews                 UserArticleView[]
   userResponses                UserResponse[]
+  courseEnrollments            CourseEnrollment[]
+  courseProgress               CourseProgress[]
+  quizAttempts                 CourseQuizAttempt[]
+  courseCertificates           CourseCertificate[]
+  createdCourses               Course[]               @relation("CreatedCourses")
 
   @@map("users")
 }
@@ -630,6 +635,218 @@ model ArticleGroupArticle {
   @@map("article_group_articles")
 }
 
+model Course {
+  courseId            String               @id @default(cuid())
+  title               String
+  slug                String               @unique
+  description         String
+  level               CourseLevel
+  status              CourseStatus         @default(DRAFT)
+  estimatedHours      Int?
+  passMarkPercentage  Float                @default(70.0)
+  createdByClerkId    String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  publishedAt         DateTime?
+  
+  // Course generation tracking
+  generationStatus    CourseGenerationStatus @default(PENDING)
+  generationStartedAt DateTime?
+  generationError     String?
+  
+  // AI-generated course outline
+  courseOutlineJson   Json?
+  
+  createdBy           User                 @relation("CreatedCourses", fields: [createdByClerkId], references: [clerkUserId])
+  sections            CourseSection[]
+  enrollments         CourseEnrollment[]
+  certificates        CourseCertificate[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([level])
+  @@index([createdByClerkId])
+  @@map("courses")
+}
+
+model CourseSection {
+  sectionId     String          @id @default(cuid())
+  courseId      String
+  title         String
+  description   String?
+  orderIndex    Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  course        Course          @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  articles      CourseArticle[]
+  quizzes       CourseQuiz[]
+
+  @@unique([courseId, orderIndex])
+  @@index([courseId])
+  @@map("course_sections")
+}
+
+model CourseArticle {
+  articleId     String        @id @default(cuid())
+  sectionId     String
+  title         String
+  slug          String        @unique
+  description   String?
+  orderIndex    Int
+  contentHtml   String?
+  isGenerated   Boolean       @default(false)
+  generatedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  section       CourseSection @relation(fields: [sectionId], references: [sectionId], onDelete: Cascade)
+  quizzes       CourseQuiz[]
+  progress      CourseProgress[]
+
+  @@unique([sectionId, orderIndex])
+  @@index([sectionId])
+  @@index([slug])
+  @@map("course_articles")
+}
+
+model CourseQuiz {
+  quizId        String              @id @default(cuid())
+  sectionId     String?
+  articleId     String?
+  title         String
+  description   String?
+  quizType      String              // 'article', 'section', 'final_exam'
+  orderIndex    Int?
+  passMarkPercentage Float          @default(70.0)
+  timeLimit     Int?                // in minutes
+  maxAttempts   Int?                // null = unlimited
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  
+  section       CourseSection?      @relation(fields: [sectionId], references: [sectionId], onDelete: Cascade)
+  article       CourseArticle?      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  questions     CourseQuizQuestion[]
+  attempts      CourseQuizAttempt[]
+
+  @@index([sectionId])
+  @@index([articleId])
+  @@index([quizType])
+  @@map("course_quizzes")
+}
+
+model CourseQuizQuestion {
+  questionId    String            @id @default(cuid())
+  quizId        String
+  questionType  QuizQuestionType
+  questionText  String
+  optionsJson   Json?             // For multiple choice questions
+  correctAnswer String            // For multiple choice: option key, for others: the answer
+  explanation   String?
+  orderIndex    Int
+  points        Float             @default(1.0)
+  createdAt     DateTime          @default(now())
+  
+  quiz          CourseQuiz        @relation(fields: [quizId], references: [quizId], onDelete: Cascade)
+  answers       CourseQuizAnswer[]
+
+  @@unique([quizId, orderIndex])
+  @@index([quizId])
+  @@map("course_quiz_questions")
+}
+
+model CourseEnrollment {
+  enrollmentId    String           @id @default(cuid())
+  courseId        String
+  clerkUserId     String
+  enrolledAt      DateTime         @default(now())
+  completedAt     DateTime?
+  lastAccessedAt  DateTime?
+  
+  course          Course           @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user            User             @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  progress        CourseProgress[]
+
+  @@unique([courseId, clerkUserId])
+  @@index([courseId])
+  @@index([clerkUserId])
+  @@map("course_enrollments")
+}
+
+model CourseProgress {
+  progressId    String        @id @default(cuid())
+  enrollmentId  String
+  articleId     String
+  clerkUserId   String
+  startedAt     DateTime?
+  completedAt   DateTime?
+  lastAccessedAt DateTime     @default(now())
+  
+  enrollment    CourseEnrollment @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Cascade)
+  article       CourseArticle    @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user          User             @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@unique([enrollmentId, articleId])
+  @@index([enrollmentId])
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@map("course_progress")
+}
+
+model CourseQuizAttempt {
+  attemptId     String    @id @default(cuid())
+  quizId        String
+  clerkUserId   String
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  score         Float?    // Percentage score
+  passed        Boolean?  // Whether they passed based on pass mark
+  timeSpent     Int?      // in seconds
+  
+  quiz          CourseQuiz        @relation(fields: [quizId], references: [quizId], onDelete: Cascade)
+  user          User              @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  answers       CourseQuizAnswer[]
+
+  @@index([quizId])
+  @@index([clerkUserId])
+  @@index([startedAt])
+  @@map("course_quiz_attempts")
+}
+
+model CourseQuizAnswer {
+  answerId      String              @id @default(cuid())
+  attemptId     String
+  questionId    String
+  userAnswer    String
+  isCorrect     Boolean
+  pointsEarned  Float
+  submittedAt   DateTime            @default(now())
+  
+  attempt       CourseQuizAttempt   @relation(fields: [attemptId], references: [attemptId], onDelete: Cascade)
+  question      CourseQuizQuestion  @relation(fields: [questionId], references: [questionId], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("course_quiz_answers")
+}
+
+model CourseCertificate {
+  certificateId String    @id @default(cuid())
+  courseId      String
+  clerkUserId   String
+  issuedAt      DateTime  @default(now())
+  certificateData Json    // Contains course name, user name, completion date, etc.
+  
+  course        Course    @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user          User      @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@unique([courseId, clerkUserId])
+  @@index([courseId])
+  @@index([clerkUserId])
+  @@map("course_certificates")
+}
+
 enum FeatureType {
   BOOLEAN
   NUMERIC_LIMIT
@@ -691,4 +908,31 @@ enum EmailStatus {
   BOUNCED
   FAILED
   COMPLAINED
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CourseStatus {
+  DRAFT
+  GENERATING
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuizQuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  FILL_IN_BLANK
+  ESSAY
+}
+
+enum CourseGenerationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
 }

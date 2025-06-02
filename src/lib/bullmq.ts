@@ -53,6 +53,29 @@ export const sitemapQueueEvents = new QueueEvents('sitemap', {
   connection: connection.duplicate(),
 });
 
+export const courseGenerationQueue = new Queue('course-generation', {
+  connection: connection.duplicate(),
+  defaultJobOptions: {
+    removeOnComplete: {
+      age: 7 * 24 * 3600, // keep completed jobs for 7 days
+      count: 50, // keep the last 50 completed jobs
+    },
+    removeOnFail: {
+      age: 14 * 24 * 3600, // keep failed jobs for 14 days
+      count: 100, // keep last 100 failed jobs
+    },
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  },
+});
+
+export const courseGenerationQueueEvents = new QueueEvents('course-generation', {
+  connection: connection.duplicate(),
+});
+
 export type EmailJobData = {
   to: string | string[];
   subject: string;
@@ -73,6 +96,22 @@ export type SitemapJobData = {
   type: 'regenerate';
   triggerBy?: string;
   articleId?: string;
+};
+
+export type CourseGenerationJobData = {
+  courseId: string;
+  jobType: 'outline' | 'article_content' | 'quiz_generation';
+  sectionId?: string;
+  articleId?: string;
+  context?: {
+    courseTitle?: string;
+    courseDescription?: string;
+    courseLevel?: string;
+    sectionTitle?: string;
+    sectionDescription?: string;
+    articleTitle?: string;
+    articleDescription?: string;
+  };
 };
 
 export async function addEmailToQueue(data: EmailJobData) {
@@ -118,6 +157,23 @@ export async function addSitemapToQueue(data: SitemapJobData) {
       stack: error.stack,
       code: error.code
     });
+    throw error;
+  }
+}
+
+export async function addCourseGenerationToQueue(data: CourseGenerationJobData) {
+  try {
+    console.log(`🎓 Adding course generation job: ${data.jobType} for course ${data.courseId}`);
+    
+    const job = await courseGenerationQueue.add(`course-${data.jobType}`, data, {
+      // Delay slightly to ensure database updates are committed
+      delay: 1000,
+    });
+    
+    console.log(`✅ Course generation job added with ID: ${job.id}`);
+    return job;
+  } catch (error) {
+    console.error('❌ Error in addCourseGenerationToQueue:', error);
     throw error;
   }
 }

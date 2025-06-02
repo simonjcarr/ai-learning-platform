@@ -179,6 +179,44 @@ async function main() {
       defaultValue: { enabled: false },
       isActive: true,
     },
+
+    // Course Features
+    {
+      featureKey: "access_courses",
+      featureName: "Access Full Courses",
+      description: "Access to structured long-form course content with sections and progress tracking",
+      categoryKey: "CONTENT_MANAGEMENT",
+      featureType: FeatureType.BOOLEAN,
+      defaultValue: { enabled: false },
+      isActive: true,
+    },
+    {
+      featureKey: "course_certificates",
+      featureName: "Course Certificates",
+      description: "Earn certificates upon successful course completion",
+      categoryKey: "CONTENT_MANAGEMENT",
+      featureType: FeatureType.BOOLEAN,
+      defaultValue: { enabled: false },
+      isActive: true,
+    },
+    {
+      featureKey: "course_progress_tracking",
+      featureName: "Course Progress Tracking",
+      description: "Track progress through course sections and articles",
+      categoryKey: "ANALYTICS",
+      featureType: FeatureType.BOOLEAN,
+      defaultValue: { enabled: false },
+      isActive: true,
+    },
+    {
+      featureKey: "course_quizzes",
+      featureName: "Course Quizzes and Exams",
+      description: "Take quizzes on articles, sections, and final course exams",
+      categoryKey: "CONTENT_MANAGEMENT",
+      featureType: FeatureType.BOOLEAN,
+      defaultValue: { enabled: false },
+      isActive: true,
+    },
   ];
 
   for (const feature of features) {

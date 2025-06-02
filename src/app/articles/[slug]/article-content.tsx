@@ -6,7 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useRedirectUrl } from "@/hooks/use-redirect-url";
 import { useFeatureAccess, useFeatureUsage } from "@/hooks/use-feature-access";
-import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Flag } from "lucide-react";
+import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Flag, CheckCircle, ArrowLeft, ArrowRight, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
 import MarkdownViewer from "@/components/markdown-viewer";
@@ -56,6 +56,16 @@ interface Article {
       color: string | null;
     };
   }>;
+  courseArticles?: Array<{
+    section: {
+      course: {
+        courseId: string;
+        title: string;
+        slug: string;
+        level: string;
+      };
+    };
+  }>;
 }
 
 interface ArticleContentProps {
@@ -69,6 +79,14 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [subscriptionError, setSubscriptionError] = useState(false);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [focusedExampleId, setFocusedExampleId] = useState<string | null>(null);
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [courseInfo, setCourseInfo] = useState<{
+    courseId: string;
+    title: string;
+    slug: string;
+    level: string;
+  } | null>(null);
   const { isSignedIn } = useUser();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const { signInWithRedirect } = useRedirectUrl();
@@ -99,6 +117,25 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, article.articleId]);
+
+  useEffect(() => {
+    // Initialize course information if article is part of a course
+    if (article.courseArticles && article.courseArticles.length > 0) {
+      const courseArticle = article.courseArticles[0];
+      setCourseInfo({
+        courseId: courseArticle.section.course.courseId,
+        title: courseArticle.section.course.title,
+        slug: courseArticle.section.course.slug,
+        level: courseArticle.section.course.level,
+      });
+      
+      // Check if user has completed this article in the course
+      if (isSignedIn) {
+        checkCourseProgress();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article.courseArticles, isSignedIn]);
 
   const trackArticleView = async () => {
     try {
@@ -154,6 +191,59 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const checkCourseProgress = async () => {
+    if (!courseInfo) return;
+    
+    try {
+      const response = await fetch(`/api/courses/${courseInfo.courseId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.isEnrolled && data.progress) {
+          const articleProgress = data.progress.find((p: any) => p.articleId === article.articleId);
+          setIsCompleted(articleProgress?.isCompleted || false);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to check course progress:', err);
+    }
+  };
+
+  const markAsComplete = async () => {
+    if (!courseInfo || isMarkingComplete) return;
+
+    try {
+      setIsMarkingComplete(true);
+      const response = await fetch(`/api/courses/${courseInfo.courseId}/progress`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          articleId: article.articleId,
+          isCompleted: true,
+          timeSpent: 5, // Assume 5 minutes for marking as complete
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to mark as complete');
+      }
+
+      setIsCompleted(true);
+      
+      // Show success message or feedback
+      const data = await response.json();
+      if (data.courseCompleted) {
+        alert('Congratulations! You have completed the course!');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to mark as complete');
+    } finally {
+      setIsMarkingComplete(false);
     }
   };
 
@@ -217,6 +307,54 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           <li className="text-gray-900 font-medium">{article.articleTitle}</li>
         </ol>
       </nav>
+
+      {/* Course Header */}
+      {courseInfo && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <GraduationCap className="h-5 w-5 text-blue-600" />
+              <div>
+                <h2 className="text-sm font-medium text-blue-900">
+                  Part of Course
+                </h2>
+                <Link 
+                  href={`/courses/${courseInfo.courseId}`}
+                  className="text-blue-700 hover:text-blue-800 font-medium"
+                >
+                  {courseInfo.title}
+                </Link>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {isCompleted ? (
+                <div className="flex items-center space-x-2 text-green-600">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">Completed</span>
+                </div>
+              ) : (
+                <button
+                  onClick={markAsComplete}
+                  disabled={isMarkingComplete}
+                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {isMarkingComplete ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Marking...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-1" />
+                      Mark Complete
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Article Header */}
       <header className="mb-8">

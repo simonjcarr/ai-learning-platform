@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
-import { Search, BookOpen, Home, User, Menu, X, CreditCard, Shield } from "lucide-react";
+import { Search, BookOpen, Home, User, Menu, X, CreditCard, Shield, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -20,6 +20,7 @@ export function Navbar() {
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/categories", label: "Categories", icon: BookOpen },
+    { href: "/courses", label: "Courses", icon: GraduationCap },
     { href: "/search", label: "Search", icon: Search },
   ];
 
