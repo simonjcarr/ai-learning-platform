@@ -20,8 +20,8 @@ export default function NewCoursePage() {
   const [error, setError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
+    systemPromptTitle: "",
+    systemPromptDescription: "",
     level: CourseLevel.BEGINNER,
     estimatedHours: "",
     passMarkPercentage: "70",
@@ -44,8 +44,8 @@ export default function NewCoursePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
+          systemPromptTitle: formData.systemPromptTitle,
+          systemPromptDescription: formData.systemPromptDescription,
           level: formData.level,
           estimatedHours: formData.estimatedHours ? parseInt(formData.estimatedHours) : null,
           passMarkPercentage: parseFloat(formData.passMarkPercentage),
@@ -96,34 +96,37 @@ export default function NewCoursePage() {
           )}
 
           <div>
-            <Label htmlFor="title">Course Title *</Label>
+            <Label htmlFor="systemPromptTitle">AI Generation Prompt - Topic/Title *</Label>
             <Input
-              id="title"
+              id="systemPromptTitle"
               type="text"
-              value={formData.title}
-              onChange={(e) => handleInputChange('title', e.target.value)}
-              placeholder="Enter course title"
+              value={formData.systemPromptTitle}
+              onChange={(e) => handleInputChange('systemPromptTitle', e.target.value)}
+              placeholder="e.g., 'Advanced Kubernetes Security Best Practices'"
               required
               className="mt-1"
             />
             <p className="text-xs text-gray-500 mt-1">
-              This will be used to generate the course URL slug
+              This prompt will guide the AI to generate an appropriate course title and structure.
+              Be specific about the topic and scope.
             </p>
           </div>
 
           <div>
-            <Label htmlFor="description">Course Description *</Label>
+            <Label htmlFor="systemPromptDescription">AI Generation Prompt - Detailed Requirements *</Label>
             <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Describe what this course covers, who it's for, and what students will learn"
+              id="systemPromptDescription"
+              value={formData.systemPromptDescription}
+              onChange={(e) => handleInputChange('systemPromptDescription', e.target.value)}
+              placeholder="Describe the course requirements, target audience, key topics to cover, learning objectives, and any specific technologies or concepts that must be included"
               required
-              rows={4}
+              rows={6}
               className="mt-1"
             />
             <p className="text-xs text-gray-500 mt-1">
-              This description will be used by AI to generate the course structure and content
+              This detailed prompt will guide the AI to generate comprehensive course content.
+              Include target audience, prerequisites, key topics, and desired outcomes.
+              The AI will use this to create an appropriate course title, description, and full curriculum.
             </p>
           </div>
 

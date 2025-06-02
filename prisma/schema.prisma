@@ -640,6 +640,11 @@ model Course {
   title               String
   slug                String               @unique
   description         String
+  
+  // System prompts used for AI generation
+  systemPromptTitle   String?              // The prompt title used for AI generation
+  systemPromptDescription String?          // The prompt description used for AI generation
+  
   level               CourseLevel
   status              CourseStatus         @default(DRAFT)
   estimatedHours      Int?

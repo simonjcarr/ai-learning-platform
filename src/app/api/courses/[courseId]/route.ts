@@ -5,7 +5,7 @@ import { CourseStatus } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -14,10 +14,12 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { courseId } = await params;
+
     // First check if course exists and user is enrolled
     const courseEnrollment = await prisma.courseEnrollment.findFirst({
       where: {
-        courseId: params.courseId,
+        courseId: courseId,
         user: {
           clerkUserId: userId,
         },
@@ -27,7 +29,7 @@ export async function GET(
     // Get the course first
     const course = await prisma.course.findUnique({
       where: { 
-        courseId: params.courseId,
+        courseId: courseId,
       },
       include: {
         createdBy: {
@@ -78,7 +80,7 @@ export async function GET(
           include: {
             progress: {
               orderBy: {
-                updatedAt: 'desc',
+                lastAccessedAt: 'desc',
               },
             },
           },

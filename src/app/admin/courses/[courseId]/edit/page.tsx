@@ -18,6 +18,8 @@ interface Course {
   title: string;
   slug: string;
   description: string;
+  systemPromptTitle?: string;
+  systemPromptDescription?: string;
   level: CourseLevel;
   status: CourseStatus;
   estimatedHours?: number;
@@ -44,6 +46,8 @@ export default function EditCoursePage({ params }: { params: Promise<{ courseId:
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    systemPromptTitle: '',
+    systemPromptDescription: '',
     level: CourseLevel.BEGINNER,
     status: CourseStatus.DRAFT,
     estimatedHours: 0,
@@ -71,6 +75,8 @@ export default function EditCoursePage({ params }: { params: Promise<{ courseId:
       setFormData({
         title: data.title,
         description: data.description,
+        systemPromptTitle: data.systemPromptTitle || '',
+        systemPromptDescription: data.systemPromptDescription || '',
         level: data.level,
         status: data.status,
         estimatedHours: data.estimatedHours || 0,
@@ -196,6 +202,39 @@ export default function EditCoursePage({ params }: { params: Promise<{ courseId:
               placeholder="Enter course description"
               rows={4}
             />
+          </div>
+
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-medium mb-4">AI Generation Settings</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="systemPromptTitle">AI Generation Prompt - Topic/Title</Label>
+                <Input
+                  id="systemPromptTitle"
+                  value={formData.systemPromptTitle}
+                  onChange={(e) => handleInputChange('systemPromptTitle', e.target.value)}
+                  placeholder="e.g., 'Advanced Kubernetes Security Best Practices'"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The topic/title prompt used by AI to generate course content
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="systemPromptDescription">AI Generation Prompt - Detailed Requirements</Label>
+                <Textarea
+                  id="systemPromptDescription"
+                  value={formData.systemPromptDescription}
+                  onChange={(e) => handleInputChange('systemPromptDescription', e.target.value)}
+                  placeholder="Detailed requirements for AI generation..."
+                  rows={4}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The detailed prompt used by AI to generate course structure and content
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

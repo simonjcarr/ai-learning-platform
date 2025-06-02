@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -13,6 +13,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { courseId } = await params;
     const body = await request.json();
     const { articleId, isCompleted, timeSpent } = body;
 
@@ -29,7 +30,7 @@ export async function POST(
     // Check if user is enrolled in the course
     const enrollment = await prisma.courseEnrollment.findFirst({
       where: {
-        courseId: params.courseId,
+        courseId: courseId,
         userId: user.userId,
       },
     });

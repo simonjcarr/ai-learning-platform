@@ -41,8 +41,8 @@ export async function POST(
     let jobData: any = {
       courseId,
       context: {
-        courseTitle: course.title,
-        courseDescription: course.description,
+        courseTitle: course.systemPromptTitle || course.title,
+        courseDescription: course.systemPromptDescription || course.description,
         courseLevel: course.level,
       },
     };

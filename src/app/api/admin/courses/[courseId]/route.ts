@@ -123,7 +123,7 @@ export async function PUT(
 
     const { courseId } = await params;
     const body = await request.json();
-    const { title, description, level, estimatedHours, passMarkPercentage, status } = body;
+    const { title, description, systemPromptTitle, systemPromptDescription, level, estimatedHours, passMarkPercentage, status } = body;
 
     // Check if course exists
     const existingCourse = await prisma.course.findUnique({
@@ -180,6 +180,8 @@ export async function PUT(
       data: {
         ...(title && { title, slug }),
         ...(description && { description }),
+        ...(systemPromptTitle !== undefined && { systemPromptTitle }),
+        ...(systemPromptDescription !== undefined && { systemPromptDescription }),
         ...(level && { level }),
         ...(estimatedHours !== undefined && { estimatedHours }),
         ...(passMarkPercentage !== undefined && { passMarkPercentage }),

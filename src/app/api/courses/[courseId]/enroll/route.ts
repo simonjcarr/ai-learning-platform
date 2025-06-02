@@ -5,7 +5,7 @@ import { CourseStatus } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -14,10 +14,12 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { courseId } = await params;
+
     // Check if course exists and is published
     const course = await prisma.course.findUnique({
       where: { 
-        courseId: params.courseId,
+        courseId: courseId,
         status: CourseStatus.PUBLISHED,
       },
       include: {
@@ -44,10 +46,9 @@ export async function POST(
       return NextResponse.json({ error: 'Course not found or not available' }, { status: 404 });
     }
 
-    // Get user info
+    // Check if user exists
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      select: { userId: true },
     });
 
     if (!user) {
@@ -57,8 +58,8 @@ export async function POST(
     // Check if user is already enrolled
     const existingEnrollment = await prisma.courseEnrollment.findFirst({
       where: {
-        courseId: params.courseId,
-        userId: user.userId,
+        courseId: courseId,
+        clerkUserId: userId,
       },
     });
 
@@ -71,8 +72,8 @@ export async function POST(
       // Create enrollment
       const enrollment = await tx.courseEnrollment.create({
         data: {
-          courseId: params.courseId,
-          userId: user.userId,
+          courseId: courseId,
+          clerkUserId: userId,
           enrolledAt: new Date(),
         },
       });
@@ -84,8 +85,7 @@ export async function POST(
           progressEntries.push({
             enrollmentId: enrollment.enrollmentId,
             articleId: article.articleId,
-            isCompleted: false,
-            timeSpent: 0,
+            clerkUserId: userId,
           });
         }
       }

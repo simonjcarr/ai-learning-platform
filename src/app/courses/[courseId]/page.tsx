@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { CourseLevel } from "@prisma/client";
 import Link from "next/link";
@@ -88,21 +88,24 @@ interface Course {
   progress: CourseProgress[];
 }
 
-export default function CourseDetailPage({ params }: { params: { courseId: string } }) {
+export default function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
   const { user } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEnrolling, setIsEnrolling] = useState(false);
 
+  // Unwrap the params promise
+  const { courseId } = use(params);
+
   useEffect(() => {
     fetchCourse();
-  }, [params.courseId]);
+  }, [courseId]);
 
   const fetchCourse = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/courses/${params.courseId}`);
+      const response = await fetch(`/api/courses/${courseId}`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -124,7 +127,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
   const handleEnroll = async () => {
     try {
       setIsEnrolling(true);
-      const response = await fetch(`/api/courses/${params.courseId}/enroll`, {
+      const response = await fetch(`/api/courses/${courseId}/enroll`, {
         method: 'POST',
       });
 
@@ -288,7 +291,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
                 {isEnrolling ? 'Enrolling...' : 'Enroll in Course'}
               </Button>
             ) : nextArticle ? (
-              <Link href={`/courses/${params.courseId}/articles/${nextArticle.article.articleId}`}>
+              <Link href={`/courses/${courseId}/articles/${nextArticle.article.articleId}`}>
                 <Button size="lg">
                   <Play className="h-4 w-4 mr-2" />
                   {course.progressPercentage === 0 ? 'Start Course' : 'Continue Learning'}
@@ -382,7 +385,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
                       </div>
                       
                       {isAccessible ? (
-                        <Link href={`/courses/${params.courseId}/articles/${article.articleId}`}>
+                        <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
                           <Button variant="outline" size="sm">
                             {isCompleted ? 'Review' : 'Start'}
                           </Button>

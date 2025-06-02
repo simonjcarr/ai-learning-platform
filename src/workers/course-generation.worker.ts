@@ -13,6 +13,8 @@ const connection = new Redis(redisUrl, {
 });
 
 interface CourseOutline {
+  title: string;
+  description: string;
   sections: Array<{
     title: string;
     description: string;
@@ -75,16 +77,25 @@ async function generateCourseOutline(courseId: string, context?: any) {
     throw new Error('Course not found');
   }
 
-  const prompt = `Create a comprehensive course outline for a ${course.level.toLowerCase()} level course.
+  // Use system prompts if available, otherwise fall back to title/description
+  const promptTitle = course.systemPromptTitle || course.title;
+  const promptDescription = course.systemPromptDescription || course.description;
 
-Course Title: ${course.title}
-Course Description: ${course.description}
+  const prompt = `Create a comprehensive course for a ${course.level.toLowerCase()} level audience.
+
+Topic/Requirements: ${promptTitle}
+Detailed Requirements: ${promptDescription}
 Target Audience: ${course.level}
 
-Please generate a detailed course outline with 4-8 sections. Each section should have 3-6 articles that break down the section content into manageable chunks.
+Please generate:
+1. An engaging course title that accurately reflects the content
+2. A detailed course description (2-3 paragraphs) that explains what students will learn, prerequisites, and outcomes
+3. A comprehensive course outline with 4-8 sections. Each section should have 3-6 articles that break down the section content into manageable chunks.
 
 Return the response as a valid JSON object with the following structure:
 {
+  "title": "Generated Course Title",
+  "description": "Detailed course description...",
   "sections": [
     {
       "title": "Section Title",
@@ -137,10 +148,12 @@ Return ONLY the JSON object, no additional text.`;
     throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
   }
 
-  // Store the outline in the course
+  // Store the outline and update the course title and description
   await prisma.course.update({
     where: { courseId },
     data: {
+      title: outline.title,
+      description: outline.description,
       courseOutlineJson: outline,
       generationStatus: CourseGenerationStatus.COMPLETED,
     },
@@ -319,10 +332,12 @@ Section: ${article.section.title}
 Article: ${article.title}
 Content: ${article.contentHtml.substring(0, 2000)}...
 
-Create questions that test understanding of the key concepts covered in this article. Use a mix of question types:
-- Multiple choice questions
-- True/false questions
-- Fill in the blank questions
+Create questions that test understanding of the key concepts covered in this article. Use a mix of question types.
+
+IMPORTANT: Use exactly these question type values:
+- "MULTIPLE_CHOICE" for multiple choice questions
+- "TRUE_FALSE" for true/false questions  
+- "FILL_IN_BLANK" for fill in the blank questions (NOT "FILL_IN_THE_BLANK")
 
 Return the response as a JSON object with this structure:
 {
@@ -344,6 +359,12 @@ Return the response as a JSON object with this structure:
       "question": "Statement to evaluate",
       "correctAnswer": "true",
       "explanation": "Explanation"
+    },
+    {
+      "type": "FILL_IN_BLANK",
+      "question": "The _____ command is used to list files in Linux",
+      "correctAnswer": "ls",
+      "explanation": "The ls command lists directory contents"
     }
   ]
 }
@@ -386,10 +407,23 @@ Return ONLY the JSON object.`;
   for (let i = 0; i < quizData.questions.length; i++) {
     const questionData = quizData.questions[i];
     
+    // Map AI-generated question types to database enum values
+    let questionType = questionData.type;
+    if (questionType === 'FILL_IN_THE_BLANK') {
+      questionType = 'FILL_IN_BLANK';
+    }
+    
+    // Validate question type
+    const validTypes = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_BLANK', 'ESSAY'];
+    if (!validTypes.includes(questionType)) {
+      console.error(`Invalid question type: ${questionType}, defaulting to MULTIPLE_CHOICE`);
+      questionType = 'MULTIPLE_CHOICE';
+    }
+    
     await prisma.courseQuizQuestion.create({
       data: {
         quizId: quiz.quizId,
-        questionType: questionData.type,
+        questionType: questionType as any,
         questionText: questionData.question,
         optionsJson: questionData.options || null,
         correctAnswer: questionData.correctAnswer,

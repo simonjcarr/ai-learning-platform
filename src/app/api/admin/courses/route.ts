@@ -104,12 +104,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, level, estimatedHours, passMarkPercentage } = body;
+    const { systemPromptTitle, systemPromptDescription, level, estimatedHours, passMarkPercentage } = body;
 
     // Validate required fields
-    if (!title || !description || !level) {
+    if (!systemPromptTitle || !systemPromptDescription || !level) {
       return NextResponse.json(
-        { error: 'Title, description, and level are required' },
+        { error: 'System prompt title, description, and level are required' },
         { status: 400 }
       );
     }
@@ -122,30 +122,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate slug from title
-    const slug = title
+    // Generate a temporary slug from the system prompt title
+    const tempSlug = systemPromptTitle
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-    // Check if slug already exists
-    const existingCourse = await prisma.course.findUnique({
-      where: { slug },
-    });
-
-    if (existingCourse) {
-      return NextResponse.json(
-        { error: 'A course with this title already exists' },
-        { status: 400 }
-      );
+    // Make slug unique by adding a timestamp if needed
+    let slug = tempSlug;
+    let counter = 1;
+    while (await prisma.course.findUnique({ where: { slug } })) {
+      slug = `${tempSlug}-${counter}`;
+      counter++;
     }
 
-    // Create the course
+    // Create the course with temporary title/description and system prompts
     const course = await prisma.course.create({
       data: {
-        title,
+        title: `Course: ${systemPromptTitle}`, // Temporary title
         slug,
-        description,
+        description: 'Course description pending AI generation...', // Temporary description
+        systemPromptTitle,
+        systemPromptDescription,
         level,
         estimatedHours: estimatedHours || null,
         passMarkPercentage: passMarkPercentage || 70.0,
@@ -163,13 +161,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Queue the course outline generation
+    // Queue the course outline generation with system prompts
     await addCourseGenerationToQueue({
       courseId: course.courseId,
       jobType: 'outline',
       context: {
-        courseTitle: title,
-        courseDescription: description,
+        courseTitle: systemPromptTitle,
+        courseDescription: systemPromptDescription,
         courseLevel: level,
       },
     });
