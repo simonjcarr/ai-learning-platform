@@ -7,6 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { Copy, Check } from 'lucide-react';
 import 'highlight.js/styles/github-dark.css';
 import YouTubeEmbed from './youtube-embed';
+import MermaidDiagram from './mermaid-diagram';
 
 interface MarkdownViewerProps {
   content: string;
@@ -74,6 +75,15 @@ export default function MarkdownViewer({ content, removeFirstHeading = false }: 
         rehypePlugins={[rehypeHighlight]}
         components={{
         pre: ({ children, ...props }) => {
+          // Check if this is a Mermaid diagram
+          const codeElement = Array.isArray(children) ? children[0] : children;
+          if (codeElement?.props?.className?.includes('language-mermaid')) {
+            const diagramCode = Array.isArray(codeElement.props.children) 
+              ? codeElement.props.children.join('') 
+              : String(codeElement.props.children || '');
+            return <MermaidDiagram chart={diagramCode.trim()} />;
+          }
+
           // Extract text content from the code element
           const extractTextContent = (element: React.ReactNode): string => {
             if (typeof element === 'string') {
