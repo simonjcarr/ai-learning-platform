@@ -112,22 +112,6 @@ export default async function ArticlePage({ params }: PageProps) {
           tag: true
         }
       },
-      courseArticles: {
-        include: {
-          section: {
-            include: {
-              course: {
-                select: {
-                  courseId: true,
-                  title: true,
-                  slug: true,
-                  level: true,
-                },
-              },
-            },
-          },
-        },
-      },
     }
   });
 

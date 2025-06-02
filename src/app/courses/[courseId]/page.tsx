@@ -288,7 +288,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
                 {isEnrolling ? 'Enrolling...' : 'Enroll in Course'}
               </Button>
             ) : nextArticle ? (
-              <Link href={`/articles/${nextArticle.article.articleId}`}>
+              <Link href={`/courses/${params.courseId}/articles/${nextArticle.article.articleId}`}>
                 <Button size="lg">
                   <Play className="h-4 w-4 mr-2" />
                   {course.progressPercentage === 0 ? 'Start Course' : 'Continue Learning'}
@@ -382,7 +382,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
                       </div>
                       
                       {isAccessible ? (
-                        <Link href={`/articles/${article.articleId}`}>
+                        <Link href={`/courses/${params.courseId}/articles/${article.articleId}`}>
                           <Button variant="outline" size="sm">
                             {isCompleted ? 'Review' : 'Start'}
                           </Button>

@@ -14,10 +14,20 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // First check if course exists and user is enrolled
+    const courseEnrollment = await prisma.courseEnrollment.findFirst({
+      where: {
+        courseId: params.courseId,
+        user: {
+          clerkUserId: userId,
+        },
+      },
+    });
+
+    // Get the course first
     const course = await prisma.course.findUnique({
       where: { 
         courseId: params.courseId,
-        status: CourseStatus.PUBLISHED,
       },
       include: {
         createdBy: {
@@ -83,6 +93,14 @@ export async function GET(
     });
 
     if (!course) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+
+    // Check access permissions: allow if course is published OR user is enrolled
+    const isPublished = course.status === CourseStatus.PUBLISHED;
+    const isEnrolled = courseEnrollment !== null;
+    
+    if (!isPublished && !isEnrolled) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 

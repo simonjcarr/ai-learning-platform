@@ -15,5 +15,6 @@ console.log('Environment check:', {
 
 import './email.worker';
 import './sitemap.worker';
+import './course-generation.worker';
 
-console.log('Email and sitemap workers started and listening for jobs...');
+console.log('Email, sitemap, and course generation workers started and listening for jobs...');

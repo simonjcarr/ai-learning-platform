@@ -1104,6 +1104,73 @@ RULES:
   }
 };
 
+// Generic callAI function for workers and other use cases
+export async function callAI(
+  interactionTypeName: string,
+  prompt: string,
+  contextData?: Record<string, unknown>,
+  clerkUserId: string | null = null
+): Promise<string> {
+  const startTime = new Date();
+  let result, error;
+  
+  try {
+    const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction(interactionTypeName);
+    const aiModel = await createProviderForModel(model.modelId);
+    
+    result = await generateText({
+      model: aiModel,
+      system: systemPrompt || undefined,
+      prompt,
+      temperature,
+      maxTokens,
+    });
+    
+    const endTime = new Date();
+    
+    // Track the interaction
+    await trackAIInteraction(
+      model.modelId,
+      interactionType.typeId,
+      clerkUserId,
+      result.usage?.promptTokens || 0,
+      result.usage?.completionTokens || 0,
+      startTime,
+      endTime,
+      contextData,
+      prompt,
+      result.text
+    );
+    
+    return result.text;
+  } catch (err) {
+    error = err;
+    const endTime = new Date();
+    
+    // Try to get model info for error tracking
+    try {
+      const { model, interactionType } = await getModelForInteraction(interactionTypeName);
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        0,
+        0,
+        startTime,
+        endTime,
+        contextData,
+        prompt,
+        undefined,
+        String(err)
+      );
+    } catch (trackingError) {
+      console.error('Failed to track error:', trackingError);
+    }
+    
+    throw error;
+  }
+}
+
 // Export utility functions
 export { createProviderForModel, getModelForInteraction, trackAIInteraction };
 

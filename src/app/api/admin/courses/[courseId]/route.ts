@@ -6,7 +6,7 @@ import { addCourseGenerationToQueue } from '@/lib/bullmq';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -25,8 +25,10 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { courseId } = await params;
+    
     const course = await prisma.course.findUnique({
-      where: { courseId: params.courseId },
+      where: { courseId },
       include: {
         createdBy: {
           select: {
@@ -100,7 +102,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -119,12 +121,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { courseId } = await params;
     const body = await request.json();
     const { title, description, level, estimatedHours, passMarkPercentage, status } = body;
 
     // Check if course exists
     const existingCourse = await prisma.course.findUnique({
-      where: { courseId: params.courseId },
+      where: { courseId },
     });
 
     if (!existingCourse) {
@@ -159,7 +162,7 @@ export async function PUT(
       const slugExists = await prisma.course.findFirst({
         where: {
           slug,
-          courseId: { not: params.courseId },
+          courseId: { not: courseId },
         },
       });
 
@@ -173,7 +176,7 @@ export async function PUT(
 
     // Update the course
     const updatedCourse = await prisma.course.update({
-      where: { courseId: params.courseId },
+      where: { courseId },
       data: {
         ...(title && { title, slug }),
         ...(description && { description }),
@@ -206,7 +209,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -225,9 +228,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { courseId } = await params;
+    
     // Check if course exists
     const course = await prisma.course.findUnique({
-      where: { courseId: params.courseId },
+      where: { courseId },
       include: {
         enrollments: true,
       },
@@ -247,7 +252,7 @@ export async function DELETE(
 
     // Delete the course (cascade will handle sections, articles, etc.)
     await prisma.course.delete({
-      where: { courseId: params.courseId },
+      where: { courseId },
     });
 
     return NextResponse.json({ success: true });

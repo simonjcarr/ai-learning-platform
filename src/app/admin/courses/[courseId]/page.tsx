@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Role, CourseLevel, CourseStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
@@ -80,12 +80,15 @@ interface Course {
   }>;
 }
 
-export default function CourseDetailPage({ params }: { params: { courseId: string } }) {
+export default function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
   const { hasMinRole } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // Unwrap the params promise
+  const { courseId } = use(params);
 
   // Check permissions
   if (!hasMinRole(Role.ADMIN)) {
@@ -94,12 +97,12 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
 
   useEffect(() => {
     fetchCourse();
-  }, [params.courseId]);
+  }, [courseId]);
 
   const fetchCourse = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/admin/courses/${params.courseId}`);
+      const response = await fetch(`/api/admin/courses/${courseId}`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -120,7 +123,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
   const regenerateContent = async (type: string, articleId?: string, sectionId?: string) => {
     try {
       setIsRegenerating(true);
-      const response = await fetch(`/api/admin/courses/${params.courseId}/regenerate`, {
+      const response = await fetch(`/api/admin/courses/${courseId}/regenerate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -374,7 +377,7 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
                       </div>
                       <div className="flex space-x-1">
                         {article.isGenerated && (
-                          <Link href={`/articles/${article.articleId}`} target="_blank">
+                          <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
                             <Button variant="outline" size="sm">
                               <Eye className="h-4 w-4" />
                             </Button>

@@ -117,8 +117,23 @@ Return ONLY the JSON object, no additional text.`;
 
   let outline: CourseOutline;
   try {
-    outline = JSON.parse(response);
+    // Clean up the response by removing any markdown code block wrappers
+    let cleanedResponse = response.trim();
+    
+    // Remove markdown code block wrappers if present
+    if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
+      cleanedResponse = cleanedResponse.slice(8, -4).trim();
+    } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
+      cleanedResponse = cleanedResponse.slice(4, -4).trim();
+    } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
+      cleanedResponse = cleanedResponse.slice(7, -3).trim();
+    } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
+      cleanedResponse = cleanedResponse.slice(3, -3).trim();
+    }
+    
+    outline = JSON.parse(cleanedResponse);
   } catch (parseError) {
+    console.error('Raw AI response:', response);
     throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
   }
 
@@ -215,7 +230,7 @@ Please write detailed, educational content that:
 - Covers the topic thoroughly with practical examples
 - Uses clear explanations and step-by-step instructions where applicable
 - Includes code examples if relevant to the subject matter
-- Uses proper HTML formatting with headings, paragraphs, lists, and code blocks
+- Uses proper Markdown formatting with headings, paragraphs, lists, and code blocks
 - Is engaging and educational
 - Builds upon previous concepts appropriately
 
@@ -226,7 +241,7 @@ The content should be substantial (at least 1000 words) and include:
 4. Best practices and common pitfalls
 5. Summary and next steps
 
-Return the content as properly formatted HTML suitable for educational purposes.`;
+Return the content as properly formatted Markdown suitable for educational purposes. Start directly with the title using # heading and use proper Markdown formatting throughout.`;
 
   const content = await callAI('course_article_generation', prompt, {
     courseId,
@@ -238,11 +253,23 @@ Return the content as properly formatted HTML suitable for educational purposes.
     articleTitle: article.title,
   });
 
+  // Clean up any markdown code block wrappers in content
+  let cleanedContent = content.trim();
+  if (cleanedContent.startsWith('```markdown\n') && cleanedContent.endsWith('\n```')) {
+    cleanedContent = cleanedContent.slice(12, -4).trim();
+  } else if (cleanedContent.startsWith('```\n') && cleanedContent.endsWith('\n```')) {
+    cleanedContent = cleanedContent.slice(4, -4).trim();
+  } else if (cleanedContent.startsWith('```markdown') && cleanedContent.endsWith('```')) {
+    cleanedContent = cleanedContent.slice(11, -3).trim();
+  } else if (cleanedContent.startsWith('```') && cleanedContent.endsWith('```')) {
+    cleanedContent = cleanedContent.slice(3, -3).trim();
+  }
+
   // Update the article with generated content
   await prisma.courseArticle.update({
     where: { articleId },
     data: {
-      contentHtml: content,
+      contentHtml: cleanedContent,
       isGenerated: true,
       generatedAt: new Date(),
     },
@@ -328,7 +355,21 @@ Return ONLY the JSON object.`;
     courseId: course.courseId,
   });
 
-  const quizData = JSON.parse(response);
+  // Clean up the response by removing any markdown code block wrappers
+  let cleanedResponse = response.trim();
+  
+  // Remove markdown code block wrappers if present
+  if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(8, -4).trim();
+  } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(4, -4).trim();
+  } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(7, -3).trim();
+  } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(3, -3).trim();
+  }
+  
+  const quizData = JSON.parse(cleanedResponse);
 
   // Create the quiz
   const quiz = await prisma.courseQuiz.create({

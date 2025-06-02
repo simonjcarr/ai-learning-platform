@@ -6,7 +6,7 @@ import { addCourseGenerationToQueue } from '@/lib/bullmq';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -25,12 +25,13 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const { courseId } = await params;
     const body = await request.json();
     const { type, articleId, sectionId } = body;
 
     // Check if course exists
     const course = await prisma.course.findUnique({
-      where: { courseId: params.courseId },
+      where: { courseId },
     });
 
     if (!course) {
@@ -38,7 +39,7 @@ export async function POST(
     }
 
     let jobData: any = {
-      courseId: params.courseId,
+      courseId,
       context: {
         courseTitle: course.title,
         courseDescription: course.description,
@@ -50,7 +51,7 @@ export async function POST(
       case 'outline':
         // Regenerate course outline
         await prisma.course.update({
-          where: { courseId: params.courseId },
+          where: { courseId },
           data: {
             generationStatus: CourseGenerationStatus.PENDING,
             generationError: null,
