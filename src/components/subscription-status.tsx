@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearSubscriptionCache } from '@/lib/cache-clear';
 // Dynamic tiers will be fetched from the API
 
 interface SubscriptionStatus {
@@ -25,7 +26,19 @@ export function SubscriptionStatus() {
 
   const fetchSubscriptionStatus = async () => {
     try {
-      const response = await fetch('/api/subscription/status');
+      // Clear ALL subscription cache aggressively
+      clearSubscriptionCache();
+      
+      // Add cache-busting query parameter and headers to ensure fresh data
+      const cacheBuster = `?t=${Date.now()}`;
+      const response = await fetch(`/api/subscription/status${cacheBuster}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       const data = await response.json();
       
       if (!response.ok && response.status === 404) {
@@ -38,7 +51,8 @@ export function SubscriptionStatus() {
         if (syncResponse.ok) {
           console.log('User synced successfully, fetching subscription status again...');
           // Try fetching subscription status again
-          const retryResponse = await fetch('/api/subscription/status');
+          const retryCacheBuster = `?t=${Date.now()}`;
+          const retryResponse = await fetch(`/api/subscription/status${retryCacheBuster}`);
           const retryData = await retryResponse.json();
           setSubscription(retryData);
           return;
@@ -163,6 +177,17 @@ export function SubscriptionStatus() {
               Upgrade Plan
             </button>
           )}
+          
+          <button
+            onClick={() => {
+              setLoading(true);
+              fetchSubscriptionStatus();
+            }}
+            disabled={loading}
+            className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 disabled:opacity-50 text-sm"
+          >
+            {loading ? 'Refreshing...' : 'Refresh Status'}
+          </button>
         </div>
       </div>
     </div>

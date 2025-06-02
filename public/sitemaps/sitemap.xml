@@ -25,6 +25,18 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/mounting-and-unmounting-filesystems-in-linux-a-practical-guide</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/understanding-docker-images-layers-storage-and-best-practices</loc>
+      <lastmod>2025-06-01</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/building-docker-images-a-step-by-step-guide-to-dockerfiles</loc>
       <lastmod>2025-06-01</lastmod>
       <changefreq>weekly</changefreq>

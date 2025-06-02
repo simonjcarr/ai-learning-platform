@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 // import { useRouter } from "next/navigation";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useRedirectUrl } from "@/hooks/use-redirect-url";
+import { useFeatureAccess, useFeatureUsage } from "@/hooks/use-feature-access";
 import { Loader2, BookOpen, Sparkles, CreditCard, MoreVertical, BookmarkPlus, Check, Plus, X, Flag } from "lucide-react";
 import Link from "next/link";
 import InteractiveExamples from "./interactive-examples";
@@ -71,14 +72,25 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const { isSignedIn } = useUser();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const { signInWithRedirect } = useRedirectUrl();
+  
+  // Feature access hooks
+  const { access: contentAccess, loading: contentAccessLoading } = useFeatureAccess('generate_article_content');
+  const { usage: generationUsage, loading: usageLoading } = useFeatureUsage('daily_article_generation_limit', 'daily');
 
 
   useEffect(() => {
-    if (!article.isContentGenerated && !article.contentHtml && isSignedIn && isSubscribed) {
+    // Auto-generate content if user has access and usage available
+    if (!article.isContentGenerated && 
+        !article.contentHtml && 
+        isSignedIn && 
+        contentAccess?.hasAccess && 
+        generationUsage?.hasAccess && 
+        !contentAccessLoading && 
+        !usageLoading) {
       generateContent();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [article.isContentGenerated, article.contentHtml, isSignedIn, isSubscribed]);
+  }, [article.isContentGenerated, article.contentHtml, isSignedIn, contentAccess?.hasAccess, generationUsage?.hasAccess, contentAccessLoading, usageLoading]);
 
   useEffect(() => {
     // Track article view when component mounts and user is signed in
@@ -111,6 +123,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const generateContent = async () => {
     setGenerating(true);
     setError(null);
+    setSubscriptionError(false);
 
     try {
       const response = await fetch(`/api/articles/${article.articleId}/generate`, {
@@ -119,15 +132,24 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
 
       if (!response.ok) {
         const data = await response.json();
-        if (response.status === 403 && data.error === "Subscription required") {
+        if (response.status === 403) {
           setSubscriptionError(true);
-          throw new Error(data.message || "Subscription required");
+          throw new Error(data.error || "Access required");
+        }
+        if (response.status === 429) {
+          // Usage limit reached
+          throw new Error(data.error || "Daily generation limit reached");
         }
         throw new Error(data.error || "Failed to generate content");
       }
 
       const data = await response.json();
       setArticle(data.article);
+      
+      // Refetch usage after successful generation
+      setTimeout(() => {
+        window.location.reload(); // Simple way to refresh the usage data
+      }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -297,14 +319,42 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         </>
       ) : (
         <div className="text-center py-20">
-          {subscriptionError ? (
+          <Sparkles className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Content Generation
+          </h3>
+          
+          {/* Show loading state while checking access */}
+          {(contentAccessLoading || usageLoading || isLoadingSubscription) ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+              <span className="ml-2 text-sm text-gray-600">Checking access...</span>
+            </div>
+          ) : !isSignedIn ? (
+            // User not signed in
+            <>
+              <p className="text-gray-600 mb-2">
+                Sign in to generate article content
+              </p>
+              <p className="text-orange-600 mb-4 text-sm">
+                You need to login to generate articles.
+              </p>
+              <Link
+                href={signInWithRedirect}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Sign In to Generate Content
+              </Link>
+            </>
+          ) : subscriptionError || !contentAccess?.hasAccess ? (
+            // User has no access to feature at all
             <>
               <CreditCard className="mx-auto h-12 w-12 text-blue-600 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Subscription Required
               </h3>
               <p className="text-gray-600 mb-4 max-w-md mx-auto">
-                To access AI-generated content and unlock all platform features, please subscribe to one of our plans.
+                Article generation requires a subscription plan. Upgrade to unlock AI-generated content.
               </p>
               <div className="space-y-3">
                 <Link
@@ -318,66 +368,64 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                 </p>
               </div>
             </>
-          ) : (
+          ) : !generationUsage?.hasAccess ? (
+            // User has access but hit usage limits
             <>
-              <Sparkles className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <CreditCard className="mx-auto h-12 w-12 text-orange-600 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Pending Content Generation
+                Article Generation Limit Reached
               </h3>
               <p className="text-gray-600 mb-2">
-                Content will be generated when you open this article
+                You have used {generationUsage?.currentUsage || 0} of {generationUsage?.limit || 0} daily generations.
               </p>
-              {!isSignedIn ? (
-                <>
-                  <p className="text-orange-600 mb-4 text-sm">
-                    You need to login to generate articles.
-                  </p>
-                  <Link
-                    href={signInWithRedirect}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    Sign In to Generate Content
-                  </Link>
-                </>
-              ) : isLoadingSubscription ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-                  <span className="ml-2 text-sm text-gray-600">Checking subscription...</span>
-                </div>
-              ) : !isSubscribed ? (
-                <>
-                  <p className="text-orange-600 mb-4 text-sm">
-                    Please subscribe to generate content.
-                  </p>
-                  <div className="space-y-2">
-                    <Link
-                      href="/pricing"
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                    >
-                      View Subscription Plans
-                    </Link>
-                    <button
-                      onClick={generateContent}
-                      className="block mx-auto px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                      Try Generate Content
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-600 mb-4">
-                    This article&apos;s content will be generated automatically.
-                  </p>
-                  <button
-                    onClick={generateContent}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    Generate Content Now
-                  </button>
-                </>
-              )}
+              <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                Upgrade your plan for more daily generations or wait until tomorrow for your limit to reset.
+              </p>
+              <div className="space-y-3">
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  Upgrade for More Generations
+                </Link>
+                <p className="text-sm text-gray-500">
+                  Limits reset daily at midnight UTC
+                </p>
+              </div>
             </>
+          ) : (
+            // User has access and usage available
+            <>
+              <p className="text-gray-600 mb-2">
+                This article&apos;s content will be generated with AI
+              </p>
+              {generationUsage && (
+                <p className="text-sm text-gray-500 mb-4">
+                  {generationUsage.remaining} of {generationUsage.limit} daily generations remaining
+                </p>
+              )}
+              <button
+                onClick={generateContent}
+                disabled={generating}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Content'
+                )}
+              </button>
+            </>
+          )}
+          
+          {/* Show error message */}
+          {error && !subscriptionError && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 max-w-md mx-auto">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
           )}
         </div>
       )}

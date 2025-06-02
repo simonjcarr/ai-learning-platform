@@ -29,6 +29,7 @@ export function useSubscription() {
     const cached = getCachedSubscription();
     return !cached || !isLoaded || !isSignedIn;
   });
+  const [forceRefresh, setForceRefresh] = useState(false);
 
   useEffect(() => {
     async function fetchSubscriptionStatus() {
@@ -53,6 +54,14 @@ export function useSubscription() {
         return;
       }
 
+      // Check if we should use cached data (unless forced refresh)
+      const cached = getCachedSubscription();
+      if (cached && !forceRefresh) {
+        setSubscription(cached);
+        setIsLoadingSubscription(false);
+        return;
+      }
+
       try {
         const response = await fetch("/api/subscription/status");
         if (response.ok) {
@@ -69,6 +78,7 @@ export function useSubscription() {
           if (typeof window !== 'undefined') {
             sessionStorage.setItem('userSubscription', JSON.stringify(subscriptionStatus));
           }
+          setForceRefresh(false); // Reset force refresh flag
         } else {
           const freeSubscription: SubscriptionStatus = {
             tier: 'FREE',
@@ -100,13 +110,19 @@ export function useSubscription() {
     }
 
     fetchSubscriptionStatus();
-  }, [user, isSignedIn, isLoaded]);
+  }, [user, isSignedIn, isLoaded, forceRefresh]);
 
   const isSubscribed = subscription?.isActive && subscription?.tier !== 'FREE';
+
+  const refreshSubscription = () => {
+    setForceRefresh(true);
+    setIsLoadingSubscription(true);
+  };
 
   return {
     subscription,
     isLoadingSubscription,
     isSubscribed,
+    refreshSubscription,
   };
 }
