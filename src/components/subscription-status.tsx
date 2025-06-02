@@ -24,6 +24,7 @@ interface UsageInfo {
 interface UsageStats {
   dailyAIChats: UsageInfo;
   articleGeneration: UsageInfo;
+  exampleQuestions: UsageInfo;
   monthlyDownloads: UsageInfo;
 }
 
@@ -75,10 +76,8 @@ export function SubscriptionStatus() {
       
       setSubscription(data);
       
-      // Fetch usage statistics for non-free tiers
-      if (data.tier !== 'FREE' && data.isActive) {
-        await fetchUsageStats();
-      }
+      // Fetch usage statistics for all users to show limits
+      await fetchUsageStats();
     } catch (error) {
       console.error('Failed to fetch subscription status:', error);
     } finally {
@@ -88,9 +87,10 @@ export function SubscriptionStatus() {
 
   const fetchUsageStats = async () => {
     try {
-      const [dailyChats, articleGen, monthlyDownloads] = await Promise.all([
+      const [dailyChats, articleGen, exampleQuestions, monthlyDownloads] = await Promise.all([
         fetch('/api/features/daily_ai_chat_limit/usage?period=daily').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/features/daily_article_generation_limit/usage?period=daily').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/features/generate_example_questions/usage?period=daily').then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('/api/features/monthly_download_limit/usage?period=monthly').then(r => r.ok ? r.json() : null).catch(() => null)
       ]);
 
@@ -99,6 +99,7 @@ export function SubscriptionStatus() {
       setUsageStats({
         dailyAIChats: dailyChats?.usage || defaultUsage,
         articleGeneration: articleGen?.usage || { ...defaultUsage, period: 'daily' },
+        exampleQuestions: exampleQuestions?.usage || { ...defaultUsage, period: 'daily' },
         monthlyDownloads: monthlyDownloads?.usage || { ...defaultUsage, period: 'monthly' }
       });
     } catch (error) {
@@ -107,6 +108,7 @@ export function SubscriptionStatus() {
       setUsageStats({
         dailyAIChats: defaultUsage,
         articleGeneration: defaultUsage,
+        exampleQuestions: defaultUsage,
         monthlyDownloads: { ...defaultUsage, period: 'monthly' }
       });
     }
@@ -234,46 +236,50 @@ export function SubscriptionStatus() {
                 </p>
               </div>
             )}
-
-            {/* Usage Statistics */}
-            {subscription.isActive && usageStats && (
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Usage This Period</h4>
-                <div className="space-y-2">
-                  {(usageStats.dailyAIChats.hasAccess && usageStats.dailyAIChats.limit !== 0) && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Daily AI Chats:</span>
-                      <span className={`text-sm font-medium ${
-                        getUsageColor(usageStats.dailyAIChats)
-                      }`}>
-                        {formatUsage(usageStats.dailyAIChats)}
-                      </span>
-                    </div>
-                  )}
-                  {(usageStats.articleGeneration.hasAccess && usageStats.articleGeneration.limit !== 0) && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Daily Article Generation:</span>
-                      <span className={`text-sm font-medium ${
-                        getUsageColor(usageStats.articleGeneration)
-                      }`}>
-                        {formatUsage(usageStats.articleGeneration)}
-                      </span>
-                    </div>
-                  )}
-                  {(usageStats.monthlyDownloads.hasAccess && usageStats.monthlyDownloads.limit !== 0) && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Monthly Downloads:</span>
-                      <span className={`text-sm font-medium ${
-                        getUsageColor(usageStats.monthlyDownloads)
-                      }`}>
-                        {formatUsage(usageStats.monthlyDownloads)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </>
+        )}
+
+        {/* Usage Statistics - Show for all users */}
+        {usageStats && (
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">
+              {subscription.tier === 'FREE' ? 'Available with Paid Plans' : 'Usage This Period'}
+            </h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Daily AI Chats:</span>
+                <span className={`text-sm font-medium ${
+                  getUsageColor(usageStats.dailyAIChats)
+                }`}>
+                  {formatUsage(usageStats.dailyAIChats)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Daily Article Generation:</span>
+                <span className={`text-sm font-medium ${
+                  getUsageColor(usageStats.articleGeneration)
+                }`}>
+                  {formatUsage(usageStats.articleGeneration)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Daily Example Questions:</span>
+                <span className={`text-sm font-medium ${
+                  getUsageColor(usageStats.exampleQuestions)
+                }`}>
+                  {formatUsage(usageStats.exampleQuestions)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Monthly Downloads:</span>
+                <span className={`text-sm font-medium ${
+                  getUsageColor(usageStats.monthlyDownloads)
+                }`}>
+                  {formatUsage(usageStats.monthlyDownloads)}
+                </span>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="pt-4 space-y-2">

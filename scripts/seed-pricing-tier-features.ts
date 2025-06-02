@@ -80,7 +80,7 @@ async function main() {
       "view_article_analytics": { enabled: true },
       "view_change_history": { enabled: true },
       "generate_article_content": { enabled: true },
-      "generate_example_questions": { enabled: true },
+      "generate_example_questions": { enabled: true, limitValue: 5 },
       "priority_support": { enabled: true },
       "daily_ai_chat_limit": { enabled: true, limitValue: 200 },
       "daily_article_generation_limit": { enabled: true, limitValue: 5 },
