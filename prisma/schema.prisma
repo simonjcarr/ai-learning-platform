@@ -44,6 +44,8 @@ model User {
   quizAttempts                 CourseQuizAttempt[]
   courseCertificates           CourseCertificate[]
   createdCourses               Course[]               @relation("CreatedCourses")
+  courseArticleChangeHistories CourseArticleChangeHistory[]
+  courseRollbackChangeHistories CourseArticleChangeHistory[] @relation("CourseRollbackUser")
 
   @@map("users")
 }
@@ -708,6 +710,7 @@ model CourseArticle {
   section       CourseSection @relation(fields: [sectionId], references: [sectionId], onDelete: Cascade)
   quizzes       CourseQuiz[]
   progress      CourseProgress[]
+  changeHistory CourseArticleChangeHistory[]
 
   @@unique([sectionId, orderIndex])
   @@index([sectionId])
@@ -850,6 +853,34 @@ model CourseCertificate {
   @@index([courseId])
   @@index([clerkUserId])
   @@map("course_certificates")
+}
+
+model CourseArticleChangeHistory {
+  id                String        @id @default(cuid())
+  articleId         String
+  clerkUserId       String
+  diff              String
+  beforeContent     String
+  afterContent      String
+  changeType        String
+  description       String
+  suggestionType    String?
+  suggestionDetails String?
+  isActive          Boolean       @default(true)
+  rolledBackAt      DateTime?
+  rolledBackBy      String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  article           CourseArticle @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  user              User          @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  rollbackUser      User?         @relation("CourseRollbackUser", fields: [rolledBackBy], references: [clerkUserId])
+
+  @@index([articleId])
+  @@index([clerkUserId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("course_article_change_histories")
 }
 
 enum FeatureType {

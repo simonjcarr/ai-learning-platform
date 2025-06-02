@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Role, CourseLevel, CourseStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download } from "lucide-react";
+import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download, Sparkles, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -410,43 +410,64 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Articles</h4>
                   {section.articles.map((article, articleIndex) => (
-                    <div key={article.articleId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm text-gray-500 w-6">
-                          {articleIndex + 1}.
-                        </span>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">
-                            {article.title}
-                          </p>
-                          {article.description && (
-                            <p className="text-xs text-gray-600">{article.description}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {article.isGenerated ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-yellow-600" />
-                          )}
-                          <span className="text-xs text-gray-500">
-                            {article.isGenerated ? 'Generated' : 'Not generated'}
-                          </span>
-                        </div>
+                    <div key={article.articleId} className="flex items-center p-3 bg-gray-50 rounded-lg gap-4">
+                      {/* Article number */}
+                      <span className="text-sm text-gray-500 w-4 flex-shrink-0">
+                        {articleIndex + 1}.
+                      </span>
+                      
+                      {/* Article title and description */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {article.title}
+                        </p>
+                        {article.description && (
+                          <p className="text-xs text-gray-600 line-clamp-1">{article.description}</p>
+                        )}
                       </div>
-                      <div className="flex space-x-1">
+                      
+                      {/* Status indicator */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {article.isGenerated ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                        )}
+                        <span className="text-xs text-gray-500 w-20">
+                          {article.isGenerated ? 'Generated' : 'Not generated'}
+                        </span>
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         {article.isGenerated && (
                           <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" title="View">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
                         )}
+                        <Link href={`/admin/courses/${courseId}/articles/${article.articleId}/edit`}>
+                          <Button variant="outline" size="sm" title="Edit">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Link href={`/admin/courses/${courseId}/articles/${article.articleId}/suggest`}>
+                          <Button variant="outline" size="sm" title="AI Suggest">
+                            <Sparkles className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Link href={`/admin/courses/${courseId}/articles/${article.articleId}/changes`}>
+                          <Button variant="outline" size="sm" title="View History">
+                            <History className="h-4 w-4" />
+                          </Button>
+                        </Link>
                         <Button
                           onClick={() => regenerateContent('article_content', article.articleId)}
                           disabled={isRegenerating}
                           variant="outline"
                           size="sm"
+                          title="Regenerate"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </Button>
@@ -455,6 +476,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                           disabled={isRegenerating}
                           variant="outline"
                           size="sm"
+                          title="Generate Quiz"
                         >
                           Quiz
                         </Button>
