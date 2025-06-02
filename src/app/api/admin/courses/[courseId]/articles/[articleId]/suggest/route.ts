@@ -57,8 +57,8 @@ export async function POST(
     console.log(`Starting AI validation for course article ${articleId} (${courseArticle.contentHtml?.length || 0} chars)`);
     
     try {
-      // Use the same AI validation as regular articles
-      aiValidation = await aiService.validateArticleSuggestion(
+      // Use the special course article validation that allows external links
+      aiValidation = await aiService.validateCourseArticleSuggestion(
         courseArticle.title,
         courseArticle.contentHtml || '',
         suggestionType,

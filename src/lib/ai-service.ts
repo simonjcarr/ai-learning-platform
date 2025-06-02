@@ -1101,6 +1101,143 @@ RULES:
     return await prisma.aIModel.delete({
       where: { modelId }
     });
+  },
+
+  async validateCourseArticleSuggestion(articleTitle: string, articleContent: string, suggestionType: string, suggestionDetails: string, clerkUserId: string | null = null) {
+    // This is a special version for course articles that allows external links and YouTube videos
+    const hardcodedSystemPrompt = `You are an AI assistant helping to validate and apply admin suggestions to educational IT course articles. Be concise but thorough.
+    
+IMPORTANT: This is for course content where external links and resources ARE ALLOWED and encouraged.`;
+    
+    // For very large articles, we might need to be more strategic
+    const contentLength = articleContent.length;
+    const isLargeArticle = contentLength > 10000;
+    
+    const processedContent = articleContent;
+    if (isLargeArticle && contentLength > 20000) {
+      // For extremely large articles, we might need to truncate
+      console.log(`Course article is very large (${contentLength} chars), processing full content`);
+    }
+    
+    const userPrompt = `Article Title: ${articleTitle}
+Current Content (in Markdown format):
+${processedContent}
+
+User Suggestion Type: ${suggestionType}
+User Suggestion Details: ${suggestionDetails}
+
+Please analyze this admin suggestion for a course article:
+
+1. First, determine if the suggestion is appropriate and valid:
+   - Is it relevant to the article's topic and title?
+   - Is it technically accurate?
+   - Is it appropriate for the article's educational purpose?
+   - Does it improve the article's quality or clarity?
+   
+2. SPECIAL RULES FOR COURSE ARTICLES:
+   - External links ARE ALLOWED and encouraged
+   - YouTube video links ARE ALLOWED
+   - References to external resources ARE ALLOWED
+   - Educational resources from any website ARE ALLOWED
+   - GitHub repositories, documentation sites, etc. ARE ALLOWED
+   
+3. If the suggestion is VALID:
+   - Apply the suggested change to the article
+   - Return the COMPLETE updated article in Markdown format
+   - Ensure all Markdown formatting is preserved (headings, code blocks, lists, etc.)
+   - Format any links properly in Markdown: [link text](URL)
+   - Format YouTube embeds as: ![Video Title](youtube-video-id) or as a regular link
+   - The updated content should include the entire article, not just the changed section
+   - Also provide a human-readable description of the change made
+   
+4. If the suggestion is INVALID:
+   - Explain clearly why the suggestion cannot be applied
+   - Focus on technical accuracy and relevance, not on external link restrictions
+
+IMPORTANT: 
+- The updatedContent field must contain the ENTIRE article in valid Markdown format
+- Preserve all existing Markdown formatting (# headings, code blocks with triple backticks, lists, etc.)
+- Do not wrap the content in any additional code blocks
+- The description should be a concise summary of what was changed
+- External links and resources ARE WELCOME in course articles`;
+
+    const startTime = new Date();
+    let result, error;
+    
+    try {
+      const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('article_suggestion_validation');
+      const aiModel = await createProviderForModel(model.modelId);
+      
+      // Calculate needed tokens based on article size, but use database value if it's sufficient
+      const estimatedOutputTokens = Math.ceil(contentLength / 3) + 1000; // Extra for the added content
+      const maxTokensNeeded = Math.min(estimatedOutputTokens, 16000); // Cap at 16k tokens
+      const finalMaxTokens = Math.max(maxTokensNeeded, maxTokens || 4000);
+      
+      result = await generateObject({
+        model: aiModel,
+        system: systemPrompt || hardcodedSystemPrompt,
+        prompt: userPrompt,
+        schema: ArticleSuggestionValidationSchema,
+        temperature,
+        maxTokens: finalMaxTokens,
+      });
+      
+      const endTime = new Date();
+      
+      // If the suggestion was valid and we have updated content, generate the diff
+      if (result.object.isValid && result.object.updatedContent) {
+        const diff = createPatch(
+          articleTitle,
+          articleContent,
+          result.object.updatedContent,
+          'original',
+          'updated'
+        );
+        result.object.diff = diff;
+      }
+      
+      // Track the interaction
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        result.usage?.promptTokens || 0,
+        result.usage?.completionTokens || 0,
+        startTime,
+        endTime,
+        { articleTitle, suggestionType, isCourseArticle: true },
+        userPrompt,
+        JSON.stringify(result.object)
+      );
+      
+      return result.object;
+    } catch (err) {
+      error = err;
+      const endTime = new Date();
+      
+      // Try to get model info for error tracking
+      try {
+        const { model, interactionType } = await getModelForInteraction('article_suggestion_validation');
+        await trackAIInteraction(
+          model.modelId,
+          interactionType.typeId,
+          clerkUserId,
+          0,
+          0,
+          startTime,
+          endTime,
+          { articleTitle, suggestionType, isCourseArticle: true },
+          userPrompt,
+          undefined,
+          String(err)
+        );
+      } catch (trackingError) {
+        console.error('Failed to track error:', trackingError);
+      }
+      
+      console.error("Course article suggestion validation error:", err);
+      throw err;
+    }
   }
 };
 

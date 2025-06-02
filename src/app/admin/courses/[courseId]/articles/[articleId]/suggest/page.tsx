@@ -36,6 +36,7 @@ const suggestionTypes = [
   { value: 'CLARITY_IMPROVEMENT', label: 'Improve clarity' },
   { value: 'EXAMPLE_ADDITION', label: 'Add an example' },
   { value: 'LINK_UPDATE', label: 'Update a link' },
+  { value: 'EXTERNAL_RESOURCE', label: 'Add external resource (link/video)' },
   { value: 'OTHER', label: 'Other improvement' },
 ];
 
@@ -246,6 +247,10 @@ export default function SuggestCourseArticlePage({ params }: PageProps) {
                 placeholder="Provide specific details about your suggestion..."
                 disabled={submitting}
               />
+              <p className="text-sm text-gray-600 mt-2">
+                <strong>Note:</strong> External links and YouTube videos are allowed in course articles. 
+                Feel free to include relevant educational resources.
+              </p>
             </div>
 
             <div className="flex items-center justify-between">
