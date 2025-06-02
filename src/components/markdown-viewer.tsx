@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { Copy, Check } from 'lucide-react';
 import 'highlight.js/styles/github-dark.css';
+import YouTubeEmbed from './youtube-embed';
 
 interface MarkdownViewerProps {
   content: string;
@@ -124,6 +125,33 @@ export default function MarkdownViewer({ content, removeFirstHeading = false }: 
             <code className={className} {...props}>
               {children}
             </code>
+          );
+        },
+        a: ({ href, children, ...props }) => {
+          // Check if this is a YouTube link
+          const isYouTubeLink = href && (
+            href.includes('youtube.com/watch') ||
+            href.includes('youtu.be/') ||
+            href.includes('youtube.com/embed/')
+          );
+          
+          if (isYouTubeLink) {
+            // Extract title from link text if available
+            const title = typeof children === 'string' ? children : undefined;
+            return <YouTubeEmbed url={href} title={title} />;
+          }
+          
+          // Regular link
+          return (
+            <a 
+              href={href} 
+              className="text-blue-600 underline hover:text-blue-700"
+              target={href?.startsWith('http') ? "_blank" : undefined}
+              rel={href?.startsWith('http') ? "noopener noreferrer" : undefined}
+              {...props}
+            >
+              {children}
+            </a>
           );
         },
         }}
