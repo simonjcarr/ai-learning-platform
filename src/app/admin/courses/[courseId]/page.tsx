@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Role, CourseLevel, CourseStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, RefreshCw, Play, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye } from "lucide-react";
+import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +149,38 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
       }, 2000);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to regenerate content');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const generateAllContent = async (sectionId?: string) => {
+    try {
+      setIsRegenerating(true);
+      const response = await fetch(`/api/admin/courses/${courseId}/generate-all-content`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sectionId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to queue content generation');
+      }
+
+      const result = await response.json();
+      alert(`${result.message}\n\nQueued ${result.jobsQueued} article(s) for content generation.`);
+      
+      // Refresh course data after a delay
+      setTimeout(() => {
+        fetchCourse();
+      }, 3000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to queue content generation');
     } finally {
       setIsRegenerating(false);
     }
@@ -304,6 +336,17 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
             <RefreshCw className="h-4 w-4 mr-2" />
             Regenerate Outline
           </Button>
+          {totalArticles > 0 && generatedArticles < totalArticles && (
+            <Button
+              onClick={() => generateAllContent()}
+              disabled={isRegenerating}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Generate All Articles ({totalArticles - generatedArticles} remaining)
+            </Button>
+          )}
         </div>
       </Card>
 
@@ -337,14 +380,30 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                       <p className="text-gray-600 mb-4">{section.description}</p>
                     )}
                   </div>
-                  <Button
-                    onClick={() => regenerateContent('quiz_generation', undefined, section.sectionId)}
-                    disabled={isRegenerating}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Generate Section Quiz
-                  </Button>
+                  <div className="flex space-x-2">
+                    {(() => {
+                      const ungeneratedCount = section.articles.filter(a => !a.isGenerated).length;
+                      return ungeneratedCount > 0 ? (
+                        <Button
+                          onClick={() => generateAllContent(section.sectionId)}
+                          disabled={isRegenerating}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Generate {ungeneratedCount} Article{ungeneratedCount > 1 ? 's' : ''}
+                        </Button>
+                      ) : null;
+                    })()}
+                    <Button
+                      onClick={() => regenerateContent('quiz_generation', undefined, section.sectionId)}
+                      disabled={isRegenerating}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Generate Section Quiz
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Section Articles */}
