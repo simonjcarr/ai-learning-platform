@@ -127,29 +127,10 @@ export async function calculateEngagementScore(
   });
 
   // Get interaction data
-  const chatMessages = await prisma.chatMessage.findMany({
-    where: {
-      clerkUserId,
-      article: {
-        section: {
-          courseId,
-        },
-      },
-    },
-  });
-
-  const comments = await prisma.comment.findMany({
-    where: {
-      clerkUserId,
-      article: {
-        sections: {
-          some: {
-            courseId,
-          },
-        },
-      },
-    },
-  });
+  // Note: ChatMessage and Comment models are related to general Article model, not CourseArticle
+  // For course engagement, we'll use an empty array for now as course articles don't have chat/comments
+  const chatMessages: any[] = [];
+  const comments: any[] = [];
 
   // Calculate each component
   const articleScore = calculateArticleEngagement(progress, course);
