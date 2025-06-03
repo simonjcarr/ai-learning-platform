@@ -1,8 +1,9 @@
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { PrismaClient, CourseGenerationStatus, CourseStatus, CourseLevel } from '@prisma/client';
-import { CourseGenerationJobData } from '@/lib/bullmq';
+import { CourseGenerationJobData, customBackoffStrategy } from '@/lib/bullmq';
 import { callAI } from '@/lib/ai-service';
+import { RateLimitError } from '@/lib/rate-limit';
 
 const prisma = new PrismaClient();
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -28,7 +29,7 @@ interface CourseOutline {
 async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
   const { courseId, jobType, sectionId, articleId, context } = job.data;
   
-  console.log(`🎓 Processing course generation job: ${jobType} for course ${courseId}`);
+  console.log(`🎓 Processing course generation job: ${jobType} for course ${courseId} (attempt ${job.attemptsMade + 1}/${job.opts.attempts})`);
 
   try {
     switch (jobType) {
@@ -44,7 +45,16 @@ async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
   } catch (error) {
     console.error(`❌ Course generation job failed: ${error.message}`);
     
-    // Update course status to indicate error
+    // Handle rate limit errors specially
+    if (error instanceof RateLimitError) {
+      console.log(`🚫 Rate limit hit for course ${courseId}. Provider: ${error.provider}, Model: ${error.modelId}, Retry after: ${error.retryAfter}s`);
+      console.log(`🔄 Job will be retried automatically with backoff strategy`);
+      
+      // Don't update course status to FAILED - let BullMQ handle the retry
+      throw error;
+    }
+    
+    // For non-rate-limit errors, update course status to FAILED
     await prisma.course.update({
       where: { courseId },
       data: {
@@ -297,17 +307,17 @@ async function generateQuizzes(courseId: string, sectionId?: string, articleId?:
 
   if (articleId) {
     // Generate quiz for specific article
-    return await generateArticleQuiz(articleId);
+    return await generateArticleQuiz(articleId, context);
   } else if (sectionId) {
     // Generate quiz for entire section
-    return await generateSectionQuiz(sectionId);
+    return await generateSectionQuiz(sectionId, context);
   } else {
     // Generate final exam for entire course
-    return await generateFinalExam(courseId);
+    return await generateFinalExam(courseId, context);
   }
 }
 
-async function generateArticleQuiz(articleId: string) {
+async function generateArticleQuiz(articleId: string, context?: any) {
   const article = await prisma.courseArticle.findUnique({
     where: { articleId },
     include: {
@@ -325,7 +335,7 @@ async function generateArticleQuiz(articleId: string) {
 
   const course = article.section.course;
 
-  // Check for existing quiz and delete it
+  // Check for existing quiz and delete it only if regenerating
   const existingQuiz = await prisma.courseQuiz.findFirst({
     where: {
       articleId,
@@ -333,11 +343,16 @@ async function generateArticleQuiz(articleId: string) {
     },
   });
 
-  if (existingQuiz) {
+  // Only delete existing quiz if this is a regeneration operation
+  const regenerateOnly = context?.regenerateOnly || false;
+  if (existingQuiz && regenerateOnly) {
     console.log(`📝 Deleting existing article quiz ${existingQuiz.quizId} before regenerating`);
     await prisma.courseQuiz.delete({
       where: { quizId: existingQuiz.quizId },
     });
+  } else if (existingQuiz && !regenerateOnly) {
+    console.log(`📝 Article quiz already exists for ${articleId}, skipping generation`);
+    return { success: true, skipped: true, quizId: existingQuiz.quizId };
   }
 
   // Get quiz generation settings
@@ -466,7 +481,7 @@ Return ONLY the JSON object.`;
   return { success: true, quizId: quiz.quizId };
 }
 
-async function generateSectionQuiz(sectionId: string) {
+async function generateSectionQuiz(sectionId: string, context?: any) {
   console.log(`📝 Generating section quiz for section ${sectionId}`);
   
   const section = await prisma.courseSection.findUnique({
@@ -488,7 +503,7 @@ async function generateSectionQuiz(sectionId: string) {
 
   const course = section.course;
 
-  // Check for existing quiz and delete it
+  // Check for existing quiz and delete it only if regenerating
   const existingQuiz = await prisma.courseQuiz.findFirst({
     where: {
       sectionId,
@@ -496,11 +511,16 @@ async function generateSectionQuiz(sectionId: string) {
     },
   });
 
-  if (existingQuiz) {
+  // Only delete existing quiz if this is a regeneration operation
+  const regenerateOnly = context?.regenerateOnly || false;
+  if (existingQuiz && regenerateOnly) {
     console.log(`📝 Deleting existing section quiz ${existingQuiz.quizId} before regenerating`);
     await prisma.courseQuiz.delete({
       where: { quizId: existingQuiz.quizId },
     });
+  } else if (existingQuiz && !regenerateOnly) {
+    console.log(`📝 Section quiz already exists for ${sectionId}, skipping generation`);
+    return { success: true, skipped: true, quizId: existingQuiz.quizId };
   }
 
   // Get quiz generation settings
@@ -645,7 +665,7 @@ Return ONLY the JSON object.`;
   return { success: true, quizId: quiz.quizId };
 }
 
-async function generateFinalExam(courseId: string) {
+async function generateFinalExam(courseId: string, context?: any) {
   console.log(`🎓 Generating final exam for course ${courseId}`);
   
   const course = await prisma.course.findUnique({
@@ -669,7 +689,7 @@ async function generateFinalExam(courseId: string) {
     throw new Error('Course not found or has no sections with content');
   }
 
-  // Check for existing final exam and delete it
+  // Check for existing final exam and delete it only if regenerating
   const existingQuiz = await prisma.courseQuiz.findFirst({
     where: {
       courseId,
@@ -677,11 +697,16 @@ async function generateFinalExam(courseId: string) {
     },
   });
 
-  if (existingQuiz) {
+  // Only delete existing quiz if this is a regeneration operation
+  const regenerateOnly = context?.regenerateOnly || false;
+  if (existingQuiz && regenerateOnly) {
     console.log(`📝 Deleting existing final exam ${existingQuiz.quizId} before regenerating`);
     await prisma.courseQuiz.delete({
       where: { quizId: existingQuiz.quizId },
     });
+  } else if (existingQuiz && !regenerateOnly) {
+    console.log(`📝 Final exam already exists for ${courseId}, skipping generation`);
+    return { success: true, skipped: true, quizId: existingQuiz.quizId };
   }
 
   // Get quiz generation settings
@@ -838,12 +863,24 @@ Return ONLY the JSON object.`;
   return { success: true, quizId: quiz.quizId };
 }
 
-// Create the worker
+// Create the worker with proper backoff strategy configuration
 export const courseGenerationWorker = new Worker('course-generation', processCourseGenerationJob, {
   connection: connection.duplicate(),
-  concurrency: 2, // Limit concurrency to avoid overwhelming AI APIs
+  concurrency: 1, // Reduce concurrency to 1 to prevent overwhelming APIs
   removeOnComplete: { count: 50 },
   removeOnFail: { count: 100 },
+  settings: {
+    // Register the custom backoff strategy that handles rate limits
+    backoffStrategy: (attemptsMade: number, type: string, err?: Error, job?: Job) => {
+      console.log(`🔄 Custom backoff strategy called: attempt ${attemptsMade}, type: ${type}`);
+      if (err) {
+        console.log(`   Error type: ${err.constructor.name}, message: ${err.message}`);
+      }
+      const delay = customBackoffStrategy(attemptsMade, type, err);
+      console.log(`   Calculated delay: ${delay}ms (${delay / 1000}s)`);
+      return delay;
+    },
+  },
 });
 
 courseGenerationWorker.on('completed', (job) => {
@@ -851,7 +888,22 @@ courseGenerationWorker.on('completed', (job) => {
 });
 
 courseGenerationWorker.on('failed', (job, err) => {
-  console.error(`❌ Course generation job ${job?.id} failed:`, err);
+  if (err instanceof RateLimitError) {
+    console.log(`🚫 Course generation job ${job?.id} failed due to rate limit. Will retry automatically.`);
+    console.log(`   Provider: ${err.provider}, Model: ${err.modelId}, Retry after: ${err.retryAfter}s`);
+  } else {
+    console.error(`❌ Course generation job ${job?.id} failed:`, err);
+  }
+});
+
+// Add event listener for job retries
+courseGenerationWorker.on('retries-exhausted', (job, err) => {
+  console.error(`🔄 Course generation job ${job?.id} exhausted all retries:`, err);
+});
+
+// Add event listener for job delays (backoff)
+courseGenerationWorker.on('delayed', (job, delay) => {
+  console.log(`⏰ Course generation job ${job.id} delayed by ${delay}ms due to backoff strategy`);
 });
 
 // Graceful shutdown

@@ -88,7 +88,7 @@ export async function POST(
 
         // Check if we should generate quiz for this article
         const hasQuiz = article.quizzes.length > 0;
-        if (!regenerateOnly || (regenerateOnly && hasQuiz)) {
+        if ((regenerateOnly && hasQuiz) || (!regenerateOnly && !hasQuiz)) {
           quizzesToGenerate.push({
             type: 'article',
             title: article.title,
@@ -105,6 +105,7 @@ export async function POST(
               sectionDescription: section.description,
               articleTitle: article.title,
               articleDescription: article.description,
+              regenerateOnly,
             },
           };
 
@@ -125,7 +126,7 @@ export async function POST(
         return articleWithContent?.contentHtml;
       });
 
-      if (sectionHasArticlesWithContent && (!regenerateOnly || (regenerateOnly && sectionHasQuiz))) {
+      if (sectionHasArticlesWithContent && ((regenerateOnly && sectionHasQuiz) || (!regenerateOnly && !sectionHasQuiz))) {
         quizzesToGenerate.push({
           type: 'section',
           title: section.title,
@@ -140,6 +141,7 @@ export async function POST(
             ...context,
             sectionTitle: section.title,
             sectionDescription: section.description,
+            regenerateOnly,
           },
         };
 
@@ -156,7 +158,7 @@ export async function POST(
       section.articles.length > 0
     );
 
-    if (hasAnyContent && (!regenerateOnly || (regenerateOnly && hasFinalExam))) {
+    if (hasAnyContent && ((regenerateOnly && hasFinalExam) || (!regenerateOnly && !hasFinalExam))) {
       quizzesToGenerate.push({
         type: 'final_exam',
         title: `${course.title} - Final Exam`,
@@ -165,7 +167,10 @@ export async function POST(
       const jobData = {
         courseId,
         jobType: 'quiz_generation' as const,
-        context,
+        context: {
+          ...context,
+          regenerateOnly,
+        },
       };
 
       const job = await addCourseGenerationToQueue(jobData);

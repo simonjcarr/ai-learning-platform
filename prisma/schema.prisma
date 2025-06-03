@@ -1044,3 +1044,39 @@ model FinalExamAttempt {
   @@index([attemptedAt])
   @@map("final_exam_attempts")
 }
+
+model AIRateLimit {
+  rateLimitId String    @id @default(cuid())
+  provider    String
+  modelId     String
+  isActive    Boolean   @default(true)
+  timeoutUntil DateTime
+  hitCount    Int       @default(1)
+  firstHitAt  DateTime  @default(now())
+  lastHitAt   DateTime  @default(now())
+  clearedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([provider, modelId])
+  @@index([provider])
+  @@index([isActive])
+  @@index([timeoutUntil])
+  @@map("ai_rate_limits")
+}
+
+model BullMQConfig {
+  configId                     String   @id @default(cuid())
+  emailQueueAttempts           Int      @default(3)
+  emailQueueBackoffDelay       Int      @default(2000)
+  courseGenerationAttempts     Int      @default(5)
+  courseGenerationBackoffDelay Int      @default(10000)
+  sitemapQueueAttempts         Int      @default(2)
+  sitemapQueueBackoffDelay     Int      @default(5000)
+  rateLimitRetrySeconds        Int      @default(60)
+  maxBackoffMinutes            Int      @default(5)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  @@map("bullmq_config")
+}

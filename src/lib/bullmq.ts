@@ -1,5 +1,6 @@
 import { Queue, QueueEvents } from 'bullmq';
 import Redis from 'ioredis';
+import { RateLimitError } from './rate-limit';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -64,10 +65,10 @@ export const courseGenerationQueue = new Queue('course-generation', {
       age: 14 * 24 * 3600, // keep failed jobs for 14 days
       count: 100, // keep last 100 failed jobs
     },
-    attempts: 2,
+    attempts: 5, // Increased for rate limit retries
     backoff: {
-      type: 'exponential',
-      delay: 10000,
+      type: 'custom',
+      settings: {},
     },
   },
 });
@@ -111,6 +112,7 @@ export type CourseGenerationJobData = {
     sectionDescription?: string;
     articleTitle?: string;
     articleDescription?: string;
+    regenerateOnly?: boolean;
   };
 };
 
@@ -161,6 +163,22 @@ export async function addSitemapToQueue(data: SitemapJobData) {
   }
 }
 
+// Custom backoff strategy for handling rate limits
+export function customBackoffStrategy(attemptsMade: number, type: string, err?: Error): number {
+  // If it's a rate limit error, use the retry-after time or default to 60 seconds
+  if (err instanceof RateLimitError) {
+    const retryAfter = err.retryAfter || 60;
+    console.log(`🔄 Rate limit detected, retrying in ${retryAfter} seconds`);
+    return retryAfter * 1000; // Convert to milliseconds
+  }
+  
+  // For other errors, use exponential backoff
+  const baseDelay = 10000; // 10 seconds
+  const exponentialDelay = Math.min(baseDelay * Math.pow(2, attemptsMade - 1), 300000); // Max 5 minutes
+  console.log(`🔄 Retrying job attempt ${attemptsMade} in ${exponentialDelay / 1000} seconds`);
+  return exponentialDelay;
+}
+
 export async function addCourseGenerationToQueue(data: CourseGenerationJobData) {
   try {
     console.log(`🎓 Adding course generation job: ${data.jobType} for course ${data.courseId}`);
@@ -168,6 +186,9 @@ export async function addCourseGenerationToQueue(data: CourseGenerationJobData) 
     const job = await courseGenerationQueue.add(`course-${data.jobType}`, data, {
       // Delay slightly to ensure database updates are committed
       delay: 1000,
+      backoff: {
+        type: 'custom',
+      },
     });
     
     console.log(`✅ Course generation job added with ID: ${job.id}`);

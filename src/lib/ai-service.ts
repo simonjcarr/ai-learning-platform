@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { prisma } from './prisma';
 import crypto from 'crypto';
 import { createPatch } from 'diff';
+import { rateLimitManager, RateLimitError } from './rate-limit';
 
 // Encryption key for API keys (in production, use a proper key management service)
 const ENCRYPTION_KEY = process.env.AI_API_KEY_ENCRYPTION_KEY || 'default-key-for-development-only';
@@ -89,6 +90,35 @@ async function getModelForInteraction(interactionTypeName: string) {
   }
   
   return { model: interactionType.defaultModel, interactionType };
+}
+
+// Check for rate limits before making AI calls
+async function checkRateLimitBeforeCall(provider: string, modelId: string): Promise<void> {
+  const rateLimitInfo = await rateLimitManager.checkRateLimit(provider, modelId);
+  
+  if (rateLimitInfo.isRateLimited) {
+    const secondsRemaining = rateLimitInfo.secondsRemaining || 60;
+    console.log(`🚫 Rate limit active for ${provider}:${modelId}. ${secondsRemaining}s remaining.`);
+    
+    throw new RateLimitError(
+      `Rate limit active for ${provider}:${modelId}. Try again in ${secondsRemaining} seconds.`,
+      provider,
+      modelId,
+      secondsRemaining
+    );
+  }
+}
+
+// Handle AI API errors and check for rate limits
+async function handleAIError(error: any, provider: string, modelId: string): Promise<never> {
+  // Check if this is a rate limit error
+  if (rateLimitManager.isRateLimitError(error, provider)) {
+    const rateLimitError = await rateLimitManager.handleRateLimitError(error, provider, modelId);
+    throw rateLimitError;
+  }
+  
+  // For non-rate-limit errors, throw the original error
+  throw error;
 }
 
 // Get AI configuration for interaction type (with fallbacks for legacy hardcoded values)
@@ -356,6 +386,10 @@ EXAMPLE: An article about "LISP Programming Tutorial" should have:
     
     try {
       const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('search_suggestions');
+      
+      // Check for rate limits before making the call
+      await checkRateLimitBeforeCall(model.provider, model.modelId);
+      
       const aiModel = await createProviderForModel(model.modelId);
       
       result = await generateObject({
@@ -388,9 +422,15 @@ EXAMPLE: An article about "LISP Programming Tutorial" should have:
       error = err;
       const endTime = new Date();
       
-      // Try to get model info for error tracking
+      // Try to get model info for error tracking and rate limit handling
       try {
         const { model, interactionType } = await getModelForInteraction('search_suggestions');
+        
+        // Handle rate limit errors
+        if (!(err instanceof RateLimitError)) {
+          await handleAIError(err, model.provider, model.modelId);
+        }
+        
         await trackAIInteraction(
           model.modelId,
           interactionType.typeId,
@@ -1253,6 +1293,10 @@ export async function callAI(
   
   try {
     const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction(interactionTypeName);
+    
+    // Check for rate limits before making the call
+    await checkRateLimitBeforeCall(model.provider, model.modelId);
+    
     const aiModel = await createProviderForModel(model.modelId);
     
     result = await generateText({
@@ -1284,9 +1328,15 @@ export async function callAI(
     error = err;
     const endTime = new Date();
     
-    // Try to get model info for error tracking
+    // Try to get model info for error tracking and rate limit handling
     try {
       const { model, interactionType } = await getModelForInteraction(interactionTypeName);
+      
+      // Handle rate limit errors
+      if (!(err instanceof RateLimitError)) {
+        await handleAIError(err, model.provider, model.modelId);
+      }
+      
       await trackAIInteraction(
         model.modelId,
         interactionType.typeId,

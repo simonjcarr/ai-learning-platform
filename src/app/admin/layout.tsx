@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History, Mail, Layers, Folder, GraduationCap, Award, HelpCircle } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History, Mail, Layers, Folder, GraduationCap, Award, HelpCircle, Activity } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -139,6 +139,12 @@ export default function AdminLayout({
       name: "Quiz Generation",
       href: "/admin/quiz-generation",
       icon: HelpCircle,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "BullMQ Management",
+      href: "/admin/bullmq",
+      icon: Activity,
       minRole: Role.ADMIN,
     },
   ];
