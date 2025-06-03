@@ -15,12 +15,27 @@ export async function POST(
 
     const { courseId } = await params;
     const body = await request.json();
-    const { articleId, isCompleted, timeSpent } = body;
+    const { articleId, isCompleted, timeSpent, scrollPercentage } = body;
 
-    // Get user info
+    // Calculate engagement score based on time spent and scroll percentage
+    const calculateEngagementScore = (timeSpent: number, scrollPercentage: number, contentLength: number = 1000) => {
+      // Expected time: 2 minutes per 1000 characters, minimum 3 minutes
+      const expectedTime = Math.max(180, Math.ceil(contentLength / 1000) * 120); // 2 minutes per 1000 chars, min 3 min
+      
+      // Time component (50% of engagement score)
+      const timeScore = timeSpent >= expectedTime ? 0.5 : (timeSpent / expectedTime) * 0.5;
+      
+      // Scroll component (50% of engagement score)
+      const scrollScore = scrollPercentage >= 80 ? 0.5 : (scrollPercentage / 80) * 0.5;
+      
+      // Return score as percentage (0-100)
+      return (timeScore + scrollScore) * 100;
+    };
+
+    // Get user info (just to verify user exists)
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      select: { userId: true },
+      select: { clerkUserId: true },
     });
 
     if (!user) {
@@ -31,13 +46,22 @@ export async function POST(
     const enrollment = await prisma.courseEnrollment.findFirst({
       where: {
         courseId: courseId,
-        userId: user.userId,
+        clerkUserId: userId,
       },
     });
 
     if (!enrollment) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 400 });
     }
+
+    // Get article content to calculate engagement score
+    const article = await prisma.courseArticle.findUnique({
+      where: { articleId },
+      select: { contentHtml: true },
+    });
+
+    const contentLength = article?.contentHtml?.length || 1000;
+    const engagementScore = calculateEngagementScore(timeSpent || 0, scrollPercentage || 0, contentLength);
 
     // Update or create progress entry
     const progress = await prisma.courseProgress.upsert({
@@ -49,15 +73,22 @@ export async function POST(
       },
       update: {
         isCompleted: isCompleted || false,
-        timeSpent: { increment: timeSpent || 0 },
+        timeSpent: timeSpent || 0, // Use absolute value, not increment
+        scrollPercentage: scrollPercentage || 0,
+        engagementScore: engagementScore,
+        clerkUserId: userId,
+        lastAccessedAt: new Date(),
         ...(isCompleted && { completedAt: new Date() }),
-        updatedAt: new Date(),
       },
       create: {
         enrollmentId: enrollment.enrollmentId,
         articleId: articleId,
+        clerkUserId: userId,
         isCompleted: isCompleted || false,
         timeSpent: timeSpent || 0,
+        scrollPercentage: scrollPercentage || 0,
+        engagementScore: engagementScore,
+        lastAccessedAt: new Date(),
         ...(isCompleted && { completedAt: new Date() }),
       },
     });

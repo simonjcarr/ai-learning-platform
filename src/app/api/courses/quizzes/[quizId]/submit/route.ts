@@ -159,10 +159,20 @@ export async function POST(
         },
       });
 
-      // If passed, potentially generate certificate
+      // If passed, generate certificate
       if (passed) {
-        // TODO: Implement certificate generation with grade calculation
-        console.log(`Student ${user.clerkUserId} passed final exam for course ${course.courseId} with score ${score}%`);
+        try {
+          const { generateCertificate } = await import("@/lib/certificate-generator");
+          await generateCertificate({
+            courseId: course.courseId,
+            clerkUserId: user.clerkUserId,
+            finalExamScore: score,
+          });
+          console.log(`Certificate generated for student ${user.clerkUserId} in course ${course.courseId}`);
+        } catch (certError) {
+          console.error("Failed to generate certificate:", certError);
+          // Don't fail the quiz submission if certificate generation fails
+        }
       }
     }
 

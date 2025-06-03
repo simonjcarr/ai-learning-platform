@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon, GraduationCap } from "lucide-react";
+import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon, GraduationCap, Award } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionStatus } from "@/components/subscription-status";
@@ -266,6 +266,16 @@ export default async function DashboardPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Courses</p>
               <p className="text-2xl font-semibold text-gray-900">Browse</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/dashboard/certificates" className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+          <div className="flex items-center">
+            <Award className="h-8 w-8 text-purple-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Certificates</p>
+              <p className="text-2xl font-semibold text-gray-900">View All</p>
             </div>
           </div>
         </Link>

@@ -136,6 +136,12 @@ export default function AdminLayout({
       minRole: Role.ADMIN,
     },
     {
+      name: "Certificates",
+      href: "/admin/certificates",
+      icon: Award,
+      minRole: Role.ADMIN,
+    },
+    {
       name: "Quiz Generation",
       href: "/admin/quiz-generation",
       icon: HelpCircle,

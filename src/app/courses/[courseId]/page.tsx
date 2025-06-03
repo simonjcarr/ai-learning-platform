@@ -100,13 +100,17 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [certificate, setCertificate] = useState<any>(null);
 
   // Unwrap the params promise
   const { courseId } = use(params);
 
   useEffect(() => {
     fetchCourse();
-  }, [courseId]);
+    if (user) {
+      checkCertificate();
+    }
+  }, [courseId, user]);
 
   const fetchCourse = async () => {
     try {
@@ -127,6 +131,21 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkCertificate = async () => {
+    try {
+      const response = await fetch('/api/certificates');
+      if (response.ok) {
+        const certificates = await response.json();
+        const courseCert = certificates.find((cert: any) => cert.courseId === courseId);
+        if (courseCert) {
+          setCertificate(courseCert);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to check certificate:', err);
     }
   };
 
@@ -272,6 +291,16 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                     Completed
                   </Badge>
                 )}
+                {certificate && (
+                  <Badge className={
+                    certificate.grade === 'GOLD' ? 'bg-yellow-100 text-yellow-800' :
+                    certificate.grade === 'SILVER' ? 'bg-gray-100 text-gray-800' :
+                    'bg-orange-100 text-orange-800'
+                  }>
+                    <Award className="h-3 w-3 mr-1" />
+                    {certificate.grade} Certificate
+                  </Badge>
+                )}
                 {course.isEnrolled && !course.isCompleted && (
                   <Badge className="bg-blue-100 text-blue-800">
                     In Progress ({course.progressPercentage}%)
@@ -341,6 +370,38 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
             )}
           </div>
         </div>
+
+        {/* Certificate Card (if earned) */}
+        {certificate && (
+          <Card className={`p-6 mb-8 ${
+            certificate.grade === 'GOLD' ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-300' :
+            certificate.grade === 'SILVER' ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300' :
+            'bg-gradient-to-r from-orange-50 to-orange-100 border-orange-300'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <Award className={`h-12 w-12 ${
+                  certificate.grade === 'GOLD' ? 'text-yellow-600' :
+                  certificate.grade === 'SILVER' ? 'text-gray-600' :
+                  'text-orange-600'
+                }`} />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Course Certificate Earned!
+                  </h3>
+                  <p className="text-gray-600">
+                    You achieved a {certificate.grade} grade with a final score of {certificate.finalScore?.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+              <Link href={`/dashboard/certificates/${certificate.certificateId}`}>
+                <Button>
+                  View Certificate
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        )}
 
         {/* Progress Bar (if enrolled) */}
         {course.isEnrolled && (
