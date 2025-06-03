@@ -149,8 +149,9 @@ export async function GET(
         },
       });
 
-      // Group attempts by article ID (for easier lookup in the UI)
+      // Group attempts by article ID and section ID (for easier lookup in the UI)
       const quizAttemptsByArticle: Record<string, { score: number; passed: boolean; completedAt: string }[]> = {};
+      const quizAttemptsBySection: Record<string, { score: number; passed: boolean; completedAt: string }[]> = {};
       
       attempts.forEach(attempt => {
         if (attempt.quiz.articleId) {
@@ -162,6 +163,15 @@ export async function GET(
             passed: attempt.passed,
             completedAt: attempt.completedAt?.toISOString() || '',
           });
+        } else if (attempt.quiz.sectionId) {
+          if (!quizAttemptsBySection[attempt.quiz.sectionId]) {
+            quizAttemptsBySection[attempt.quiz.sectionId] = [];
+          }
+          quizAttemptsBySection[attempt.quiz.sectionId].push({
+            score: attempt.score,
+            passed: attempt.passed,
+            completedAt: attempt.completedAt?.toISOString() || '',
+          });
         }
       });
 
@@ -169,8 +179,11 @@ export async function GET(
       Object.keys(quizAttemptsByArticle).forEach(articleId => {
         quizAttemptsByArticle[articleId].sort((a, b) => b.score - a.score);
       });
+      Object.keys(quizAttemptsBySection).forEach(sectionId => {
+        quizAttemptsBySection[sectionId].sort((a, b) => b.score - a.score);
+      });
 
-      quizAttempts = quizAttemptsByArticle;
+      quizAttempts = { ...quizAttemptsByArticle, sections: quizAttemptsBySection };
     }
 
     const courseWithMetrics = {

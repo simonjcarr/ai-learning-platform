@@ -58,6 +58,11 @@ interface CourseProgress {
   timeSpent: number;
 }
 
+interface QuizAttemptData {
+  [key: string]: { score: number; passed: boolean; completedAt: string }[];
+  sections?: Record<string, { score: number; passed: boolean; completedAt: string }[]>;
+}
+
 interface Course {
   courseId: string;
   title: string;
@@ -86,7 +91,7 @@ interface Course {
   progressPercentage: number;
   completedArticles: number;
   progress: CourseProgress[];
-  quizAttempts: Record<string, { score: number; passed: boolean; completedAt: string }[]>;
+  quizAttempts: QuizAttemptData;
 }
 
 export default function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
@@ -177,6 +182,21 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
     if (!course?.quizAttempts || !course.quizAttempts[articleId]) return false;
     
     const attempts = course.quizAttempts[articleId];
+    return attempts.some(attempt => attempt.passed);
+  };
+
+  const getSectionQuizScore = (sectionId: string) => {
+    if (!course?.quizAttempts?.sections || !course.quizAttempts.sections[sectionId]) return null;
+    
+    const attempts = course.quizAttempts.sections[sectionId];
+    // Return the best score (attempts are already sorted by score, highest first)
+    return attempts.length > 0 ? attempts[0] : null;
+  };
+
+  const hasPassedSectionQuiz = (sectionId: string) => {
+    if (!course?.quizAttempts?.sections || !course.quizAttempts.sections[sectionId]) return false;
+    
+    const attempts = course.quizAttempts.sections[sectionId];
     return attempts.some(attempt => attempt.passed);
   };
 
@@ -447,27 +467,52 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
               {section.quizzes.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">Section Quizzes</h4>
-                  {section.quizzes.map((quiz) => (
-                    <div key={quiz.quizId} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{quiz.title}</p>
-                        <p className="text-sm text-gray-600">
-                          {quiz._count.questions} questions
-                        </p>
-                      </div>
-                      {course.isEnrolled ? (
-                        <Link href={`/courses/${courseId}/sections/${section.sectionId}/quizzes`}>
-                          <Button variant="outline" size="sm">
+                  {section.quizzes.map((quiz) => {
+                    const sectionQuizScore = getSectionQuizScore(section.sectionId);
+                    const hasPassedQuiz = hasPassedSectionQuiz(section.sectionId);
+                    
+                    return (
+                      <div key={quiz.quizId} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{quiz.title}</p>
+                          <div className="flex items-center space-x-2">
+                            <p className="text-sm text-gray-600">
+                              {quiz._count.questions} questions
+                            </p>
+                            {course.passMarkPercentage && (
+                              <span className="text-sm text-gray-500">• Pass mark: {course.passMarkPercentage}%</span>
+                            )}
+                          </div>
+                          {sectionQuizScore && (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge className={`text-xs ${
+                                hasPassedQuiz 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                <Award className="h-3 w-3 mr-1" />
+                                Best Score: {sectionQuizScore.score.toFixed(1)}%
+                              </Badge>
+                              {hasPassedQuiz && (
+                                <span className="text-xs text-green-600 font-medium">✓ Passed</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {course.isEnrolled ? (
+                          <Link href={`/courses/${courseId}/sections/${section.sectionId}/quizzes`}>
+                            <Button variant="outline" size="sm">
+                              {sectionQuizScore ? 'Retake Quiz' : 'Take Quiz'}
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>
                             Take Quiz
                           </Button>
-                        </Link>
-                      ) : (
-                        <Button variant="outline" size="sm" disabled>
-                          Take Quiz
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Card>

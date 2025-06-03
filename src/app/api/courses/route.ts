@@ -57,9 +57,7 @@ export async function GET(request: NextRequest) {
         },
         enrollments: {
           where: {
-            user: {
-              clerkUserId: userId,
-            },
+            clerkUserId: userId,
           },
           select: {
             enrollmentId: true,
@@ -80,37 +78,65 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    // Calculate additional metrics for each course
-    const coursesWithMetrics = courses.map(course => {
-      const totalArticles = course.sections.reduce((sum, section) => sum + section.articles.length, 0);
-      const generatedArticles = course.sections.reduce(
-        (sum, section) => sum + section.articles.filter(article => article.isGenerated).length,
-        0
-      );
-
-      return {
-        courseId: course.courseId,
-        title: course.title,
-        slug: course.slug,
-        description: course.description,
-        level: course.level,
-        status: course.status,
-        estimatedHours: course.estimatedHours,
-        passMarkPercentage: course.passMarkPercentage,
-        createdAt: course.createdAt,
-        publishedAt: course.publishedAt,
-        createdBy: course.createdBy,
-        totalSections: course.sections.length,
-        totalArticles,
-        generatedArticles,
-        enrollmentCount: course._count.enrollments,
-        certificateCount: course._count.certificates,
-        isEnrolled: course.enrollments.length > 0,
-        enrolledAt: course.enrollments[0]?.enrolledAt || null,
-        isCompleted: course.enrollments[0]?.completedAt !== null,
-        completedAt: course.enrollments[0]?.completedAt || null,
-      };
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { clerkUserId: userId },
+      select: { clerkUserId: true },
     });
+
+    // Calculate additional metrics for each course
+    const coursesWithMetrics = await Promise.all(
+      courses.map(async (course) => {
+        const totalArticles = course.sections.reduce((sum, section) => sum + section.articles.length, 0);
+        const generatedArticles = course.sections.reduce(
+          (sum, section) => sum + section.articles.filter(article => article.isGenerated).length,
+          0
+        );
+
+        let progressPercentage = 0;
+        let completedArticles = 0;
+
+        // If user is enrolled, calculate progress
+        if (course.enrollments.length > 0 && user) {
+          const progress = await prisma.courseProgress.findMany({
+            where: {
+              enrollmentId: course.enrollments[0].enrollmentId,
+            },
+            select: {
+              isCompleted: true,
+            },
+          });
+
+          completedArticles = progress.filter(p => p.isCompleted).length;
+          progressPercentage = totalArticles > 0 ? Math.round((completedArticles / totalArticles) * 100) : 0;
+        }
+
+        return {
+          courseId: course.courseId,
+          title: course.title,
+          slug: course.slug,
+          description: course.description,
+          level: course.level,
+          status: course.status,
+          estimatedHours: course.estimatedHours,
+          passMarkPercentage: course.passMarkPercentage,
+          createdAt: course.createdAt,
+          publishedAt: course.publishedAt,
+          createdBy: course.createdBy,
+          totalSections: course.sections.length,
+          totalArticles,
+          generatedArticles,
+          enrollmentCount: course._count.enrollments,
+          certificateCount: course._count.certificates,
+          isEnrolled: course.enrollments.length > 0,
+          enrolledAt: course.enrollments[0]?.enrolledAt || null,
+          isCompleted: course.enrollments[0]?.completedAt !== null,
+          completedAt: course.enrollments[0]?.completedAt || null,
+          progressPercentage,
+          completedArticles,
+        };
+      })
+    );
 
     return NextResponse.json(coursesWithMetrics);
   } catch (error) {

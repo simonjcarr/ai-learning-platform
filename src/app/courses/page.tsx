@@ -46,6 +46,8 @@ interface Course {
   enrolledAt?: string;
   isCompleted: boolean;
   completedAt?: string;
+  progressPercentage: number;
+  completedArticles: number;
 }
 
 export default function CoursesPage() {
@@ -252,6 +254,27 @@ export default function CoursesPage() {
                   <p className="text-gray-600 mb-4 line-clamp-2">
                     {course.description}
                   </p>
+                  
+                  {/* Progress Bar */}
+                  {!course.isCompleted && (
+                    <div className="mb-4">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium text-gray-700">Progress</span>
+                        <span className="text-sm font-medium text-gray-700">
+                          {course.progressPercentage}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div 
+                          className="bg-orange-600 h-2.5 rounded-full transition-all duration-300"
+                          style={{ width: `${course.progressPercentage}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {course.completedArticles} of {course.totalArticles} articles completed
+                      </p>
+                    </div>
+                  )}
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
                     <div className="flex items-center">
