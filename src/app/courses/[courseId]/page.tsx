@@ -412,9 +412,17 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                           {quiz._count.questions} questions
                         </p>
                       </div>
-                      <Button variant="outline" size="sm" disabled={!course.isEnrolled}>
-                        Take Quiz
-                      </Button>
+                      {course.isEnrolled ? (
+                        <Link href={`/courses/${courseId}/sections/${section.sectionId}/quizzes`}>
+                          <Button variant="outline" size="sm">
+                            Take Quiz
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Button variant="outline" size="sm" disabled>
+                          Take Quiz
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

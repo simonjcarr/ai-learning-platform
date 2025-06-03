@@ -438,9 +438,153 @@ Return ONLY the JSON object.`;
 }
 
 async function generateSectionQuiz(sectionId: string) {
-  // Similar implementation for section-level quizzes
   console.log(`📝 Generating section quiz for section ${sectionId}`);
-  return { success: true, message: 'Section quiz generation not yet implemented' };
+  
+  const section = await prisma.courseSection.findUnique({
+    where: { sectionId },
+    include: {
+      course: true,
+      articles: {
+        where: {
+          contentHtml: { not: null },
+        },
+        orderBy: { orderIndex: 'asc' },
+      },
+    },
+  });
+
+  if (!section || section.articles.length === 0) {
+    throw new Error('Section not found or has no articles with content');
+  }
+
+  const course = section.course;
+
+  // Aggregate content from all articles in the section
+  const sectionContent = section.articles
+    .map(article => `Article: ${article.title}\n${article.contentHtml?.substring(0, 1000)}...`)
+    .join('\n\n');
+
+  const prompt = `Generate a comprehensive section quiz based on all the content from this course section.
+
+Course: ${course.title} (${course.level} level)
+Section: ${section.title}
+Section Description: ${section.description || 'N/A'}
+Number of Articles: ${section.articles.length}
+
+Section Content Overview:
+${sectionContent.substring(0, 4000)}...
+
+Create 8-12 questions that:
+- Test understanding across ALL articles in this section
+- Cover the key concepts from different articles
+- Use a good mix of question types
+- Are appropriate for a section-level assessment
+
+IMPORTANT: Use exactly these question type values:
+- "MULTIPLE_CHOICE" for multiple choice questions
+- "TRUE_FALSE" for true/false questions  
+- "FILL_IN_BLANK" for fill in the blank questions (NOT "FILL_IN_THE_BLANK")
+
+Return the response as a JSON object with this structure:
+{
+  "title": "Section Quiz Title",
+  "description": "Brief description of what this quiz covers",
+  "questions": [
+    {
+      "type": "MULTIPLE_CHOICE",
+      "question": "Question text here?",
+      "options": {
+        "a": "Option A",
+        "b": "Option B", 
+        "c": "Option C",
+        "d": "Option D"
+      },
+      "correctAnswer": "a",
+      "explanation": "Explanation of why this is correct"
+    },
+    {
+      "type": "TRUE_FALSE",
+      "question": "Statement to evaluate",
+      "correctAnswer": "true",
+      "explanation": "Explanation"
+    },
+    {
+      "type": "FILL_IN_BLANK",
+      "question": "The _____ command is used to list files in Linux",
+      "correctAnswer": "ls",
+      "explanation": "The ls command lists directory contents"
+    }
+  ]
+}
+
+Return ONLY the JSON object.`;
+
+  const response = await callAI('course_quiz_generation', prompt, {
+    sectionId,
+    courseId: course.courseId,
+    sectionTitle: section.title,
+  });
+
+  // Clean up the response by removing any markdown code block wrappers
+  let cleanedResponse = response.trim();
+  
+  // Remove markdown code block wrappers if present
+  if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(8, -4).trim();
+  } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(4, -4).trim();
+  } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(7, -3).trim();
+  } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(3, -3).trim();
+  }
+  
+  const quizData = JSON.parse(cleanedResponse);
+
+  // Create the quiz
+  const quiz = await prisma.courseQuiz.create({
+    data: {
+      sectionId,
+      title: quizData.title || `${section.title} - Section Quiz`,
+      description: quizData.description || `Test your knowledge of the ${section.title} section`,
+      quizType: 'section',
+      passMarkPercentage: 75.0, // Higher pass mark for section quizzes
+    },
+  });
+
+  // Create questions
+  for (let i = 0; i < quizData.questions.length; i++) {
+    const questionData = quizData.questions[i];
+    
+    // Map AI-generated question types to database enum values
+    let questionType = questionData.type;
+    if (questionType === 'FILL_IN_THE_BLANK') {
+      questionType = 'FILL_IN_BLANK';
+    }
+    
+    // Validate question type
+    const validTypes = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_BLANK', 'ESSAY'];
+    if (!validTypes.includes(questionType)) {
+      console.error(`Invalid question type: ${questionType}, defaulting to MULTIPLE_CHOICE`);
+      questionType = 'MULTIPLE_CHOICE';
+    }
+    
+    await prisma.courseQuizQuestion.create({
+      data: {
+        quizId: quiz.quizId,
+        questionType: questionType as any,
+        questionText: questionData.question,
+        optionsJson: questionData.options || null,
+        correctAnswer: questionData.correctAnswer,
+        explanation: questionData.explanation,
+        orderIndex: i,
+        points: 1.0,
+      },
+    });
+  }
+
+  console.log(`✅ Section quiz generated successfully for section ${sectionId}`);
+  return { success: true, quizId: quiz.quizId };
 }
 
 async function generateFinalExam(courseId: string) {

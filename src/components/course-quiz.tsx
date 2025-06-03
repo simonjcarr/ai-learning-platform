@@ -40,10 +40,11 @@ interface QuizAttempt {
 }
 
 interface CourseQuizProps {
-  articleId: string;
+  articleId?: string;
+  sectionId?: string;
 }
 
-export default function CourseQuiz({ articleId }: CourseQuizProps) {
+export default function CourseQuiz({ articleId, sectionId }: CourseQuizProps) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +61,10 @@ export default function CourseQuiz({ articleId }: CourseQuizProps) {
   const [timerActive, setTimerActive] = useState(false);
 
   useEffect(() => {
-    fetchQuizzes();
-  }, [articleId]);
+    if (articleId || sectionId) {
+      fetchQuizzes();
+    }
+  }, [articleId, sectionId]);
 
   useEffect(() => {
     if (timerActive && timeRemaining !== null && timeRemaining > 0) {
@@ -77,7 +80,11 @@ export default function CourseQuiz({ articleId }: CourseQuizProps) {
 
   const fetchQuizzes = async () => {
     try {
-      const response = await fetch(`/api/courses/articles/${articleId}/quizzes`);
+      const endpoint = articleId 
+        ? `/api/courses/articles/${articleId}/quizzes`
+        : `/api/courses/sections/${sectionId}/quizzes`;
+      
+      const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch quizzes");
       const data = await response.json();
       setQuizzes(data.quizzes || []);
@@ -122,7 +129,11 @@ export default function CourseQuiz({ articleId }: CourseQuizProps) {
       setQuizResult(result);
       
       // Refresh to get updated attempts
-      const updatedAttempts = await fetch(`/api/courses/articles/${articleId}/quizzes`);
+      const endpoint = articleId 
+        ? `/api/courses/articles/${articleId}/quizzes`
+        : `/api/courses/sections/${sectionId}/quizzes`;
+        
+      const updatedAttempts = await fetch(endpoint);
       if (updatedAttempts.ok) {
         const data = await updatedAttempts.json();
         setPreviousAttempts(data.attempts || {});
@@ -292,9 +303,11 @@ export default function CourseQuiz({ articleId }: CourseQuizProps) {
     return null;
   }
 
+  const quizTitle = articleId ? "Article Quizzes" : "Section Quizzes";
+  
   return (
     <section className="border-t pt-12 mt-12">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Quizzes</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">{quizTitle}</h2>
 
       {!selectedQuiz ? (
         <div className="space-y-4">
