@@ -83,6 +83,12 @@ export async function GET(
             },
           },
         },
+        finalExams: {
+          include: {
+            questions: true,
+            attempts: true,
+          },
+        },
       },
     });
 

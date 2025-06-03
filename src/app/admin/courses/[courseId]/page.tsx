@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Role, CourseLevel, CourseStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download, Sparkles, History } from "lucide-react";
+import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download, Sparkles, History, Trash2, FileQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,12 @@ interface Course {
       lastName?: string;
       email: string;
     };
+  }>;
+  finalExams: Array<{
+    quizId: string;
+    title: string;
+    questions: any[];
+    attempts: any[];
   }>;
 }
 
@@ -186,6 +192,38 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
     }
   };
 
+  const generateAllQuizzes = async (regenerateOnly: boolean = false) => {
+    try {
+      setIsRegenerating(true);
+      const response = await fetch(`/api/admin/courses/${courseId}/generate-all-quizzes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          regenerateOnly,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to queue quiz generation');
+      }
+
+      const result = await response.json();
+      alert(`${result.message}\n\nQueued ${result.jobsQueued} quiz(zes) for ${regenerateOnly ? 'regeneration' : 'generation'}.`);
+      
+      // Refresh course data after a delay
+      setTimeout(() => {
+        fetchCourse();
+      }, 3000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to queue quiz generation');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   const getStatusBadgeColor = (status: CourseStatus) => {
     switch (status) {
       case CourseStatus.PUBLISHED:
@@ -258,6 +296,13 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
     0
   );
 
+  // Count existing quizzes
+  const totalQuizzes = course.sections.reduce((sum, section) => {
+    const articleQuizzes = section.articles.reduce((articleSum, article) => articleSum + article.quizzes.length, 0);
+    const sectionQuizzes = section.quizzes.length;
+    return sum + articleQuizzes + sectionQuizzes;
+  }, 0) + course.finalExams.length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -303,6 +348,10 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                 {generatedArticles}/{totalArticles} articles generated
               </div>
               <div className="flex items-center">
+                <FileQuestion className="h-4 w-4 mr-1" />
+                {totalQuizzes} quizzes
+              </div>
+              <div className="flex items-center">
                 <Users className="h-4 w-4 mr-1" />
                 {course.enrollments.length} enrolled
               </div>
@@ -326,7 +375,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
           </div>
         )}
 
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => regenerateContent('outline')}
             disabled={isRegenerating}
@@ -346,6 +395,28 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
               <Download className="h-4 w-4 mr-2" />
               Generate All Articles ({totalArticles - generatedArticles} remaining)
             </Button>
+          )}
+          {totalArticles > 0 && generatedArticles > 0 && (
+            <>
+              <Button
+                onClick={() => generateAllQuizzes(false)}
+                disabled={isRegenerating}
+                variant="outline"
+                size="sm"
+              >
+                <FileQuestion className="h-4 w-4 mr-2" />
+                Generate All Quizzes
+              </Button>
+              <Button
+                onClick={() => generateAllQuizzes(true)}
+                disabled={isRegenerating}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regenerate Existing Quizzes
+              </Button>
+            </>
           )}
         </div>
       </Card>
@@ -476,25 +547,98 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                           disabled={isRegenerating}
                           variant="outline"
                           size="sm"
-                          title="Generate Quiz"
+                          title={article.quizzes.length > 0 ? "Regenerate Quiz" : "Generate Quiz"}
                         >
-                          Quiz
+                          {article.quizzes.length > 0 ? "Re-Quiz" : "Quiz"}
                         </Button>
                       </div>
                     </div>
                   ))}
                 </div>
 
+                {/* Article Quizzes */}
+                {section.articles.some(article => article.quizzes.length > 0) && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Article Quizzes</h4>
+                    <div className="space-y-2">
+                      {section.articles.map(article => 
+                        article.quizzes.map((quiz) => (
+                          <div key={quiz.quizId} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{quiz.title}</p>
+                              <p className="text-xs text-gray-600">
+                                {quiz.questions.length} questions • {quiz.attempts.length} attempts
+                              </p>
+                            </div>
+                            <Button
+                              onClick={async () => {
+                                if (confirm(`Are you sure you want to delete the quiz "${quiz.title}"?\n\nThis will also delete all attempts and student responses.`)) {
+                                  try {
+                                    const response = await fetch(`/api/admin/courses/quizzes/${quiz.quizId}`, {
+                                      method: 'DELETE',
+                                    });
+                                    if (response.ok) {
+                                      alert('Quiz deleted successfully');
+                                      fetchCourse();
+                                    } else {
+                                      const error = await response.json();
+                                      alert(`Failed to delete quiz: ${error.error}`);
+                                    }
+                                  } catch (err) {
+                                    alert('Failed to delete quiz');
+                                  }
+                                }
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Section Quizzes */}
                 {section.quizzes.length > 0 && (
                   <div className="mt-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Section Quizzes</h4>
                     {section.quizzes.map((quiz) => (
-                      <div key={quiz.quizId} className="p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm font-medium text-gray-900">{quiz.title}</p>
-                        <p className="text-xs text-gray-600">
-                          {quiz.questions.length} questions • {quiz.attempts.length} attempts
-                        </p>
+                      <div key={quiz.quizId} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{quiz.title}</p>
+                          <p className="text-xs text-gray-600">
+                            {quiz.questions.length} questions • {quiz.attempts.length} attempts
+                          </p>
+                        </div>
+                        <Button
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete the quiz "${quiz.title}"?\n\nThis will also delete all attempts and student responses.`)) {
+                              try {
+                                const response = await fetch(`/api/admin/courses/quizzes/${quiz.quizId}`, {
+                                  method: 'DELETE',
+                                });
+                                if (response.ok) {
+                                  alert('Quiz deleted successfully');
+                                  fetchCourse();
+                                } else {
+                                  const error = await response.json();
+                                  alert(`Failed to delete quiz: ${error.error}`);
+                                }
+                              } catch (err) {
+                                alert('Failed to delete quiz');
+                              }
+                            }
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -507,7 +651,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
 
       {/* Final Exam */}
       <Card className="p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">Final Exam</h3>
             <p className="text-gray-600">
@@ -519,9 +663,49 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
             disabled={isRegenerating}
             variant="outline"
           >
-            Generate Final Exam
+            {course.finalExams.length > 0 ? 'Regenerate Final Exam' : 'Generate Final Exam'}
           </Button>
         </div>
+        
+        {course.finalExams.length > 0 && (
+          <div className="space-y-2">
+            {course.finalExams.map((quiz) => (
+              <div key={quiz.quizId} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{quiz.title}</p>
+                  <p className="text-xs text-gray-600">
+                    {quiz.questions.length} questions • {quiz.attempts.length} attempts
+                  </p>
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (confirm(`Are you sure you want to delete the final exam "${quiz.title}"?\n\nThis will also delete all attempts and student responses.`)) {
+                      try {
+                        const response = await fetch(`/api/admin/courses/quizzes/${quiz.quizId}`, {
+                          method: 'DELETE',
+                        });
+                        if (response.ok) {
+                          alert('Final exam deleted successfully');
+                          fetchCourse();
+                        } else {
+                          const error = await response.json();
+                          alert(`Failed to delete final exam: ${error.error}`);
+                        }
+                      } catch (err) {
+                        alert('Failed to delete final exam');
+                      }
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Enrollments and Certificates */}

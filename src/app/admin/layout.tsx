@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History, Mail, Layers, Folder, GraduationCap } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History, Mail, Layers, Folder, GraduationCap, Award, HelpCircle } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -127,6 +127,18 @@ export default function AdminLayout({
       name: "Suggestion Settings",
       href: "/admin/suggestions/settings",
       icon: Zap,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "Course Completion",
+      href: "/admin/course-completion",
+      icon: Award,
+      minRole: Role.ADMIN,
+    },
+    {
+      name: "Quiz Generation",
+      href: "/admin/quiz-generation",
+      icon: HelpCircle,
       minRole: Role.ADMIN,
     },
   ];

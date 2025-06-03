@@ -325,7 +325,36 @@ async function generateArticleQuiz(articleId: string) {
 
   const course = article.section.course;
 
-  const prompt = `Generate a quiz with 3-5 questions based on this course article content.
+  // Check for existing quiz and delete it
+  const existingQuiz = await prisma.courseQuiz.findFirst({
+    where: {
+      articleId,
+      quizType: 'article',
+    },
+  });
+
+  if (existingQuiz) {
+    console.log(`📝 Deleting existing article quiz ${existingQuiz.quizId} before regenerating`);
+    await prisma.courseQuiz.delete({
+      where: { quizId: existingQuiz.quizId },
+    });
+  }
+
+  // Get quiz generation settings
+  const settings = await prisma.quizGenerationSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+  
+  // Get course completion settings for pass mark
+  const completionSettings = await prisma.courseCompletionSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
+  const minQuestions = settings?.articleQuizMinQuestions || 3;
+  const maxQuestions = settings?.articleQuizMaxQuestions || 5;
+  const questionCount = Math.floor(Math.random() * (maxQuestions - minQuestions + 1)) + minQuestions;
+
+  const prompt = `Generate a quiz with ${questionCount} questions based on this course article content.
 
 Course: ${course.title} (${course.level} level)
 Section: ${article.section.title}
@@ -399,7 +428,7 @@ Return ONLY the JSON object.`;
       title: `${article.title} - Quiz`,
       description: `Test your knowledge of ${article.title}`,
       quizType: 'article',
-      passMarkPercentage: 70.0,
+      passMarkPercentage: completionSettings?.minQuizAverage || 65.0,
     },
   });
 
@@ -459,6 +488,35 @@ async function generateSectionQuiz(sectionId: string) {
 
   const course = section.course;
 
+  // Check for existing quiz and delete it
+  const existingQuiz = await prisma.courseQuiz.findFirst({
+    where: {
+      sectionId,
+      quizType: 'section',
+    },
+  });
+
+  if (existingQuiz) {
+    console.log(`📝 Deleting existing section quiz ${existingQuiz.quizId} before regenerating`);
+    await prisma.courseQuiz.delete({
+      where: { quizId: existingQuiz.quizId },
+    });
+  }
+
+  // Get quiz generation settings
+  const settings = await prisma.quizGenerationSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+  
+  // Get course completion settings for pass mark
+  const completionSettings = await prisma.courseCompletionSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
+  const minQuestions = settings?.sectionQuizMinQuestions || 5;
+  const maxQuestions = settings?.sectionQuizMaxQuestions || 8;
+  const questionCount = Math.floor(Math.random() * (maxQuestions - minQuestions + 1)) + minQuestions;
+
   // Aggregate content from all articles in the section
   const sectionContent = section.articles
     .map(article => `Article: ${article.title}\n${article.contentHtml?.substring(0, 1000)}...`)
@@ -474,7 +532,7 @@ Number of Articles: ${section.articles.length}
 Section Content Overview:
 ${sectionContent.substring(0, 4000)}...
 
-Create 8-12 questions that:
+Create ${questionCount} questions that:
 - Test understanding across ALL articles in this section
 - Cover the key concepts from different articles
 - Use a good mix of question types
@@ -548,7 +606,7 @@ Return ONLY the JSON object.`;
       title: quizData.title || `${section.title} - Section Quiz`,
       description: quizData.description || `Test your knowledge of the ${section.title} section`,
       quizType: 'section',
-      passMarkPercentage: 75.0, // Higher pass mark for section quizzes
+      passMarkPercentage: completionSettings?.minQuizAverage || 65.0,
     },
   });
 
@@ -588,9 +646,196 @@ Return ONLY the JSON object.`;
 }
 
 async function generateFinalExam(courseId: string) {
-  // Similar implementation for final exam
   console.log(`🎓 Generating final exam for course ${courseId}`);
-  return { success: true, message: 'Final exam generation not yet implemented' };
+  
+  const course = await prisma.course.findUnique({
+    where: { courseId },
+    include: {
+      sections: {
+        include: {
+          articles: {
+            where: {
+              contentHtml: { not: null },
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+        orderBy: { orderIndex: 'asc' },
+      },
+    },
+  });
+
+  if (!course || course.sections.length === 0) {
+    throw new Error('Course not found or has no sections with content');
+  }
+
+  // Check for existing final exam and delete it
+  const existingQuiz = await prisma.courseQuiz.findFirst({
+    where: {
+      courseId,
+      quizType: 'final_exam',
+    },
+  });
+
+  if (existingQuiz) {
+    console.log(`📝 Deleting existing final exam ${existingQuiz.quizId} before regenerating`);
+    await prisma.courseQuiz.delete({
+      where: { quizId: existingQuiz.quizId },
+    });
+  }
+
+  // Get quiz generation settings
+  const settings = await prisma.quizGenerationSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+  
+  // Get course completion settings for pass mark
+  const completionSettings = await prisma.courseCompletionSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
+  const minQuestions = settings?.finalExamMinQuestions || 15;
+  const maxQuestions = settings?.finalExamMaxQuestions || 25;
+  const questionCount = Math.floor(Math.random() * (maxQuestions - minQuestions + 1)) + minQuestions;
+
+  // Aggregate content from all sections and articles
+  const courseContent = course.sections
+    .map(section => {
+      const articlesContent = section.articles
+        .map(article => `Article: ${article.title}\n${article.contentHtml?.substring(0, 800)}...`)
+        .join('\n');
+      return `Section: ${section.title}\n${section.description || ''}\n${articlesContent}`;
+    })
+    .join('\n\n');
+
+  const prompt = `Generate a comprehensive final exam for this entire course.
+
+Course: ${course.title} (${course.level} level)
+Course Description: ${course.description}
+Number of Sections: ${course.sections.length}
+Total Articles: ${course.sections.reduce((total, section) => total + section.articles.length, 0)}
+
+Course Content Overview:
+${courseContent.substring(0, 8000)}...
+
+Create ${questionCount} questions that:
+- Test comprehensive understanding of the ENTIRE course
+- Cover key concepts from ALL sections
+- Include a mix of question types (emphasis on multiple choice and conceptual questions)
+- Are challenging enough for a final exam
+- Test both theoretical understanding and practical application
+- Are appropriate for ${course.level.toLowerCase()} level learners
+
+IMPORTANT: Use exactly these question type values:
+- "MULTIPLE_CHOICE" for multiple choice questions
+- "TRUE_FALSE" for true/false questions  
+- "FILL_IN_BLANK" for fill in the blank questions (NOT "FILL_IN_THE_BLANK")
+- "ESSAY" for essay questions (use sparingly)
+
+Return the response as a JSON object with this structure:
+{
+  "title": "Final Exam Title",
+  "description": "Brief description of what this final exam covers",
+  "questions": [
+    {
+      "type": "MULTIPLE_CHOICE",
+      "question": "Question text here?",
+      "options": {
+        "a": "Option A",
+        "b": "Option B", 
+        "c": "Option C",
+        "d": "Option D"
+      },
+      "correctAnswer": "a",
+      "explanation": "Explanation of why this is correct"
+    },
+    {
+      "type": "TRUE_FALSE",
+      "question": "Statement to evaluate",
+      "correctAnswer": "true",
+      "explanation": "Explanation"
+    },
+    {
+      "type": "FILL_IN_BLANK",
+      "question": "The _____ command is used to list files in Linux",
+      "correctAnswer": "ls",
+      "explanation": "The ls command lists directory contents"
+    }
+  ]
+}
+
+Return ONLY the JSON object.`;
+
+  const response = await callAI('course_quiz_generation', prompt, {
+    courseId,
+    courseTitle: course.title,
+    courseLevel: course.level,
+    examType: 'final_exam',
+  });
+
+  // Clean up the response by removing any markdown code block wrappers
+  let cleanedResponse = response.trim();
+  
+  // Remove markdown code block wrappers if present
+  if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(8, -4).trim();
+  } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(4, -4).trim();
+  } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(7, -3).trim();
+  } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(3, -3).trim();
+  }
+  
+  const examData = JSON.parse(cleanedResponse);
+
+  // Create the final exam quiz
+  const quiz = await prisma.courseQuiz.create({
+    data: {
+      courseId,
+      title: examData.title || `${course.title} - Final Exam`,
+      description: examData.description || `Comprehensive final exam for ${course.title}`,
+      quizType: 'final_exam',
+      passMarkPercentage: completionSettings?.minQuizAverage || 65.0,
+      timeLimit: Math.max(60, questionCount * 3), // 3 minutes per question, minimum 60 minutes
+      maxAttempts: null, // Unlimited attempts but with cooldown
+      cooldownHours: completionSettings?.finalExamCooldownHours || 24,
+    },
+  });
+
+  // Create questions
+  for (let i = 0; i < examData.questions.length; i++) {
+    const questionData = examData.questions[i];
+    
+    // Map AI-generated question types to database enum values
+    let questionType = questionData.type;
+    if (questionType === 'FILL_IN_THE_BLANK') {
+      questionType = 'FILL_IN_BLANK';
+    }
+    
+    // Validate question type
+    const validTypes = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_BLANK', 'ESSAY'];
+    if (!validTypes.includes(questionType)) {
+      console.error(`Invalid question type: ${questionType}, defaulting to MULTIPLE_CHOICE`);
+      questionType = 'MULTIPLE_CHOICE';
+    }
+    
+    await prisma.courseQuizQuestion.create({
+      data: {
+        quizId: quiz.quizId,
+        questionType: questionType as any,
+        questionText: questionData.question,
+        optionsJson: questionData.options || null,
+        correctAnswer: questionData.correctAnswer,
+        explanation: questionData.explanation,
+        orderIndex: i,
+        points: 1.0,
+      },
+    });
+  }
+
+  console.log(`✅ Final exam generated successfully for course ${courseId}`);
+  return { success: true, quizId: quiz.quizId };
 }
 
 // Create the worker

@@ -440,13 +440,25 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                 Complete all course content and pass the final exam with {course.passMarkPercentage}% or higher to earn your certificate.
               </p>
             </div>
-            <Button 
-              variant="outline" 
-              disabled={!course.isEnrolled || course.progressPercentage < 100}
-            >
-              <Award className="h-4 w-4 mr-2" />
-              Take Final Exam
-            </Button>
+            {course.isEnrolled ? (
+              <Link href={`/courses/${courseId}/final-exam`}>
+                <Button 
+                  variant="outline" 
+                  disabled={course.progressPercentage < 85}
+                >
+                  <Award className="h-4 w-4 mr-2" />
+                  {course.progressPercentage < 85 ? 'Complete Course First' : 'Take Final Exam'}
+                </Button>
+              </Link>
+            ) : (
+              <Button 
+                variant="outline" 
+                disabled
+              >
+                <Award className="h-4 w-4 mr-2" />
+                Take Final Exam
+              </Button>
+            )}
           </div>
         </Card>
       </div>

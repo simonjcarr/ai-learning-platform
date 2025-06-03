@@ -42,9 +42,10 @@ interface QuizAttempt {
 interface CourseQuizProps {
   articleId?: string;
   sectionId?: string;
+  courseId?: string;
 }
 
-export default function CourseQuiz({ articleId, sectionId }: CourseQuizProps) {
+export default function CourseQuiz({ articleId, sectionId, courseId }: CourseQuizProps) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +62,10 @@ export default function CourseQuiz({ articleId, sectionId }: CourseQuizProps) {
   const [timerActive, setTimerActive] = useState(false);
 
   useEffect(() => {
-    if (articleId || sectionId) {
+    if (articleId || sectionId || courseId) {
       fetchQuizzes();
     }
-  }, [articleId, sectionId]);
+  }, [articleId, sectionId, courseId]);
 
   useEffect(() => {
     if (timerActive && timeRemaining !== null && timeRemaining > 0) {
@@ -82,7 +83,9 @@ export default function CourseQuiz({ articleId, sectionId }: CourseQuizProps) {
     try {
       const endpoint = articleId 
         ? `/api/courses/articles/${articleId}/quizzes`
-        : `/api/courses/sections/${sectionId}/quizzes`;
+        : sectionId
+        ? `/api/courses/sections/${sectionId}/quizzes`
+        : `/api/courses/${courseId}/quizzes`;
       
       const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch quizzes");
@@ -131,7 +134,9 @@ export default function CourseQuiz({ articleId, sectionId }: CourseQuizProps) {
       // Refresh to get updated attempts
       const endpoint = articleId 
         ? `/api/courses/articles/${articleId}/quizzes`
-        : `/api/courses/sections/${sectionId}/quizzes`;
+        : sectionId
+        ? `/api/courses/sections/${sectionId}/quizzes`
+        : `/api/courses/${courseId}/quizzes`;
         
       const updatedAttempts = await fetch(endpoint);
       if (updatedAttempts.ok) {
@@ -303,7 +308,7 @@ export default function CourseQuiz({ articleId, sectionId }: CourseQuizProps) {
     return null;
   }
 
-  const quizTitle = articleId ? "Article Quizzes" : "Section Quizzes";
+  const quizTitle = articleId ? "Article Quizzes" : sectionId ? "Section Quizzes" : "Final Exam";
   
   return (
     <section className="border-t pt-12 mt-12">

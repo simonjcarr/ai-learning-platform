@@ -46,6 +46,7 @@ model User {
   createdCourses               Course[]               @relation("CreatedCourses")
   courseArticleChangeHistories CourseArticleChangeHistory[]
   courseRollbackChangeHistories CourseArticleChangeHistory[] @relation("CourseRollbackUser")
+  finalExamAttempts            FinalExamAttempt[]
 
   @@map("users")
 }
@@ -668,6 +669,8 @@ model Course {
   sections            CourseSection[]
   enrollments         CourseEnrollment[]
   certificates        CourseCertificate[]
+  finalExams          CourseQuiz[]
+  finalExamAttempts   FinalExamAttempt[]
 
   @@index([slug])
   @@index([status])
@@ -722,6 +725,7 @@ model CourseQuiz {
   quizId        String              @id @default(cuid())
   sectionId     String?
   articleId     String?
+  courseId      String?             // For final exams
   title         String
   description   String?
   quizType      String              // 'article', 'section', 'final_exam'
@@ -729,16 +733,19 @@ model CourseQuiz {
   passMarkPercentage Float          @default(70.0)
   timeLimit     Int?                // in minutes
   maxAttempts   Int?                // null = unlimited
+  cooldownHours Int?                // For final exam retake cooldown
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   
   section       CourseSection?      @relation(fields: [sectionId], references: [sectionId], onDelete: Cascade)
   article       CourseArticle?      @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+  course        Course?             @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
   questions     CourseQuizQuestion[]
   attempts      CourseQuizAttempt[]
 
   @@index([sectionId])
   @@index([articleId])
+  @@index([courseId])
   @@index([quizType])
   @@map("course_quizzes")
 }
@@ -789,6 +796,14 @@ model CourseProgress {
   startedAt     DateTime?
   completedAt   DateTime?
   lastAccessedAt DateTime     @default(now())
+  
+  // Engagement tracking
+  engagementScore      Float?   @default(0)
+  scrollPercentage     Int      @default(0)
+  interactionCount     Int      @default(0)
+  timeSpent           Int      @default(0)
+  isCompleted         Boolean  @default(false)
+  lastEngagementUpdate DateTime?
   
   enrollment    CourseEnrollment @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Cascade)
   article       CourseArticle    @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
@@ -845,6 +860,9 @@ model CourseCertificate {
   clerkUserId   String
   issuedAt      DateTime  @default(now())
   certificateData Json    // Contains course name, user name, completion date, etc.
+  grade         CertificateGrade? // Bronze, Silver, Gold
+  finalScore    Float?    // Overall completion score
+  engagementScore Float?  // Engagement score
   
   course        Course    @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
   user          User      @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
@@ -971,4 +989,58 @@ enum CourseGenerationStatus {
   IN_PROGRESS
   COMPLETED
   FAILED
+}
+
+enum CertificateGrade {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+model CourseCompletionSettings {
+  settingsId                   String   @id @default(cuid())
+  bronzeThreshold             Float    @default(65.0)
+  silverThreshold             Float    @default(75.0)
+  goldThreshold               Float    @default(90.0)
+  minEngagementScore          Float    @default(75.0)
+  minQuizAverage              Float    @default(70.0)
+  minArticlesCompletedPercent Float    @default(85.0)
+  finalExamRequired           Boolean  @default(true)
+  finalExamCooldownHours      Int      @default(24)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@map("course_completion_settings")
+}
+
+model QuizGenerationSettings {
+  settingsId                String   @id @default(cuid())
+  articleQuizMinQuestions   Int      @default(3)
+  articleQuizMaxQuestions   Int      @default(5)
+  sectionQuizMinQuestions   Int      @default(5)
+  sectionQuizMaxQuestions   Int      @default(8)
+  finalExamMinQuestions     Int      @default(15)
+  finalExamMaxQuestions     Int      @default(25)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@map("quiz_generation_settings")
+}
+
+model FinalExamAttempt {
+  attemptId   String    @id @default(cuid())
+  courseId    String
+  clerkUserId String
+  attemptedAt DateTime  @default(now())
+  score       Float?
+  passed      Boolean?
+  canRetakeAt DateTime?
+
+  course Course @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user   User   @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([clerkUserId])
+  @@index([attemptedAt])
+  @@map("final_exam_attempts")
 }

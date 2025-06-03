@@ -15,16 +15,37 @@ export async function POST(
     const { quizId } = await params;
     const { answers } = await request.json();
 
-    // Fetch the quiz with questions
+    // Fetch the quiz with questions and related course
     const quiz = await prisma.courseQuiz.findUnique({
       where: { quizId },
       include: {
         questions: true,
+        course: true,
+        section: {
+          include: {
+            course: true,
+          },
+        },
+        article: {
+          include: {
+            section: {
+              include: {
+                course: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!quiz) {
       return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+    }
+
+    // Get the course (from different relationships)
+    const course = quiz.course || quiz.section?.course || quiz.article?.section?.course;
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Check if user has exceeded max attempts
@@ -121,6 +142,29 @@ export async function POST(
         timeSpent: Math.floor((new Date().getTime() - startTime.getTime()) / 1000),
       },
     });
+
+    // If this is a final exam, also record in FinalExamAttempt table
+    if (quiz.quizType === 'final_exam') {
+      const cooldownHours = quiz.cooldownHours || 24;
+      const nextRetakeTime = new Date();
+      nextRetakeTime.setHours(nextRetakeTime.getHours() + cooldownHours);
+
+      await prisma.finalExamAttempt.create({
+        data: {
+          courseId: course.courseId,
+          clerkUserId: user.clerkUserId,
+          score,
+          passed,
+          canRetakeAt: passed ? null : nextRetakeTime,
+        },
+      });
+
+      // If passed, potentially generate certificate
+      if (passed) {
+        // TODO: Implement certificate generation with grade calculation
+        console.log(`Student ${user.clerkUserId} passed final exam for course ${course.courseId} with score ${score}%`);
+      }
+    }
 
     return NextResponse.json({
       score,

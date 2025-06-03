@@ -1,0 +1,310 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Save, Settings, Award, Clock, Target, TrendingUp } from "lucide-react";
+
+interface CourseCompletionSettings {
+  settingsId: string;
+  bronzeThreshold: number;
+  silverThreshold: number;
+  goldThreshold: number;
+  minEngagementScore: number;
+  minQuizAverage: number;
+  minArticlesCompletedPercent: number;
+  finalExamRequired: boolean;
+  finalExamCooldownHours: number;
+}
+
+export default function CourseCompletionSettingsPage() {
+  const [settings, setSettings] = useState<CourseCompletionSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/course-completion/settings');
+      if (!response.ok) throw new Error('Failed to fetch settings');
+      const data = await response.json();
+      setSettings(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!settings) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const response = await fetch('/api/admin/course-completion/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) throw new Error('Failed to save settings');
+      
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateSetting = (key: keyof CourseCompletionSettings, value: any) => {
+    if (!settings) return;
+    setSettings({ ...settings, [key]: value });
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !settings) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Card className="p-6">
+          <div className="text-center text-red-600">Error: {error}</div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mb-8">
+        <div className="flex items-center space-x-3 mb-4">
+          <Settings className="h-8 w-8 text-orange-600" />
+          <h1 className="text-3xl font-bold text-gray-900">Course Completion Settings</h1>
+        </div>
+        <p className="text-gray-600">
+          Configure global requirements for course completion and certificate grading across all courses.
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-green-800">Settings saved successfully!</p>
+        </div>
+      )}
+
+      <div className="space-y-8">
+        {/* Certificate Grade Thresholds */}
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <Award className="h-6 w-6 text-yellow-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Certificate Grade Thresholds</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="bronzeThreshold" className="flex items-center space-x-2">
+                <Badge className="bg-orange-100 text-orange-800">Bronze</Badge>
+                <span>Minimum Score (%)</span>
+              </Label>
+              <Input
+                id="bronzeThreshold"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings?.bronzeThreshold || 0}
+                onChange={(e) => updateSetting('bronzeThreshold', parseFloat(e.target.value))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="silverThreshold" className="flex items-center space-x-2">
+                <Badge className="bg-gray-100 text-gray-800">Silver</Badge>
+                <span>Minimum Score (%)</span>
+              </Label>
+              <Input
+                id="silverThreshold"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings?.silverThreshold || 0}
+                onChange={(e) => updateSetting('silverThreshold', parseFloat(e.target.value))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="goldThreshold" className="flex items-center space-x-2">
+                <Badge className="bg-yellow-100 text-yellow-800">Gold</Badge>
+                <span>Minimum Score (%)</span>
+              </Label>
+              <Input
+                id="goldThreshold"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings?.goldThreshold || 0}
+                onChange={(e) => updateSetting('goldThreshold', parseFloat(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> Final scores are calculated based on engagement, quiz performance, 
+              time investment, and interaction quality. Students must meet all minimum requirements 
+              below in addition to these grade thresholds.
+            </p>
+          </div>
+        </Card>
+
+        {/* Engagement Requirements */}
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <TrendingUp className="h-6 w-6 text-blue-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Engagement Requirements</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="minEngagementScore">Minimum Engagement Score (%)</Label>
+              <Input
+                id="minEngagementScore"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings?.minEngagementScore || 0}
+                onChange={(e) => updateSetting('minEngagementScore', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Combined score from article reading time, scroll depth, and interactions
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minArticlesCompletedPercent">Articles Completed (%)</Label>
+              <Input
+                id="minArticlesCompletedPercent"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings?.minArticlesCompletedPercent || 0}
+                onChange={(e) => updateSetting('minArticlesCompletedPercent', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Percentage of course articles that must be completed
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Quiz Requirements */}
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <Target className="h-6 w-6 text-green-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Quiz Requirements</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="minQuizAverage">Minimum Quiz Average (%)</Label>
+              <Input
+                id="minQuizAverage"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings?.minQuizAverage || 0}
+                onChange={(e) => updateSetting('minQuizAverage', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Average score across all section quizzes (article quizzes are optional but boost score)
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Final Exam Settings */}
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <Clock className="h-6 w-6 text-purple-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Final Exam Settings</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex items-center space-x-3">
+              <Switch
+                id="finalExamRequired"
+                checked={settings?.finalExamRequired || false}
+                onCheckedChange={(checked) => updateSetting('finalExamRequired', checked)}
+              />
+              <Label htmlFor="finalExamRequired">Require final exam for certificate</Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="finalExamCooldownHours">Retake Cooldown (hours)</Label>
+              <Input
+                id="finalExamCooldownHours"
+                type="number"
+                min="0"
+                max="168"
+                value={settings?.finalExamCooldownHours || 0}
+                onChange={(e) => updateSetting('finalExamCooldownHours', parseInt(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                How long students must wait before retaking a failed final exam (0 = no cooldown)
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Save Button */}
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={saving} size="lg">
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Settings
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
