@@ -116,10 +116,61 @@ export async function GET(
     const enrollment = course.enrollments[0];
     let progressPercentage = 0;
     let completedArticles = 0;
+    let quizAttempts: Record<string, { score: number; passed: boolean; completedAt: string }[]> = {};
 
     if (enrollment) {
       completedArticles = enrollment.progress.filter(p => p.isCompleted).length;
       progressPercentage = totalArticles > 0 ? Math.round((completedArticles / totalArticles) * 100) : 0;
+
+      // Get quiz attempts for this user and course
+      const attempts = await prisma.courseQuizAttempt.findMany({
+        where: {
+          clerkUserId: userId,
+          quiz: {
+            OR: [
+              { courseId: course.courseId },
+              { sectionId: { in: course.sections.map(s => s.sectionId) } },
+              { articleId: { in: course.sections.flatMap(s => s.articles.map(a => a.articleId)) } },
+            ],
+          },
+        },
+        include: {
+          quiz: {
+            select: {
+              quizId: true,
+              articleId: true,
+              sectionId: true,
+              courseId: true,
+            },
+          },
+        },
+        orderBy: {
+          completedAt: 'desc',
+        },
+      });
+
+      // Group attempts by article ID (for easier lookup in the UI)
+      const quizAttemptsByArticle: Record<string, { score: number; passed: boolean; completedAt: string }[]> = {};
+      
+      attempts.forEach(attempt => {
+        if (attempt.quiz.articleId) {
+          if (!quizAttemptsByArticle[attempt.quiz.articleId]) {
+            quizAttemptsByArticle[attempt.quiz.articleId] = [];
+          }
+          quizAttemptsByArticle[attempt.quiz.articleId].push({
+            score: attempt.score,
+            passed: attempt.passed,
+            completedAt: attempt.completedAt?.toISOString() || '',
+          });
+        }
+      });
+
+      // Sort attempts by score (highest first)
+      Object.keys(quizAttemptsByArticle).forEach(articleId => {
+        quizAttemptsByArticle[articleId].sort((a, b) => b.score - a.score);
+      });
+
+      quizAttempts = quizAttemptsByArticle;
     }
 
     const courseWithMetrics = {
@@ -154,6 +205,7 @@ export async function GET(
       progressPercentage,
       completedArticles,
       progress: enrollment?.progress || [],
+      quizAttempts,
     };
 
     return NextResponse.json(courseWithMetrics);

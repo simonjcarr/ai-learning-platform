@@ -86,6 +86,7 @@ interface Course {
   progressPercentage: number;
   completedArticles: number;
   progress: CourseProgress[];
+  quizAttempts: Record<string, { score: number; passed: boolean; completedAt: string }[]>;
 }
 
 export default function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
@@ -162,6 +163,21 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
     if (!course?.progress) return false;
     const progress = course.progress.find(p => p.articleId === articleId);
     return progress?.isCompleted || false;
+  };
+
+  const getArticleQuizScore = (articleId: string) => {
+    if (!course?.quizAttempts || !course.quizAttempts[articleId]) return null;
+    
+    const attempts = course.quizAttempts[articleId];
+    // Return the best score (attempts are already sorted by score, highest first)
+    return attempts.length > 0 ? attempts[0].score : null;
+  };
+
+  const hasPassedArticleQuiz = (articleId: string) => {
+    if (!course?.quizAttempts || !course.quizAttempts[articleId]) return false;
+    
+    const attempts = course.quizAttempts[articleId];
+    return attempts.some(attempt => attempt.passed);
   };
 
   const getNextIncompleteArticle = () => {
@@ -352,6 +368,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                 {section.articles.map((article, articleIndex) => {
                   const isCompleted = isArticleCompleted(article.articleId);
                   const isAccessible = course.isEnrolled && article.isGenerated;
+                  const quizScore = getArticleQuizScore(article.articleId);
+                  const hasPassedQuiz = hasPassedArticleQuiz(article.articleId);
                   
                   return (
                     <div 
@@ -373,7 +391,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                             {articleIndex + 1}.
                           </span>
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium text-gray-900">{article.title}</p>
                           {article.description && (
                             <p className="text-sm text-gray-600">{article.description}</p>
@@ -381,20 +399,45 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                           {!article.isGenerated && (
                             <p className="text-xs text-yellow-600">Content being generated...</p>
                           )}
+                          {quizScore !== null && (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge className={`text-xs ${
+                                hasPassedQuiz 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                Quiz: {quizScore.toFixed(1)}% {hasPassedQuiz ? '(Passed)' : '(Retry needed)'}
+                              </Badge>
+                            </div>
+                          )}
                         </div>
                       </div>
                       
-                      {isAccessible ? (
-                        <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
-                          <Button variant="outline" size="sm">
-                            {isCompleted ? 'Review' : 'Start'}
+                      <div className="flex items-center space-x-3">
+                        {isCompleted && (
+                          <div className="text-right">
+                            <div className="flex items-center space-x-1">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-600">Completed</span>
+                            </div>
+                            {quizScore !== null && (
+                              <p className="text-xs text-gray-500">Quiz: {quizScore.toFixed(1)}%</p>
+                            )}
+                          </div>
+                        )}
+                        
+                        {isAccessible ? (
+                          <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
+                            <Button variant="outline" size="sm">
+                              {isCompleted ? 'Review' : 'Start'}
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>
+                            {course.isEnrolled ? 'Generating...' : 'Enroll to Access'}
                           </Button>
-                        </Link>
-                      ) : (
-                        <Button variant="outline" size="sm" disabled>
-                          {course.isEnrolled ? 'Generating...' : 'Enroll to Access'}
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </div>
                   );
                 })}

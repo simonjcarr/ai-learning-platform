@@ -166,6 +166,65 @@ export async function POST(
       }
     }
 
+    // If this is an article quiz and the user passed, mark the article as completed
+    if (quiz.articleId && passed) {
+      // Find the user's enrollment in the course
+      const enrollment = await prisma.courseEnrollment.findFirst({
+        where: {
+          courseId: course.courseId,
+          user: {
+            clerkUserId: user.clerkUserId,
+          },
+        },
+      });
+
+      if (enrollment) {
+        // Mark the article as completed in course progress
+        await prisma.courseProgress.upsert({
+          where: {
+            enrollmentId_articleId: {
+              enrollmentId: enrollment.enrollmentId,
+              articleId: quiz.articleId,
+            },
+          },
+          update: {
+            isCompleted: true,
+            completedAt: new Date(),
+            lastAccessedAt: new Date(),
+          },
+          create: {
+            enrollmentId: enrollment.enrollmentId,
+            articleId: quiz.articleId,
+            clerkUserId: user.clerkUserId,
+            isCompleted: true,
+            completedAt: new Date(),
+            timeSpent: 0,
+          },
+        });
+
+        // Check if course is now complete
+        const allProgress = await prisma.courseProgress.findMany({
+          where: {
+            enrollmentId: enrollment.enrollmentId,
+          },
+        });
+
+        const totalArticles = allProgress.length;
+        const completedArticles = allProgress.filter(p => p.isCompleted).length;
+        const isAllComplete = totalArticles > 0 && completedArticles === totalArticles;
+
+        // Update enrollment completion status if needed
+        if (isAllComplete && !enrollment.completedAt) {
+          await prisma.courseEnrollment.update({
+            where: { enrollmentId: enrollment.enrollmentId },
+            data: { completedAt: new Date() },
+          });
+        }
+
+        console.log(`Article ${quiz.articleId} marked as completed for user ${user.clerkUserId} after passing quiz`);
+      }
+    }
+
     return NextResponse.json({
       score,
       passed,
