@@ -104,9 +104,9 @@ export async function GET(
     let reason = '';
 
     // Check eligibility requirements
-    const minArticlesPercent = settings?.minArticlesCompletedPercent || 85;
-    const minEngagement = settings?.minEngagementScore || 75;
-    const minQuizAverage = settings?.minQuizAverage || 70;
+    const minArticlesPercent = settings?.minArticlesCompletedPercent ?? 85;
+    const minEngagement = settings?.minEngagementScore ?? 75;
+    const minQuizAverage = settings?.minQuizAverage ?? 70;
 
     if (courseProgress < minArticlesPercent) {
       canTakeExam = false;
@@ -114,14 +114,15 @@ export async function GET(
     } else if (engagementData.finalScore < minEngagement) {
       canTakeExam = false;
       reason = `Achieve minimum engagement score of ${minEngagement}% (currently ${engagementData.finalScore}%)`;
-    } else if (sectionQuizAverage < minQuizAverage) {
+    } else if (minQuizAverage > 0 && sectionQuizAverage < minQuizAverage) {
+      // Only check quiz average if the requirement is greater than 0
       canTakeExam = false;
       reason = `Achieve minimum section quiz average of ${minQuizAverage}% (currently ${sectionQuizAverage.toFixed(1)}%)`;
     }
 
     // Check cooldown period
     if (canTakeExam && lastAttempt && !lastAttempt.passed) {
-      const cooldownHours = settings?.finalExamCooldownHours || 24;
+      const cooldownHours = settings?.finalExamCooldownHours ?? 24;
       const nextAttemptTime = new Date(lastAttempt.attemptedAt.getTime() + (cooldownHours * 60 * 60 * 1000));
       
       if (new Date() < nextAttemptTime) {
