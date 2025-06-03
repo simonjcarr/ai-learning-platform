@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CourseLevel, CertificateGrade } from "@prisma/client";
+import { generateCertificatePDF } from "@/lib/pdf-generator";
 
 interface CertificateDetail {
   certificateId: string;
@@ -51,6 +52,7 @@ export default function CertificateDetailPage({ params }: { params: Promise<{ ce
   const [certificate, setCertificate] = useState<CertificateDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetchCertificate();
@@ -75,10 +77,18 @@ export default function CertificateDetailPage({ params }: { params: Promise<{ ce
     }
   };
 
-  const handleDownload = () => {
-    // For now, we'll just show an alert. In a real implementation,
-    // this would generate a PDF or image of the certificate
-    alert('Certificate download functionality will be implemented with PDF generation');
+  const handleDownload = async () => {
+    if (!certificate) return;
+
+    setDownloading(true);
+    try {
+      await generateCertificatePDF(certificate.certificateData);
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      alert('Failed to generate certificate PDF. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const getGradeBadgeColor = (grade: CertificateGrade) => {
@@ -248,9 +258,9 @@ export default function CertificateDetailPage({ params }: { params: Promise<{ ce
 
       {/* Action Buttons */}
       <div className="flex justify-center space-x-4">
-        <Button onClick={handleDownload} size="lg">
+        <Button onClick={handleDownload} size="lg" disabled={downloading}>
           <Download className="h-4 w-4 mr-2" />
-          Download Certificate
+          {downloading ? 'Generating PDF...' : 'Download Certificate'}
         </Button>
         <Link href={`/courses/${certificate.course.slug}`}>
           <Button variant="outline" size="lg">

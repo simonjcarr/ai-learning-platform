@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CourseLevel, CertificateGrade } from "@prisma/client";
+import { generateCertificatePDF } from "@/lib/pdf-generator";
 
 interface Certificate {
   certificateId: string;
@@ -29,6 +30,7 @@ export default function CertificatesPage() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCertificates();
@@ -46,6 +48,20 @@ export default function CertificatesPage() {
       setError(err instanceof Error ? err.message : 'Failed to load certificates');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownload = async (certificate: Certificate) => {
+    if (!certificate.certificateData) return;
+
+    setDownloadingId(certificate.certificateId);
+    try {
+      await generateCertificatePDF(certificate.certificateData);
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      alert('Failed to generate certificate PDF. Please try again.');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -181,12 +197,15 @@ export default function CertificatesPage() {
                       View
                     </Button>
                   </Link>
-                  <Link href={`/dashboard/certificates/${certificate.certificateId}?download=true`} className="flex-1">
-                    <Button size="sm" className="w-full">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </Button>
-                  </Link>
+                  <Button 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => handleDownload(certificate)}
+                    disabled={downloadingId === certificate.certificateId}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {downloadingId === certificate.certificateId ? 'Generating...' : 'Download'}
+                  </Button>
                 </div>
               </div>
             </Card>
