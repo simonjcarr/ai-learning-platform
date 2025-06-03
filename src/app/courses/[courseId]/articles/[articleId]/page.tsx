@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, BookOpen, Clock } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import CourseQuiz from '@/components/course-quiz';
 
 interface PageProps {
   params: Promise<{ courseId: string; articleId: string }>;
@@ -112,6 +113,11 @@ export default async function CourseArticlePage({ params }: PageProps) {
           </Card>
         )}
       </article>
+
+      {/* Course Quizzes */}
+      {courseArticle.contentHtml && (
+        <CourseQuiz articleId={courseArticle.articleId} />
+      )}
 
       {/* Navigation to next/previous articles could be added here */}
     </div>
