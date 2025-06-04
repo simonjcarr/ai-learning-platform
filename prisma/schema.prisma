@@ -678,6 +678,7 @@ model Course {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   publishedAt         DateTime?
+  deletedAt           DateTime?
   
   // Course generation tracking
   generationStatus    CourseGenerationStatus @default(PENDING)
@@ -700,6 +701,7 @@ model Course {
   @@index([status])
   @@index([level])
   @@index([createdByClerkId])
+  @@index([deletedAt])
   @@map("courses")
 }
 

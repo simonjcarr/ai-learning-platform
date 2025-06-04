@@ -68,21 +68,39 @@ export default function AdminCoursesPage() {
     }
   };
 
-  const deleteCourse = async (courseId: string) => {
-    if (!confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
-      return;
-    }
-
+  const deleteCourse = async (courseId: string, force = false) => {
     try {
-      const response = await fetch(`/api/admin/courses/${courseId}`, {
+      const url = `/api/admin/courses/${courseId}${force ? '?force=true' : ''}`;
+      const response = await fetch(url, {
         method: 'DELETE',
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete course');
+        if (responseData.requiresForce) {
+          // Course has enrollments, ask user if they want to force delete
+          const message = `This course has ${responseData.enrollmentCount} active enrollments and ${responseData.certificateCount} certificates issued.
+
+⚠️ WARNING: Deleting this course will:
+• Hide the course from all enrolled users
+• Preserve all user certificates and enrollment history
+• Make the course content inaccessible to users
+
+Do you want to proceed with deletion?`;
+
+          if (confirm(message)) {
+            // User confirmed, try again with force=true
+            return deleteCourse(courseId, true);
+          }
+          return;
+        }
+        throw new Error(responseData.error || 'Failed to delete course');
       }
 
+      // Show success message
+      alert(responseData.message || 'Course deleted successfully');
+      
       // Refresh the courses list
       fetchCourses();
     } catch (err) {
@@ -306,7 +324,7 @@ export default function AdminCoursesPage() {
                     size="sm"
                     onClick={() => deleteCourse(course.courseId)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    disabled={course.enrollmentCount > 0}
+                    title={course.enrollmentCount > 0 ? `Course has ${course.enrollmentCount} enrollments` : 'Delete course'}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     // Build where clause
     const whereClause: any = {
       status: CourseStatus.PUBLISHED,
+      deletedAt: null, // Only include non-deleted courses
     };
 
     if (level) {

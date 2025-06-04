@@ -255,9 +255,32 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
             </Button>
           </Link>
         </div>
-        <Card className="p-6">
-          <div className="text-center text-red-600">
-            {error || 'Course not found'}
+        <Card className="p-12">
+          <div className="text-center">
+            <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {error === 'Course not found' ? 'Course No Longer Available' : 'Course Not Found'}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {error === 'Course not found' 
+                ? 'This course may have been removed or is no longer accessible. Don\'t worry - if you had a certificate for this course, it\'s still valid and available in your dashboard.'
+                : 'We couldn\'t find the course you\'re looking for. It may have been moved or removed.'
+              }
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/courses">
+                <Button>
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Browse All Courses
+                </Button>
+              </Link>
+              <Link href="/dashboard/certificates">
+                <Button variant="outline">
+                  <Award className="h-4 w-4 mr-2" />
+                  View My Certificates
+                </Button>
+              </Link>
+            </div>
           </div>
         </Card>
       </div>

@@ -23,6 +23,9 @@ export async function GET() {
     }
 
     const courses = await prisma.course.findMany({
+      where: {
+        deletedAt: null, // Only include non-deleted courses
+      },
       include: {
         createdBy: {
           select: {

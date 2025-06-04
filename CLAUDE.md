@@ -123,3 +123,7 @@ Critical environment variables (see README.md):
 - After making any changes always run `npm run build` and fix any errors you find.
 - Don't change, add or delete anything that is not directly related to the task given to you
 - Components should be as small as possible, where possible break down the task into smaller components. Keep related components together in well named folders
+
+## Database
+When making changes to the database schema, it should be done in a way that avoids requiring a database reset.
+when migrating data, always do it in a way that prevents tables being truncated. This is important for both development and when we merge changes into production.

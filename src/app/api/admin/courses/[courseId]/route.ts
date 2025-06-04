@@ -27,8 +27,11 @@ export async function GET(
 
     const { courseId } = await params;
     
-    const course = await prisma.course.findUnique({
-      where: { courseId },
+    const course = await prisma.course.findFirst({
+      where: { 
+        courseId,
+        deletedAt: null 
+      },
       include: {
         createdBy: {
           select: {
@@ -237,12 +240,18 @@ export async function DELETE(
     }
 
     const { courseId } = await params;
+    const url = new URL(request.url);
+    const force = url.searchParams.get('force') === 'true';
     
-    // Check if course exists
-    const course = await prisma.course.findUnique({
-      where: { courseId },
+    // Check if course exists and is not already deleted
+    const course = await prisma.course.findFirst({
+      where: { 
+        courseId,
+        deletedAt: null 
+      },
       include: {
         enrollments: true,
+        certificates: true,
       },
     });
 
@@ -250,20 +259,33 @@ export async function DELETE(
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
 
-    // Check if course has enrollments
-    if (course.enrollments.length > 0) {
+    // Check if course has enrollments and force flag is not set
+    if (course.enrollments.length > 0 && !force) {
       return NextResponse.json(
-        { error: 'Cannot delete course with existing enrollments' },
+        { 
+          error: 'Course has active enrollments',
+          enrollmentCount: course.enrollments.length,
+          certificateCount: course.certificates.length,
+          requiresForce: true
+        },
         { status: 400 }
       );
     }
 
-    // Delete the course (cascade will handle sections, articles, etc.)
-    await prisma.course.delete({
+    // Soft delete the course - this preserves certificates and enrollment history
+    // but makes the course inaccessible to users
+    await prisma.course.update({
       where: { courseId },
+      data: {
+        deletedAt: new Date(),
+        status: 'ARCHIVED', // Set status to archived as well
+      },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      message: 'Course deleted successfully. User certificates and enrollment history have been preserved.'
+    });
   } catch (error) {
     console.error('Error deleting course:', error);
     return NextResponse.json(

@@ -26,10 +26,11 @@ export async function GET(
       },
     });
 
-    // Get the course first
-    const course = await prisma.course.findUnique({
+    // Get the course first - check if course exists and is not deleted
+    const course = await prisma.course.findFirst({
       where: { 
         courseId: courseId,
+        deletedAt: null, // Only include non-deleted courses
       },
       include: {
         createdBy: {

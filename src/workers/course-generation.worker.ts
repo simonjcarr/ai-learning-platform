@@ -30,7 +30,8 @@ interface CourseOutline {
 async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
   const { courseId, jobType, sectionId, articleId, context } = job.data;
   
-  console.log(`🎓 Processing course generation job: ${jobType} for course ${courseId} (attempt ${job.attemptsMade + 1}/${job.opts.attempts})`);
+  console.log(`🎓 [WORKER] Processing course generation job: ${jobType} for course ${courseId} (attempt ${job.attemptsMade + 1}/${job.opts.attempts})`);
+  console.log(`🎓 [WORKER] Job ID: ${job.id}, Job Name: ${job.name}`);
 
   try {
     switch (jobType) {
@@ -269,7 +270,9 @@ The content should be substantial (at least 1000 words) and include:
 4. Best practices and common pitfalls
 5. Summary and next steps
 
-Return the content as properly formatted Markdown suitable for educational purposes. Start directly with the title using # heading and use proper Markdown formatting throughout.`;
+Return the content as properly formatted Markdown suitable for educational purposes. Start directly with the title using # heading and use proper Markdown formatting throughout.
+
+IMPORTANT: Return ONLY the markdown content, do NOT wrap the entire response in markdown code blocks (\`\`\`markdown). Return the raw markdown content directly.`;
 
   const content = await callAI('course_article_generation', prompt, {
     courseId,
@@ -513,11 +516,45 @@ async function enhanceArticleWithVideos(courseId: string, articleId: string, con
       console.log(`📺 Added video "${video.title}" to ${placement} section`);
     }
 
-    // Step 4: Update the article with enhanced content
+    // Step 4: Clean up any markdown code block wrappers in enhanced content
+    // Only remove outer markdown code block wrappers if the entire content is wrapped
+    // This preserves inner code blocks (like mermaid diagrams)
+    let finalContent = enhancedContent.trim();
+    if (finalContent.startsWith('```markdown\n') && finalContent.endsWith('\n```')) {
+      // Check if there are any other code blocks inside
+      const innerContent = finalContent.slice(12, -4);
+      if (!innerContent.includes('```')) {
+        // Safe to remove outer wrapper
+        finalContent = innerContent.trim();
+      }
+    } else if (finalContent.startsWith('```markdown') && finalContent.endsWith('```')) {
+      // Check if there are any other code blocks inside
+      const innerContent = finalContent.slice(11, -3);
+      if (!innerContent.includes('```')) {
+        // Safe to remove outer wrapper
+        finalContent = innerContent.trim();
+      }
+    } else if (finalContent.startsWith('```\n') && finalContent.endsWith('\n```')) {
+      // Check if there are any other code blocks inside
+      const innerContent = finalContent.slice(4, -4);
+      if (!innerContent.includes('```')) {
+        // Safe to remove outer wrapper
+        finalContent = innerContent.trim();
+      }
+    } else if (finalContent.startsWith('```') && finalContent.endsWith('```')) {
+      // Check if there are any other code blocks inside
+      const innerContent = finalContent.slice(3, -3);
+      if (!innerContent.includes('```')) {
+        // Safe to remove outer wrapper
+        finalContent = innerContent.trim();
+      }
+    }
+
+    // Update the article with enhanced content
     await prisma.courseArticle.update({
       where: { articleId },
       data: {
-        contentHtml: enhancedContent,
+        contentHtml: finalContent,
         updatedAt: new Date(),
       },
     });
@@ -1446,6 +1483,16 @@ export const courseGenerationWorker = new Worker('course-generation', processCou
       return delay;
     },
   },
+});
+
+console.log('🎓 Course generation worker created and starting...');
+
+courseGenerationWorker.on('ready', () => {
+  console.log('🟢 Course generation worker is ready and listening for jobs');
+});
+
+courseGenerationWorker.on('error', (error) => {
+  console.error('❌ Course generation worker error:', error);
 });
 
 courseGenerationWorker.on('completed', (job) => {
