@@ -49,7 +49,7 @@ async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
         throw new Error(`Unknown job type: ${jobType}`);
     }
   } catch (error) {
-    console.error(`❌ Course generation job failed: ${error.message}`);
+    console.error(`❌ Course generation job failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     
     // Handle rate limit errors specially
     if (error instanceof RateLimitError) {
@@ -161,7 +161,7 @@ Return ONLY the JSON object, no additional text.`;
     outline = JSON.parse(cleanedResponse);
   } catch (parseError) {
     console.error('Raw AI response:', response);
-    throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+    throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
   }
 
   // Store the outline and update the course title and description
@@ -170,7 +170,7 @@ Return ONLY the JSON object, no additional text.`;
     data: {
       title: outline.title,
       description: outline.description,
-      courseOutlineJson: outline,
+      courseOutlineJson: outline as any,
       generationStatus: CourseGenerationStatus.COMPLETED,
     },
   });
@@ -335,7 +335,7 @@ IMPORTANT: Return ONLY the markdown content, do NOT wrap the entire response in 
     });
     console.log(`🎬 Queued video enhancement job for article ${articleId}`);
   } catch (error) {
-    console.error(`⚠️ Failed to queue video enhancement: ${error.message}`);
+    console.error(`⚠️ Failed to queue video enhancement: ${error instanceof Error ? error.message : 'Unknown error'}`);
     // Don't fail the main job if video enhancement queueing fails
   }
   
@@ -431,7 +431,7 @@ async function enhanceArticleWithVideos(courseId: string, articleId: string, con
           console.log(`❌ No videos found for "${recommendation.searchQuery}"`);
         }
       } catch (error) {
-        console.error(`❌ Error searching for videos: ${error.message}`);
+        console.error(`❌ Error searching for videos: ${error instanceof Error ? error.message : 'Unknown error'}`);
         // Continue with other recommendations even if one fails
       }
     }
@@ -570,13 +570,13 @@ async function enhanceArticleWithVideos(courseId: string, articleId: string, con
     };
 
   } catch (error) {
-    console.error(`❌ Error enhancing article with videos: ${error.message}`);
+    console.error(`❌ Error enhancing article with videos: ${error instanceof Error ? error.message : 'Unknown error'}`);
     
     // Don't fail the job completely for video enhancement failures
     return { 
       success: true, 
       skipped: true, 
-      error: error.message 
+      error: error instanceof Error ? error.message : 'Unknown error' 
     };
   }
 }
@@ -1004,8 +1004,20 @@ async function generateFinalExamQuestionBank(courseId: string, context?: any) {
     })
     .join('\n\n');
 
-  // Generate non-essay questions (115 questions)
-  const otherQuestionsPrompt = `Generate ${otherQuestions} comprehensive questions for a final exam question bank covering this entire course.
+  // Generate non-essay questions in smaller batches to avoid truncation
+  const questionsPerBatch = Math.min(25, Math.ceil(otherQuestions / 3)); // Max 25 questions per batch
+  const batchCount = Math.ceil(otherQuestions / questionsPerBatch);
+  
+  console.log(`📝 Generating ${otherQuestions} non-essay questions in ${batchCount} batches of ~${questionsPerBatch} questions each...`);
+  
+  const allOtherQuestions: any[] = [];
+  
+  for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+    const startIndex = batchIndex * questionsPerBatch;
+    const endIndex = Math.min(startIndex + questionsPerBatch, otherQuestions);
+    const questionsInThisBatch = endIndex - startIndex;
+    
+    const otherQuestionsPrompt = `Generate EXACTLY ${questionsInThisBatch} comprehensive questions for a final exam question bank covering this course. This is batch ${batchIndex + 1} of ${batchCount}.
 
 Course: ${course.title} (${course.level} level)
 Course Description: ${course.description}
@@ -1013,9 +1025,9 @@ Number of Sections: ${course.sections.length}
 Total Articles: ${course.sections.reduce((total, section) => total + section.articles.length, 0)}
 
 Course Content Overview:
-${courseContent.substring(0, 10000)}
+${courseContent.substring(0, 8000)}
 
-Create ${otherQuestions} questions that:
+Create EXACTLY ${questionsInThisBatch} questions that:
 - Test comprehensive understanding of the ENTIRE course
 - Cover key concepts from ALL sections
 - Use a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_BLANK question types
@@ -1026,7 +1038,7 @@ Create ${otherQuestions} questions that:
 
 IMPORTANT: Use exactly these question type values:
 - "MULTIPLE_CHOICE" for multiple choice questions (about 70% of questions)
-- "TRUE_FALSE" for true/false questions (about 20% of questions)
+- "TRUE_FALSE" for true/false questions (about 20% of questions)  
 - "FILL_IN_BLANK" for fill in the blank questions (about 10% of questions)
 
 Return the response as a JSON object with this EXACT structure:
@@ -1043,28 +1055,75 @@ Return the response as a JSON object with this EXACT structure:
       },
       "correctAnswer": "a",
       "explanation": "Explanation of why this is correct"
-    },
-    {
-      "type": "TRUE_FALSE",
-      "question": "Statement to evaluate",
-      "correctAnswer": "true",
-      "explanation": "Explanation"
-    },
-    {
-      "type": "FILL_IN_BLANK",
-      "question": "The _____ command is used to list files in Linux",
-      "correctAnswer": "ls",
-      "explanation": "The ls command lists directory contents"
     }
   ]
 }
 
 CRITICAL REQUIREMENTS:
+- Generate EXACTLY ${questionsInThisBatch} questions, no more, no less
 - Return ONLY valid JSON - no markdown, no code blocks, no extra text
-- Ensure all strings are properly escaped (use double quotes for JSON strings)
+- Ensure all strings are properly escaped
 - Make sure there are no trailing commas
 - Ensure the JSON array is properly closed with ]
+- Start your response with { and end with }
 - Do NOT include any explanatory text before or after the JSON`;
+
+    console.log(`📝 Generating batch ${batchIndex + 1}/${batchCount} (${questionsInThisBatch} questions)...`);
+    
+    const batchResponse = await callAI('course_quiz_generation', otherQuestionsPrompt, {
+      courseId,
+      courseTitle: course.title,
+      courseLevel: course.level,
+      examType: 'final_exam_bank_other',
+      batchIndex: batchIndex + 1,
+      totalBatches: batchCount,
+    });
+    
+    // Parse this batch
+    try {
+      const cleanedBatchResponse = cleanAIResponse(batchResponse);
+      const batchData = JSON.parse(cleanedBatchResponse);
+      
+      if (batchData.questions && Array.isArray(batchData.questions)) {
+        allOtherQuestions.push(...batchData.questions);
+        console.log(`✅ Batch ${batchIndex + 1} completed: ${batchData.questions.length} questions`);
+      } else {
+        throw new Error('No questions array found in batch response');
+      }
+    } catch (error) {
+      console.error(`❌ Failed to parse batch ${batchIndex + 1}:`, error);
+      
+      // Try to fix this batch
+      try {
+        const fixedJson = fixCommonJSONIssues(cleanAIResponse(batchResponse));
+        const fixedData = JSON.parse(fixedJson);
+        
+        if (fixedData.questions && Array.isArray(fixedData.questions)) {
+          allOtherQuestions.push(...fixedData.questions);
+          console.log(`✅ Fixed batch ${batchIndex + 1}: ${fixedData.questions.length} questions`);
+        } else {
+          // Try fallback extraction
+          const fallbackQuestions = extractValidQuestionsFromResponse(cleanAIResponse(batchResponse));
+          if (fallbackQuestions.length > 0) {
+            allOtherQuestions.push(...fallbackQuestions);
+            console.log(`🚑 Fallback extraction for batch ${batchIndex + 1}: ${fallbackQuestions.length} questions`);
+          } else {
+            console.error(`❌ Could not extract any questions from batch ${batchIndex + 1}`);
+          }
+        }
+      } catch (fixError) {
+        console.error(`❌ Could not fix batch ${batchIndex + 1}:`, fixError);
+        // Try fallback extraction
+        const fallbackQuestions = extractValidQuestionsFromResponse(cleanAIResponse(batchResponse));
+        if (fallbackQuestions.length > 0) {
+          allOtherQuestions.push(...fallbackQuestions);
+          console.log(`🚑 Fallback extraction for batch ${batchIndex + 1}: ${fallbackQuestions.length} questions`);
+        }
+      }
+    }
+  }
+  
+  console.log(`📝 Completed all ${batchCount} batches. Total questions: ${allOtherQuestions.length}`);
 
   // Generate essay questions (10 questions)
   const essayQuestionsPrompt = `Generate ${essayQuestions} comprehensive essay questions for a final exam question bank covering this entire course.
@@ -1105,15 +1164,6 @@ CRITICAL REQUIREMENTS:
 - Ensure the JSON array is properly closed with ]
 - Do NOT include any explanatory text before or after the JSON`;
 
-  // Generate non-essay questions
-  console.log(`📝 Generating ${otherQuestions} non-essay questions...`);
-  const otherResponse = await callAI('course_quiz_generation', otherQuestionsPrompt, {
-    courseId,
-    courseTitle: course.title,
-    courseLevel: course.level,
-    examType: 'final_exam_bank_other',
-  });
-
   // Generate essay questions
   console.log(`📝 Generating ${essayQuestions} essay questions...`);
   const essayResponse = await callAI('course_quiz_generation', essayQuestionsPrompt, {
@@ -1123,28 +1173,8 @@ CRITICAL REQUIREMENTS:
     examType: 'final_exam_bank_essay',
   });
 
-  // Parse responses with better error handling
-  let otherData, essayData;
-  
-  try {
-    const cleanedOtherResponse = cleanAIResponse(otherResponse);
-    console.log(`📝 Cleaned other questions response (${cleanedOtherResponse.length} chars)`);
-    otherData = JSON.parse(cleanedOtherResponse);
-  } catch (error) {
-    console.error(`❌ Failed to parse non-essay questions JSON:`, error);
-    console.log(`🔧 Attempting to fix JSON issues...`);
-    try {
-      const fixedJson = fixCommonJSONIssues(cleanAIResponse(otherResponse));
-      otherData = JSON.parse(fixedJson);
-      console.log(`✅ Fixed JSON successfully`);
-    } catch (fixError) {
-      console.error(`❌ JSON fix also failed:`, fixError);
-      console.log(`🔍 Raw response preview:`, otherResponse.substring(0, 500));
-      console.log(`🔍 Cleaned response preview:`, cleanAIResponse(otherResponse).substring(0, 500));
-      throw new Error(`Failed to parse non-essay questions: ${error.message}`);
-    }
-  }
-  
+  // Parse essay response with better error handling
+  let essayData;
   try {
     const cleanedEssayResponse = cleanAIResponse(essayResponse);
     console.log(`📝 Cleaned essay questions response (${cleanedEssayResponse.length} chars)`);
@@ -1154,18 +1184,33 @@ CRITICAL REQUIREMENTS:
     console.log(`🔧 Attempting to fix JSON issues...`);
     try {
       const fixedJson = fixCommonJSONIssues(cleanAIResponse(essayResponse));
+      console.log(`🔧 Fixed JSON length: ${fixedJson.length} chars`);
       essayData = JSON.parse(fixedJson);
-      console.log(`✅ Fixed JSON successfully`);
+      console.log(`✅ Fixed JSON successfully - got ${essayData.questions?.length || 0} questions`);
     } catch (fixError) {
       console.error(`❌ JSON fix also failed:`, fixError);
-      console.log(`🔍 Raw response preview:`, essayResponse.substring(0, 500));
-      console.log(`🔍 Cleaned response preview:`, cleanAIResponse(essayResponse).substring(0, 500));
-      throw new Error(`Failed to parse essay questions: ${error.message}`);
+      console.log(`🔍 Raw response preview (first 500 chars):`, essayResponse.substring(0, 500));
+      console.log(`🔍 Raw response preview (last 500 chars):`, essayResponse.substring(Math.max(0, essayResponse.length - 500)));
+      console.log(`🔍 Cleaned response preview (first 500 chars):`, cleanAIResponse(essayResponse).substring(0, 500));
+      console.log(`🔍 Cleaned response preview (last 500 chars):`, cleanAIResponse(essayResponse).substring(Math.max(0, cleanAIResponse(essayResponse).length - 500)));
+      
+      // Try one more fallback - extract just valid question objects from the response
+      try {
+        const fallbackQuestions = extractValidQuestionsFromResponse(cleanAIResponse(essayResponse));
+        if (fallbackQuestions.length > 0) {
+          console.log(`🚑 Fallback extraction found ${fallbackQuestions.length} valid questions`);
+          essayData = { questions: fallbackQuestions };
+        } else {
+          throw new Error(`Failed to parse essay questions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      } catch (fallbackError) {
+        throw new Error(`Failed to parse essay questions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   }
 
   // Combine all questions
-  const allQuestions = [...otherData.questions, ...essayData.questions];
+  const allQuestions = [...allOtherQuestions, ...essayData.questions];
 
   // Validate we have the right number of questions
   if (allQuestions.length !== totalQuestions) {
@@ -1204,6 +1249,109 @@ CRITICAL REQUIREMENTS:
 
   console.log(`✅ Question bank generated successfully for course ${courseId} - ${allQuestions.length} questions created`);
   return { success: true, questionCount: allQuestions.length };
+}
+
+// Helper function to extract valid question objects from a malformed JSON response
+function extractValidQuestionsFromResponse(response: string): any[] {
+  const questions: any[] = [];
+  
+  try {
+    // Look for question objects in the response using regex
+    const questionPattern = /{[^{}]*"type"[^{}]*"question"[^{}]*"correctAnswer"[^{}]*}/g;
+    let match;
+    
+    while ((match = questionPattern.exec(response)) !== null) {
+      try {
+        const questionText = match[0];
+        // Try to parse this individual question
+        const question = JSON.parse(questionText);
+        
+        // Validate it has required fields
+        if (question.type && question.question && question.correctAnswer) {
+          questions.push(question);
+        }
+      } catch (e) {
+        // Skip malformed individual questions
+        continue;
+      }
+    }
+    
+    // If regex approach didn't work, try to manually extract question blocks
+    if (questions.length === 0) {
+      const lines = response.split('\n');
+      let currentQuestion: any = {};
+      let inQuestion = false;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        if (trimmed.includes('"type":')) {
+          // Start of a new question
+          if (inQuestion && Object.keys(currentQuestion).length > 0) {
+            questions.push(currentQuestion);
+          }
+          currentQuestion = {};
+          inQuestion = true;
+          
+          const typeMatch = trimmed.match(/"type":\s*"([^"]+)"/);
+          if (typeMatch) {
+            currentQuestion.type = typeMatch[1];
+          }
+        } else if (inQuestion) {
+          if (trimmed.includes('"question":')) {
+            const questionMatch = trimmed.match(/"question":\s*"([^"]+)"/);
+            if (questionMatch) {
+              currentQuestion.question = questionMatch[1];
+            }
+          } else if (trimmed.includes('"correctAnswer":')) {
+            const answerMatch = trimmed.match(/"correctAnswer":\s*"([^"]+)"/);
+            if (answerMatch) {
+              currentQuestion.correctAnswer = answerMatch[1];
+            }
+          } else if (trimmed.includes('"explanation":')) {
+            const explanationMatch = trimmed.match(/"explanation":\s*"([^"]+)"/);
+            if (explanationMatch) {
+              currentQuestion.explanation = explanationMatch[1];
+            }
+          } else if (trimmed.includes('"options":')) {
+            // Try to extract options object
+            const optionsStart = line.indexOf('"options":');
+            if (optionsStart !== -1) {
+              const optionsText = line.substring(optionsStart + 10);
+              try {
+                const optionsMatch = optionsText.match(/\{[^}]+\}/);
+                if (optionsMatch) {
+                  currentQuestion.options = JSON.parse(optionsMatch[0]);
+                }
+              } catch (e) {
+                // Skip malformed options
+              }
+            }
+          }
+        }
+        
+        if (trimmed === '}' && inQuestion) {
+          // End of question
+          if (currentQuestion.type && currentQuestion.question && currentQuestion.correctAnswer) {
+            questions.push(currentQuestion);
+          }
+          currentQuestion = {};
+          inQuestion = false;
+        }
+      }
+      
+      // Add the last question if it's complete
+      if (inQuestion && currentQuestion.type && currentQuestion.question && currentQuestion.correctAnswer) {
+        questions.push(currentQuestion);
+      }
+    }
+    
+    console.log(`🚑 Extracted ${questions.length} questions using fallback method`);
+    return questions;
+  } catch (error) {
+    console.error(`❌ Fallback extraction failed:`, error);
+    return [];
+  }
 }
 
 // Helper function to clean AI responses
@@ -1246,28 +1394,109 @@ function cleanAIResponse(response: string): string {
 function fixCommonJSONIssues(jsonString: string): string {
   let fixed = jsonString;
   
-  // Remove trailing commas before } or ]
-  fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
-  
-  // Fix unescaped quotes in strings (basic attempt)
-  // This is a simple fix - more complex scenarios might need better handling
-  fixed = fixed.replace(/([^\\])"([^",\]}]*)"([^,\]}\s])/g, '$1\\"$2\\"$3');
-  
-  // Ensure proper closing of arrays/objects
-  const openBraces = (fixed.match(/{/g) || []).length;
-  const closeBraces = (fixed.match(/}/g) || []).length;
-  const openBrackets = (fixed.match(/\[/g) || []).length;
-  const closeBrackets = (fixed.match(/\]/g) || []).length;
-  
-  // Add missing closing braces/brackets
-  for (let i = 0; i < openBraces - closeBraces; i++) {
-    fixed += '}';
+  try {
+    // First, try to find the complete "questions" array
+    const questionsStart = fixed.indexOf('"questions"');
+    if (questionsStart === -1) {
+      throw new Error('No questions array found');
+    }
+    
+    // Find the start of the questions array
+    const arrayStart = fixed.indexOf('[', questionsStart);
+    if (arrayStart === -1) {
+      throw new Error('Questions array start not found');
+    }
+    
+    // Try to find a complete set of questions by looking for proper closing
+    let bracketCount = 0;
+    let braceCount = 0;
+    let inString = false;
+    let escaped = false;
+    let lastCompleteQuestion = -1;
+    
+    for (let i = arrayStart; i < fixed.length; i++) {
+      const char = fixed[i];
+      
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      
+      if (char === '"' && !escaped) {
+        inString = !inString;
+        continue;
+      }
+      
+      if (inString) continue;
+      
+      if (char === '[') bracketCount++;
+      if (char === ']') bracketCount--;
+      if (char === '{') braceCount++;
+      if (char === '}') {
+        braceCount--;
+        // If we're back to the questions array level and have a complete question object
+        if (braceCount === 0 && bracketCount === 1) {
+          lastCompleteQuestion = i;
+        }
+      }
+      
+      // If we've closed the questions array properly
+      if (bracketCount === 0 && braceCount === 0) {
+        // We have a complete questions array, extract it
+        const completeArray = fixed.substring(arrayStart, i + 1);
+        return `{"questions": ${completeArray}}`;
+      }
+    }
+    
+    // If we couldn't find a complete array but found complete questions, truncate there
+    if (lastCompleteQuestion > -1) {
+      const truncatedArray = fixed.substring(arrayStart, lastCompleteQuestion + 1) + ']';
+      return `{"questions": ${truncatedArray}}`;
+    }
+    
+    // Fall back to basic fixes
+    // Remove trailing commas before } or ]
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Fix incomplete strings - if we have an unmatched quote at end, close it
+    const quotes = (fixed.match(/"/g) || []).length;
+    if (quotes % 2 !== 0) {
+      // Find the last quote and see if it's unclosed
+      const lastQuoteIndex = fixed.lastIndexOf('"');
+      if (lastQuoteIndex > -1) {
+        // If there's content after the last quote that looks incomplete, close the string
+        const afterQuote = fixed.substring(lastQuoteIndex + 1).trim();
+        if (afterQuote && !afterQuote.startsWith(',') && !afterQuote.startsWith('}') && !afterQuote.startsWith(']')) {
+          fixed = fixed.substring(0, lastQuoteIndex + 1) + '"';
+        }
+      }
+    }
+    
+    // Ensure proper closing of arrays/objects
+    const openBraces = (fixed.match(/{/g) || []).length;
+    const closeBraces = (fixed.match(/}/g) || []).length;
+    const openBrackets = (fixed.match(/\[/g) || []).length;
+    const closeBrackets = (fixed.match(/\]/g) || []).length;
+    
+    // Add missing closing braces/brackets
+    for (let i = 0; i < openBraces - closeBraces; i++) {
+      fixed += '}';
+    }
+    for (let i = 0; i < openBrackets - closeBrackets; i++) {
+      fixed += ']';
+    }
+    
+    return fixed;
+  } catch (error) {
+    console.error('Error in fixCommonJSONIssues:', error);
+    // Return original if we can't fix it
+    return jsonString;
   }
-  for (let i = 0; i < openBrackets - closeBrackets; i++) {
-    fixed += ']';
-  }
-  
-  return fixed;
 }
 
 async function generateFinalExam(courseId: string, context?: any) {
