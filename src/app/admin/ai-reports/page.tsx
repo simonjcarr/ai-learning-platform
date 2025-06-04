@@ -81,13 +81,93 @@ export default function AIReportsPage() {
   const [userData, setUserData] = useState<UserData[]>([]);
   const [totalsData, setTotalsData] = useState<TotalsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [dataUpdated, setDataUpdated] = useState(false);
 
+  // Auto-refresh with polling instead of SSE
+  const [isPolling, setIsPolling] = useState(true);
+  const [connectionState, setConnectionState] = useState<'connected' | 'connecting' | 'disconnected'>('connected');
+  
+  // Polling interval
   useEffect(() => {
-    fetchAllData();
+    if (!isPolling) return;
+    
+    const pollData = async () => {
+      try {
+        const [modelsRes, interactionsRes, usersRes, totalsRes] = await Promise.all([
+          fetch(`/api/admin/ai-reports/by-model?period=${period}`),
+          fetch(`/api/admin/ai-reports/by-interaction?period=${period}`),
+          fetch(`/api/admin/ai-reports/by-user?period=${period}`),
+          fetch(`/api/admin/ai-reports/totals?period=${period}`)
+        ]);
+
+        if (modelsRes.ok) {
+          const data = await modelsRes.json();
+          setModelData(data.data);
+        }
+
+        if (interactionsRes.ok) {
+          const data = await interactionsRes.json();
+          setInteractionData(data.data);
+        }
+
+        if (usersRes.ok) {
+          const data = await usersRes.json();
+          setUserData(data.data);
+        }
+
+        if (totalsRes.ok) {
+          const data = await totalsRes.json();
+          setTotalsData(data.data);
+        }
+
+        setLastUpdate(new Date());
+        setConnectionState('connected');
+        
+        // Trigger update flash effect
+        setDataUpdated(true);
+        setTimeout(() => setDataUpdated(false), 500);
+      } catch (error) {
+        console.error('Error polling AI reports:', error);
+        setConnectionState('disconnected');
+      }
+    };
+
+    // Poll every 5 seconds
+    const interval = setInterval(pollData, 5000);
+    
+    return () => clearInterval(interval);
+  }, [period, isPolling]);
+  
+  const reconnect = () => {
+    setConnectionState('connecting');
+    setIsPolling(true);
+  };
+
+  // Pause polling when page is hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsPolling(false);
+      } else {
+        setIsPolling(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  const fetchInitialData = async () => {
     try {
       const [modelsRes, interactionsRes, usersRes, totalsRes] = await Promise.all([
         fetch(`/api/admin/ai-reports/by-model?period=${period}`),
@@ -115,6 +195,8 @@ export default function AIReportsPage() {
         const data = await totalsRes.json();
         setTotalsData(data.data);
       }
+
+      setLastUpdate(new Date());
     } catch (error) {
       console.error('Error fetching AI reports:', error);
     } finally {
@@ -145,9 +227,47 @@ export default function AIReportsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
+      <style jsx>{`
+        @keyframes flash {
+          0% { background-color: transparent; }
+          50% { background-color: rgba(59, 130, 246, 0.1); }
+          100% { background-color: transparent; }
+        }
+        .update-flash {
+          animation: flash 0.5s ease-in-out;
+        }
+      `}</style>
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">AI Usage Reports</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-3xl font-bold text-gray-900">AI Usage Reports</h1>
+            <div className="flex items-center space-x-4">
+              {/* Connection Status */}
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  isPolling ? 'bg-green-500' : 'bg-gray-400'
+                }`} />
+                <span className="text-sm text-gray-600">
+                  {isPolling ? 'Auto-refresh: ON' : 'Auto-refresh: OFF'}
+                </span>
+              </div>
+              
+              {/* Last Update Time */}
+              {lastUpdate && (
+                <span className="text-sm text-gray-500">
+                  Last update: {lastUpdate.toLocaleTimeString()}
+                </span>
+              )}
+              
+              {/* Pause/Play Button */}
+              <button
+                onClick={() => setIsPolling(!isPolling)}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                {isPolling ? 'Pause' : 'Resume'}
+              </button>
+            </div>
+          </div>
           
           {/* Time Period Selector */}
           <div className="flex space-x-2">
@@ -170,28 +290,28 @@ export default function AIReportsPage() {
         {/* Total Stats */}
         {totalsData && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`bg-white rounded-lg shadow p-6 transition-all ${dataUpdated ? 'update-flash' : ''}`}>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Total Interactions</h3>
               <p className="text-2xl font-bold text-gray-900">{formatNumber(totalsData.totalInteractions)}</p>
               <p className="text-sm text-gray-600 mt-1">
                 {totalsData.successRate}% success rate
               </p>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`bg-white rounded-lg shadow p-6 transition-all ${dataUpdated ? 'update-flash' : ''}`}>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Total Tokens</h3>
               <p className="text-2xl font-bold text-gray-900">{formatNumber(totalsData.totalTokens)}</p>
               <p className="text-sm text-gray-600 mt-1">
                 {formatNumber(totalsData.totalInputTokens)} input / {formatNumber(totalsData.totalOutputTokens)} output
               </p>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`bg-white rounded-lg shadow p-6 transition-all ${dataUpdated ? 'update-flash' : ''}`}>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Total Cost</h3>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalsData.totalCost)}</p>
               <p className="text-sm text-gray-600 mt-1">
                 {formatCurrency(totalsData.averageCostPerInteraction)} per interaction
               </p>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`bg-white rounded-lg shadow p-6 transition-all ${dataUpdated ? 'update-flash' : ''}`}>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Performance</h3>
               <p className="text-2xl font-bold text-gray-900">{totalsData.averageResponseTime}ms</p>
               <p className="text-sm text-gray-600 mt-1">
