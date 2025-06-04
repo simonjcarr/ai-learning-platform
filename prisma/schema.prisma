@@ -424,6 +424,27 @@ model AIModel {
   @@map("ai_models")
 }
 
+model YouTubeAPIModel {
+  modelId              String              @id @default(cuid())
+  modelName            String              @unique @default("youtube_data_api_v3")
+  provider             String              @default("youtube")
+  displayName          String              @default("YouTube Data API v3")
+  description          String?             @default("YouTube Data API for video search integration")
+  apiKey               String
+  maxResults           Int                 @default(5)
+  searchFilters        Json?               // Additional search parameters like duration, category, etc.
+  isActive             Boolean             @default(true)
+  quotaLimit           Int                 @default(10000) // Daily quota limit
+  quotaUsed            Int                 @default(0)
+  quotaResetAt         DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([provider])
+  @@index([isActive])
+  @@map("youtube_api_models")
+}
+
 model AIInteractionType {
   typeId         String          @id @default(cuid())
   typeName       String          @unique

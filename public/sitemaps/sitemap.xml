@@ -25,20 +25,14 @@
       <priority>0.5</priority>
     </url>
     <url>
-      <loc>https://yourdomain.com/articles/troubleshooting-common-docker-issues-a-practical-guide</loc>
+      <loc>https://yourdomain.com/articles/orchestrating-multi-container-applications-with-docker-compose</loc>
       <lastmod>2025-06-04</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.8</priority>
     </url>
     <url>
-      <loc>https://yourdomain.com/articles/course-chat-cmbf9igy50005sloesn5osyqk</loc>
+      <loc>https://yourdomain.com/articles/docker-for-microservices-building-and-deploying-scalable-applications</loc>
       <lastmod>2025-06-04</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.7</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/how-to-reclaim-space-used-by-docker-a-step-by-step-guide</loc>
-      <lastmod>2025-06-02</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.8</priority>
     </url>

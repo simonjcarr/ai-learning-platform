@@ -2,8 +2,9 @@ import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { PrismaClient, CourseGenerationStatus, CourseStatus, CourseLevel } from '@prisma/client';
 import { CourseGenerationJobData, customBackoffStrategy } from '@/lib/bullmq';
-import { callAI } from '@/lib/ai-service';
+import { callAI, aiService } from '@/lib/ai-service';
 import { RateLimitError } from '@/lib/rate-limit';
+import YouTubeSearchService, { YouTubeVideoResult } from '@/lib/youtube-search';
 
 const prisma = new PrismaClient();
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -41,6 +42,8 @@ async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
         return await generateQuizzes(courseId, sectionId, articleId, context);
       case 'final_exam_bank':
         return await generateFinalExamQuestionBank(courseId, context);
+      case 'video_enhancement':
+        return await enhanceArticleWithVideos(courseId, articleId!, context);
       default:
         throw new Error(`Unknown job type: ${jobType}`);
     }
@@ -309,7 +312,236 @@ Return the content as properly formatted Markdown suitable for educational purpo
   });
 
   console.log(`✅ Article content generated successfully for article ${articleId}`);
+  
+  // Queue video enhancement job after content generation
+  try {
+    const { addCourseGenerationToQueue } = await import('@/lib/bullmq');
+    await addCourseGenerationToQueue({
+      courseId,
+      jobType: 'video_enhancement',
+      articleId,
+      context: {
+        courseTitle: course.title,
+        courseDescription: course.description,
+        courseLevel: course.level,
+        sectionTitle: section.title,
+        sectionDescription: section.description,
+        articleTitle: article.title,
+        articleDescription: article.description,
+      },
+    });
+    console.log(`🎬 Queued video enhancement job for article ${articleId}`);
+  } catch (error) {
+    console.error(`⚠️ Failed to queue video enhancement: ${error.message}`);
+    // Don't fail the main job if video enhancement queueing fails
+  }
+  
   return { success: true, articleId };
+}
+
+async function enhanceArticleWithVideos(courseId: string, articleId: string, context?: any) {
+  console.log(`📺 Enhancing article ${articleId} with YouTube videos`);
+
+  // Get the article with its content and course context
+  const article = await prisma.courseArticle.findUnique({
+    where: { articleId },
+    include: {
+      section: {
+        include: {
+          course: true,
+        },
+      },
+    },
+  });
+
+  if (!article) {
+    throw new Error('Article not found');
+  }
+
+  if (!article.contentHtml || !article.isGenerated) {
+    console.log(`⚠️ Article ${articleId} does not have generated content yet, skipping video enhancement`);
+    return { success: true, skipped: true, reason: 'No content generated yet' };
+  }
+
+  const course = article.section.course;
+  const section = article.section;
+
+  try {
+    // Step 1: Use AI to analyze content and suggest video search queries
+    console.log(`🤖 Analyzing article content for video recommendations...`);
+    
+    const videoRecommendations = await aiService.generateVideoRecommendations(
+      article.title,
+      article.contentHtml,
+      {
+        courseTitle: course.title,
+        courseDescription: course.description,
+        courseLevel: course.level,
+        sectionTitle: section.title,
+        sectionDescription: section.description || undefined,
+      }
+    );
+
+    if (!videoRecommendations.shouldIncludeVideos || videoRecommendations.recommendations.length === 0) {
+      console.log(`📝 AI determined no videos would enhance this article: ${videoRecommendations.explanation}`);
+      return { 
+        success: true, 
+        videoRecommendations: null, 
+        explanation: videoRecommendations.explanation 
+      };
+    }
+
+    console.log(`🔍 Found ${videoRecommendations.recommendations.length} video recommendations`);
+
+    // Step 2: Search for YouTube videos using the AI recommendations
+    const youtubeService = await YouTubeSearchService.create();
+    if (!youtubeService) {
+      console.log(`⚠️ YouTube search service not available (no active API model)`);
+      return { 
+        success: true, 
+        skipped: true, 
+        reason: 'YouTube API not configured' 
+      };
+    }
+
+    const videoResults: Array<{
+      recommendation: any;
+      videos: YouTubeVideoResult[];
+    }> = [];
+
+    for (const recommendation of videoRecommendations.recommendations) {
+      try {
+        console.log(`🔍 Searching YouTube for: "${recommendation.searchQuery}"`);
+        
+        const videos = await youtubeService.searchEducationalVideos(
+          recommendation.searchQuery,
+          recommendation.context
+        );
+
+        if (videos.length > 0) {
+          videoResults.push({
+            recommendation,
+            videos: videos.slice(0, 1), // Take the best match
+          });
+          console.log(`✅ Found ${videos.length} videos for "${recommendation.searchQuery}"`);
+        } else {
+          console.log(`❌ No videos found for "${recommendation.searchQuery}"`);
+        }
+      } catch (error) {
+        console.error(`❌ Error searching for videos: ${error.message}`);
+        // Continue with other recommendations even if one fails
+      }
+    }
+
+    if (videoResults.length === 0) {
+      console.log(`📝 No suitable videos found for any recommendations`);
+      return { 
+        success: true, 
+        videoRecommendations, 
+        videoResults: [], 
+        explanation: 'No suitable videos found' 
+      };
+    }
+
+    // Step 3: Enhance the article content with video embeds
+    let enhancedContent = article.contentHtml;
+    const insertedVideos: Array<{
+      videoId: string;
+      title: string;
+      placement: string;
+      context: string;
+    }> = [];
+
+    for (const result of videoResults) {
+      const { recommendation, videos } = result;
+      const video = videos[0]; // Use the best match
+
+      if (!video) continue;
+
+      // Create video embed markdown
+      const videoMarkdown = youtubeService.formatVideoForMarkdown(video, recommendation.context);
+      
+      // Insert video based on placement recommendation
+      const placement = recommendation.placement;
+      
+      switch (placement) {
+        case 'introduction':
+          // Insert after the first heading
+          const introMatch = enhancedContent.match(/^(#[^\n]*\n)/);
+          if (introMatch) {
+            enhancedContent = enhancedContent.replace(
+              introMatch[1],
+              `${introMatch[1]}\n${videoMarkdown}\n\n`
+            );
+          }
+          break;
+          
+        case 'middle':
+          // Insert in the middle of the content
+          const sections = enhancedContent.split(/(?=##[^#])/);
+          if (sections.length > 2) {
+            const midIndex = Math.floor(sections.length / 2);
+            sections.splice(midIndex, 0, `\n${videoMarkdown}\n`);
+            enhancedContent = sections.join('');
+          }
+          break;
+          
+        case 'conclusion':
+          // Insert before the last heading or at the end
+          const conclusionMatch = enhancedContent.match(/^(.*)(##[^#][^\n]*\n?.*)$/s);
+          if (conclusionMatch) {
+            enhancedContent = `${conclusionMatch[1]}\n${videoMarkdown}\n\n${conclusionMatch[2]}`;
+          } else {
+            enhancedContent += `\n\n${videoMarkdown}`;
+          }
+          break;
+          
+        case 'supplement':
+        default:
+          // Add at the end as supplementary material
+          enhancedContent += `\n\n## Additional Resources\n\n${videoMarkdown}`;
+          break;
+      }
+
+      insertedVideos.push({
+        videoId: video.videoId,
+        title: video.title,
+        placement: placement,
+        context: recommendation.context,
+      });
+
+      console.log(`📺 Added video "${video.title}" to ${placement} section`);
+    }
+
+    // Step 4: Update the article with enhanced content
+    await prisma.courseArticle.update({
+      where: { articleId },
+      data: {
+        contentHtml: enhancedContent,
+        updatedAt: new Date(),
+      },
+    });
+
+    console.log(`✅ Article ${articleId} enhanced with ${insertedVideos.length} YouTube videos`);
+    
+    return { 
+      success: true, 
+      videoRecommendations, 
+      videoResults, 
+      insertedVideos,
+      enhancedContentLength: enhancedContent.length 
+    };
+
+  } catch (error) {
+    console.error(`❌ Error enhancing article with videos: ${error.message}`);
+    
+    // Don't fail the job completely for video enhancement failures
+    return { 
+      success: true, 
+      skipped: true, 
+      error: error.message 
+    };
+  }
 }
 
 async function generateQuizzes(courseId: string, sectionId?: string, articleId?: string, context?: any) {

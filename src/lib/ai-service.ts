@@ -334,6 +334,19 @@ export const ArticleWithSeoSchema = z.object({
   seo: SeoDataSchema,
 });
 
+export const VideoRecommendationSchema = z.object({
+  searchQuery: z.string(),
+  context: z.string(),
+  placement: z.enum(['introduction', 'middle', 'conclusion', 'supplement']),
+  reasoning: z.string(),
+});
+
+export const VideoRecommendationsSchema = z.object({
+  shouldIncludeVideos: z.boolean(),
+  recommendations: z.array(VideoRecommendationSchema),
+  explanation: z.string(),
+});
+
 // Enhanced AI Service functions with database tracking
 export const aiService = {
   async generateSearchSuggestions(query: string, allCategories: { categoryName: string; description: string | null }[], existingArticles: { title: string; category: string }[], articlesToGenerate: number = 5, clerkUserId: string | null = null) {
@@ -1358,6 +1371,150 @@ export async function callAI(
   }
 }
 
+// Add generateVideoRecommendations to aiService
+aiService.generateVideoRecommendations = async function(
+  articleTitle: string,
+  articleContent: string,
+  courseContext?: {
+    courseTitle: string;
+    courseDescription: string;
+    courseLevel: string;
+    sectionTitle?: string;
+    sectionDescription?: string;
+  },
+  clerkUserId: string | null = null
+) {
+  const hardcodedSystemPrompt = `You are an educational content specialist who helps identify when YouTube videos would enhance learning and suggests appropriate search terms.
+
+Your task is to analyze course article content and determine if educational YouTube videos would improve the learning experience. When videos would be helpful, provide specific search queries to find relevant educational content.
+
+GUIDELINES:
+- Only recommend videos when they would genuinely improve understanding
+- Focus on educational, tutorial, and instructional content
+- Prefer videos that demonstrate concepts, show practical examples, or provide visual explanations
+- Consider the target audience and course level
+- Provide specific search terms that will find high-quality educational videos
+- Explain WHY each video would be helpful and WHERE it should be placed
+
+SEARCH QUERY REQUIREMENTS:
+- Be specific enough to find relevant educational content
+- Include terms like "tutorial", "explanation", "guide", "demo" when appropriate
+- Consider the course level (beginner, intermediate, advanced)
+- Focus on finding authoritative educational channels and content
+
+PLACEMENT OPTIONS:
+- introduction: Video that introduces or overviews the topic
+- middle: Video that demonstrates specific concepts or procedures
+- conclusion: Video that reinforces learning or shows advanced applications
+- supplement: Additional resource for deeper learning`;
+
+  const userPrompt = `Analyze this course article and determine if YouTube videos would enhance the learning experience:
+
+COURSE CONTEXT:
+${courseContext ? `
+- Course: ${courseContext.courseTitle}
+- Description: ${courseContext.courseDescription}
+- Level: ${courseContext.courseLevel}
+${courseContext.sectionTitle ? `- Section: ${courseContext.sectionTitle}` : ''}
+${courseContext.sectionDescription ? `- Section Description: ${courseContext.sectionDescription}` : ''}
+` : ''}
+
+ARTICLE TITLE: ${articleTitle}
+
+ARTICLE CONTENT:
+${articleContent}
+
+ANALYSIS REQUIREMENTS:
+1. Determine if videos would genuinely improve learning for this content
+2. If yes, suggest 1-3 specific search queries for finding relevant educational videos
+3. For each suggestion, specify WHERE in the article it should be placed and WHY
+4. Provide clear reasoning for your recommendations
+
+Focus on finding videos that:
+- Demonstrate practical examples
+- Show visual representations of concepts
+- Provide step-by-step tutorials
+- Offer alternative explanations
+- Show real-world applications
+
+Return your analysis as structured data.`;
+
+  const startTime = new Date();
+  let result, error;
+  
+  try {
+    // Use a generic interaction type or create a new one for video recommendations
+    const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('article_generation');
+    const aiModel = await createProviderForModel(model.modelId);
+    
+    // Check rate limits
+    await checkRateLimitBeforeCall(model.provider, model.modelId);
+    
+    result = await generateObject({
+      model: aiModel,
+      system: systemPrompt || hardcodedSystemPrompt,
+      prompt: userPrompt,
+      schema: VideoRecommendationsSchema,
+      temperature: temperature || 0.7,
+      maxTokens: Math.min(maxTokens || 2000, 2000), // Limit tokens for this specific task
+    });
+    
+    const endTime = new Date();
+    
+    // Track the interaction
+    await trackAIInteraction(
+      model.modelId,
+      interactionType.typeId,
+      clerkUserId,
+      result.usage?.promptTokens || 0,
+      result.usage?.completionTokens || 0,
+      startTime,
+      endTime,
+      { 
+        articleTitle, 
+        courseTitle: courseContext?.courseTitle,
+        hasRecommendations: result.object.shouldIncludeVideos,
+        recommendationCount: result.object.recommendations.length 
+      },
+      userPrompt,
+      JSON.stringify(result.object)
+    );
+    
+    return result.object;
+  } catch (err) {
+    error = err;
+    const endTime = new Date();
+    
+    // Try to get model info for error tracking and rate limit handling
+    try {
+      const { model, interactionType } = await getModelForInteraction('article_generation');
+      
+      // Handle rate limit errors
+      if (!(err instanceof RateLimitError)) {
+        await handleAIError(err, model.provider, model.modelId);
+      }
+      
+      await trackAIInteraction(
+        model.modelId,
+        interactionType.typeId,
+        clerkUserId,
+        0,
+        0,
+        startTime,
+        endTime,
+        { articleTitle, courseTitle: courseContext?.courseTitle },
+        userPrompt,
+        undefined,
+        String(err)
+      );
+    } catch (trackingError) {
+      console.error('Failed to track error:', trackingError);
+    }
+    
+    throw error;
+  }
+};
+
 // Export utility functions
 export { createProviderForModel, getModelForInteraction, trackAIInteraction };
 
@@ -1375,3 +1532,5 @@ export type TagSelectionResponse = z.infer<typeof TagSelectionResponseSchema>;
 export type ArticleSuggestionValidationResponse = z.infer<typeof ArticleSuggestionValidationSchema>;
 export type SeoData = z.infer<typeof SeoDataSchema>;
 export type ArticleWithSeo = z.infer<typeof ArticleWithSeoSchema>;
+export type VideoRecommendation = z.infer<typeof VideoRecommendationSchema>;
+export type VideoRecommendationsResponse = z.infer<typeof VideoRecommendationsSchema>;
