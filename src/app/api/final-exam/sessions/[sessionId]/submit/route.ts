@@ -80,6 +80,7 @@ export async function POST(
               userAnswer,
               question: question.questionText,
               correctAnswer: question.correctAnswer,
+              maxPoints: question.points, // Store the max points for this essay question
             });
             break;
           default:
@@ -117,6 +118,13 @@ export async function POST(
     if (essayAnswers.length > 0) {
       console.log(`🤖 Processing ${essayAnswers.length} essay questions with AI grading...`);
       
+      // Get point settings for essay grading threshold
+      const pointSettings = await prisma.questionPointSettings.findFirst({
+        where: { settingsId: 'default' },
+      });
+      
+      const essayPassingThreshold = pointSettings?.essayPassingThreshold || 0.6;
+      
       for (const essayAnswer of essayAnswers) {
         try {
           const gradingPrompt = `Grade this essay answer based on the provided criteria.
@@ -127,7 +135,7 @@ Expected Answer/Key Points: ${essayAnswer.correctAnswer}
 
 Student Answer: ${essayAnswer.userAnswer}
 
-Please evaluate the student's answer based on:
+This question is worth ${essayAnswer.maxPoints} points maximum. Please evaluate the student's answer based on:
 1. Accuracy of information
 2. Completeness of response
 3. Understanding of concepts
@@ -137,22 +145,35 @@ Please evaluate the student's answer based on:
 Return a JSON object with this structure:
 {
   "score": 0.85,
-  "feedback": "Detailed feedback explaining the grade...",
-  "keyPointsCovered": ["point1", "point2"],
-  "areasForImprovement": ["area1", "area2"]
+  "feedback": "Detailed feedback explaining the grade and what the student did well or could improve...",
+  "keyPointsCovered": ["specific point 1", "specific point 2"],
+  "areasForImprovement": ["area for improvement 1", "area for improvement 2"],
+  "pointsAwarded": 4.25
 }
 
-Score should be between 0.0 (completely incorrect) and 1.0 (perfect answer).`;
+Score should be between 0.0 (completely incorrect) and 1.0 (perfect answer).
+PointsAwarded should be the actual points to give based on the quality of the answer (between 0 and ${essayAnswer.maxPoints}).`;
 
           const gradingResponse = await callAI('essay_grading', gradingPrompt, {
             courseId: session.courseId,
             sessionId: session.sessionId,
             questionId: essayAnswer.questionId,
+            maxPoints: essayAnswer.maxPoints,
           });
 
           const gradingResult = JSON.parse(gradingResponse);
           const essayScore = Math.max(0, Math.min(1, gradingResult.score)); // Clamp between 0 and 1
-          const essayPoints = essayScore; // 1 point per question
+          
+          // Calculate points earned - use AI's pointsAwarded if provided, otherwise calculate from score
+          let essayPoints;
+          if (gradingResult.pointsAwarded && gradingResult.pointsAwarded >= 0 && gradingResult.pointsAwarded <= essayAnswer.maxPoints) {
+            essayPoints = gradingResult.pointsAwarded;
+          } else {
+            essayPoints = essayScore * essayAnswer.maxPoints;
+          }
+          
+          // Ensure points don't exceed maximum
+          essayPoints = Math.min(essayPoints, essayAnswer.maxPoints);
 
           // Update the answer with AI grading results
           await prisma.finalExamAnswer.update({
@@ -163,7 +184,7 @@ Score should be between 0.0 (completely incorrect) and 1.0 (perfect answer).`;
               },
             },
             data: {
-              isCorrect: essayScore >= 0.6, // Consider 60%+ as correct
+              isCorrect: essayScore >= essayPassingThreshold, // Use configurable threshold
               pointsEarned: essayPoints,
               aiGrading: gradingResult,
               gradedAt: new Date(),
@@ -171,20 +192,20 @@ Score should be between 0.0 (completely incorrect) and 1.0 (perfect answer).`;
           });
 
           earnedPoints += essayPoints;
-          pendingEssayPoints -= 1; // Reduce pending points
+          pendingEssayPoints -= essayAnswer.maxPoints; // Reduce pending points by actual max points
 
           // Update feedback
           feedback[essayAnswer.questionId] = {
-            isCorrect: essayScore >= 0.6,
+            isCorrect: essayScore >= essayPassingThreshold,
             explanation: gradingResult.feedback,
             requiresGrading: false,
           };
 
-          console.log(`✅ Essay graded: ${essayScore.toFixed(2)}/1.0 points`);
+          console.log(`✅ Essay graded: ${(essayScore * 100).toFixed(1)}% (${essayPoints}/${essayAnswer.maxPoints} points)`);
         } catch (error) {
           console.error(`❌ Failed to grade essay for question ${essayAnswer.questionId}:`, error);
-          // If AI grading fails, give partial credit
-          const partialPoints = 0.5;
+          // If AI grading fails, give partial credit (50% of max points)
+          const partialPoints = essayAnswer.maxPoints * 0.5;
           await prisma.finalExamAnswer.update({
             where: {
               sessionId_questionId: {
@@ -193,14 +214,18 @@ Score should be between 0.0 (completely incorrect) and 1.0 (perfect answer).`;
               },
             },
             data: {
-              isCorrect: true,
+              isCorrect: true, // Give benefit of doubt for failed grading
               pointsEarned: partialPoints,
-              aiGrading: { error: 'AI grading failed, partial credit given', score: 0.5 },
+              aiGrading: { 
+                error: 'AI grading failed, partial credit given', 
+                score: 0.5,
+                pointsAwarded: partialPoints 
+              },
               gradedAt: new Date(),
             },
           });
           earnedPoints += partialPoints;
-          pendingEssayPoints -= 1;
+          pendingEssayPoints -= essayAnswer.maxPoints;
         }
       }
     }

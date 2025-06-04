@@ -726,6 +726,11 @@ Return ONLY the JSON object.`;
     },
   });
 
+  // Get point settings
+  const pointSettings = await prisma.questionPointSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
   // Create questions
   for (let i = 0; i < quizData.questions.length; i++) {
     const questionData = quizData.questions[i];
@@ -743,6 +748,27 @@ Return ONLY the JSON object.`;
       questionType = 'MULTIPLE_CHOICE';
     }
     
+    // Get appropriate point value based on question type
+    let points = 1.0; // default fallback
+    if (pointSettings) {
+      switch (questionType) {
+        case 'MULTIPLE_CHOICE':
+          points = pointSettings.multipleChoicePoints;
+          break;
+        case 'TRUE_FALSE':
+          points = pointSettings.trueFalsePoints;
+          break;
+        case 'FILL_IN_BLANK':
+          points = pointSettings.fillInBlankPoints;
+          break;
+        case 'ESSAY':
+          points = pointSettings.essayMaxPoints; // Use max points for essay questions
+          break;
+        default:
+          points = 1.0;
+      }
+    }
+    
     await prisma.courseQuizQuestion.create({
       data: {
         quizId: quiz.quizId,
@@ -752,7 +778,7 @@ Return ONLY the JSON object.`;
         correctAnswer: questionData.correctAnswer,
         explanation: questionData.explanation,
         orderIndex: i,
-        points: 1.0,
+        points,
       },
     });
   }
@@ -909,6 +935,11 @@ Return ONLY the JSON object.`;
     },
   });
 
+  // Get point settings
+  const pointSettings = await prisma.questionPointSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
   // Create questions
   for (let i = 0; i < quizData.questions.length; i++) {
     const questionData = quizData.questions[i];
@@ -926,6 +957,27 @@ Return ONLY the JSON object.`;
       questionType = 'MULTIPLE_CHOICE';
     }
     
+    // Get appropriate point value based on question type
+    let points = 1.0; // default fallback
+    if (pointSettings) {
+      switch (questionType) {
+        case 'MULTIPLE_CHOICE':
+          points = pointSettings.multipleChoicePoints;
+          break;
+        case 'TRUE_FALSE':
+          points = pointSettings.trueFalsePoints;
+          break;
+        case 'FILL_IN_BLANK':
+          points = pointSettings.fillInBlankPoints;
+          break;
+        case 'ESSAY':
+          points = pointSettings.essayMaxPoints; // Use max points for essay questions
+          break;
+        default:
+          points = 1.0;
+      }
+    }
+    
     await prisma.courseQuizQuestion.create({
       data: {
         quizId: quiz.quizId,
@@ -935,7 +987,7 @@ Return ONLY the JSON object.`;
         correctAnswer: questionData.correctAnswer,
         explanation: questionData.explanation,
         orderIndex: i,
-        points: 1.0,
+        points,
       },
     });
   }
@@ -1217,6 +1269,11 @@ CRITICAL REQUIREMENTS:
     console.warn(`Expected ${totalQuestions} questions but got ${allQuestions.length}. Proceeding with generated questions.`);
   }
 
+  // Get point settings
+  const pointSettings = await prisma.questionPointSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
   // Create questions in the database
   for (let i = 0; i < allQuestions.length; i++) {
     const questionData = allQuestions[i];
@@ -1234,6 +1291,27 @@ CRITICAL REQUIREMENTS:
       questionType = 'MULTIPLE_CHOICE';
     }
     
+    // Get appropriate point value based on question type
+    let points = 1.0; // default fallback
+    if (pointSettings) {
+      switch (questionType) {
+        case 'MULTIPLE_CHOICE':
+          points = pointSettings.multipleChoicePoints;
+          break;
+        case 'TRUE_FALSE':
+          points = pointSettings.trueFalsePoints;
+          break;
+        case 'FILL_IN_BLANK':
+          points = pointSettings.fillInBlankPoints;
+          break;
+        case 'ESSAY':
+          points = pointSettings.essayMaxPoints; // Use max points for essay questions
+          break;
+        default:
+          points = 1.0;
+      }
+    }
+    
     await prisma.finalExamQuestionBank.create({
       data: {
         courseId,
@@ -1242,7 +1320,7 @@ CRITICAL REQUIREMENTS:
         optionsJson: questionData.options || null,
         correctAnswer: questionData.correctAnswer,
         explanation: questionData.explanation,
-        points: 1.0,
+        points,
       },
     });
   }
@@ -1662,6 +1740,11 @@ Return ONLY the JSON object.`;
     },
   });
 
+  // Get point settings
+  const pointSettings = await prisma.questionPointSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
   // Create questions
   for (let i = 0; i < examData.questions.length; i++) {
     const questionData = examData.questions[i];
@@ -1679,6 +1762,27 @@ Return ONLY the JSON object.`;
       questionType = 'MULTIPLE_CHOICE';
     }
     
+    // Get appropriate point value based on question type
+    let points = 1.0; // default fallback
+    if (pointSettings) {
+      switch (questionType) {
+        case 'MULTIPLE_CHOICE':
+          points = pointSettings.multipleChoicePoints;
+          break;
+        case 'TRUE_FALSE':
+          points = pointSettings.trueFalsePoints;
+          break;
+        case 'FILL_IN_BLANK':
+          points = pointSettings.fillInBlankPoints;
+          break;
+        case 'ESSAY':
+          points = pointSettings.essayMaxPoints; // Use max points for essay questions
+          break;
+        default:
+          points = 1.0;
+      }
+    }
+    
     await prisma.courseQuizQuestion.create({
       data: {
         quizId: quiz.quizId,
@@ -1688,7 +1792,7 @@ Return ONLY the JSON object.`;
         correctAnswer: questionData.correctAnswer,
         explanation: questionData.explanation,
         orderIndex: i,
-        points: 1.0,
+        points,
       },
     });
   }

@@ -1054,6 +1054,20 @@ model QuizGenerationSettings {
   @@map("quiz_generation_settings")
 }
 
+model QuestionPointSettings {
+  settingsId              String   @id @default(cuid())
+  multipleChoicePoints    Float    @default(1.0)
+  trueFalsePoints        Float    @default(1.0)
+  fillInBlankPoints      Float    @default(1.0)
+  essayMinPoints         Float    @default(2.0)
+  essayMaxPoints         Float    @default(5.0)
+  essayPassingThreshold  Float    @default(0.6)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("question_point_settings")
+}
+
 model FinalExamQuestionBank {
   questionId    String            @id @default(cuid())
   courseId      String

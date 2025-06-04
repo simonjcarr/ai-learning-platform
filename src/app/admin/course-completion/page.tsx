@@ -31,9 +31,20 @@ interface QuizGenerationSettings {
   finalExamMaxQuestions: number;
 }
 
+interface QuestionPointSettings {
+  settingsId: string;
+  multipleChoicePoints: number;
+  trueFalsePoints: number;
+  fillInBlankPoints: number;
+  essayMinPoints: number;
+  essayMaxPoints: number;
+  essayPassingThreshold: number;
+}
+
 export default function CourseCompletionSettingsPage() {
   const [settings, setSettings] = useState<CourseCompletionSettings | null>(null);
   const [quizSettings, setQuizSettings] = useState<QuizGenerationSettings | null>(null);
+  const [pointSettings, setPointSettings] = useState<QuestionPointSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,19 +56,23 @@ export default function CourseCompletionSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const [completionResponse, quizResponse] = await Promise.all([
+      const [completionResponse, quizResponse, pointResponse] = await Promise.all([
         fetch('/api/admin/course-completion/settings'),
-        fetch('/api/admin/quiz-generation/settings')
+        fetch('/api/admin/quiz-generation/settings'),
+        fetch('/api/admin/question-point-settings')
       ]);
       
       if (!completionResponse.ok) throw new Error('Failed to fetch completion settings');
       if (!quizResponse.ok) throw new Error('Failed to fetch quiz generation settings');
+      if (!pointResponse.ok) throw new Error('Failed to fetch question point settings');
       
       const completionData = await completionResponse.json();
       const quizData = await quizResponse.json();
+      const pointData = await pointResponse.json();
       
       setSettings(completionData);
       setQuizSettings(quizData);
+      setPointSettings(pointData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
     } finally {
@@ -66,14 +81,14 @@ export default function CourseCompletionSettingsPage() {
   };
 
   const handleSave = async () => {
-    if (!settings || !quizSettings) return;
+    if (!settings || !quizSettings || !pointSettings) return;
 
     setSaving(true);
     setError(null);
     setSuccess(false);
 
     try {
-      const [completionResponse, quizResponse] = await Promise.all([
+      const [completionResponse, quizResponse, pointResponse] = await Promise.all([
         fetch('/api/admin/course-completion/settings', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -83,11 +98,17 @@ export default function CourseCompletionSettingsPage() {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(quizSettings),
+        }),
+        fetch('/api/admin/question-point-settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pointSettings),
         })
       ]);
 
       if (!completionResponse.ok) throw new Error('Failed to save completion settings');
       if (!quizResponse.ok) throw new Error('Failed to save quiz generation settings');
+      if (!pointResponse.ok) throw new Error('Failed to save question point settings');
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -106,6 +127,11 @@ export default function CourseCompletionSettingsPage() {
   const updateQuizSetting = (key: keyof QuizGenerationSettings, value: number) => {
     if (!quizSettings) return;
     setQuizSettings({ ...quizSettings, [key]: value });
+  };
+
+  const updatePointSetting = (key: keyof QuestionPointSettings, value: number) => {
+    if (!pointSettings) return;
+    setPointSettings({ ...pointSettings, [key]: value });
   };
 
   if (loading) {
@@ -371,6 +397,126 @@ export default function CourseCompletionSettingsPage() {
               <strong>Note:</strong> Changing these settings only affects new courses. Existing courses will 
               continue to use their individual settings. You can configure per-course settings from the course 
               management page.
+            </p>
+          </div>
+        </Card>
+
+        {/* Question Point Values */}
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <Target className="h-6 w-6 text-indigo-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Question Point Values</h2>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <p className="text-sm text-gray-600">
+              Configure how many points each question type is worth and AI grading settings for essay questions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="multipleChoicePoints">Multiple Choice Points</Label>
+              <Input
+                id="multipleChoicePoints"
+                type="number"
+                min="0.1"
+                max="20"
+                step="0.1"
+                value={pointSettings?.multipleChoicePoints || 0}
+                onChange={(e) => updatePointSetting('multipleChoicePoints', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Points awarded for each multiple choice question
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="trueFalsePoints">True/False Points</Label>
+              <Input
+                id="trueFalsePoints"
+                type="number"
+                min="0.1"
+                max="20"
+                step="0.1"
+                value={pointSettings?.trueFalsePoints || 0}
+                onChange={(e) => updatePointSetting('trueFalsePoints', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Points awarded for each true/false question
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fillInBlankPoints">Fill in Blank Points</Label>
+              <Input
+                id="fillInBlankPoints"
+                type="number"
+                min="0.1"
+                max="20"
+                step="0.1"
+                value={pointSettings?.fillInBlankPoints || 0}
+                onChange={(e) => updatePointSetting('fillInBlankPoints', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Points awarded for each fill-in-the-blank question
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="essayPassingThreshold">Essay Passing Threshold</Label>
+              <Input
+                id="essayPassingThreshold"
+                type="number"
+                min="0.1"
+                max="1.0"
+                step="0.05"
+                value={pointSettings?.essayPassingThreshold || 0}
+                onChange={(e) => updatePointSetting('essayPassingThreshold', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Minimum score (0.0-1.0) for essays to be considered &quot;correct&quot;
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="essayMinPoints">Essay Minimum Points</Label>
+              <Input
+                id="essayMinPoints"
+                type="number"
+                min="0.1"
+                max="50"
+                step="0.1"
+                value={pointSettings?.essayMinPoints || 0}
+                onChange={(e) => updatePointSetting('essayMinPoints', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Minimum points that can be awarded for essay questions
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="essayMaxPoints">Essay Maximum Points</Label>
+              <Input
+                id="essayMaxPoints"
+                type="number"
+                min="0.1"
+                max="50"
+                step="0.1"
+                value={pointSettings?.essayMaxPoints || 0}
+                onChange={(e) => updatePointSetting('essayMaxPoints', parseFloat(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Maximum points that can be awarded for essay questions
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-purple-50 rounded-lg">
+            <p className="text-sm text-purple-800">
+              <strong>AI Essay Grading:</strong> Essay questions are automatically graded by AI, which evaluates 
+              accuracy, completeness, understanding, and explanation quality. The AI awards points within the 
+              configured range based on answer quality and provides detailed feedback to students.
             </p>
           </div>
         </Card>
