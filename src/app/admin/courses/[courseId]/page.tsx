@@ -5,10 +5,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { Role, CourseLevel, CourseStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download, Sparkles, History, Trash2, FileQuestion } from "lucide-react";
+import { ArrowLeft, Edit, RefreshCw, Users, Award, BookOpen, Clock, CheckCircle, AlertCircle, Eye, Download, Sparkles, History, Trash2, FileQuestion, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface CourseSection {
   sectionId: string;
@@ -86,12 +88,25 @@ interface Course {
   }>;
 }
 
+interface CourseExamConfig {
+  configId: string;
+  courseId: string;
+  questionBankSize: number;
+  essayQuestionsInBank: number;
+  examQuestionCount: number;
+  minEssayQuestions: number;
+  maxEssayQuestions: number;
+  examTimeLimit?: number;
+}
+
 export default function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
   const { hasMinRole } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
+  const [examConfig, setExamConfig] = useState<CourseExamConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showExamConfig, setShowExamConfig] = useState(false);
   
   // Unwrap the params promise
   const { courseId } = use(params);
@@ -103,6 +118,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
 
   useEffect(() => {
     fetchCourse();
+    fetchExamConfig();
   }, [courseId]);
 
   const fetchCourse = async () => {
@@ -123,6 +139,18 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchExamConfig = async () => {
+    try {
+      const response = await fetch(`/api/admin/courses/${courseId}/exam-config`);
+      if (response.ok) {
+        const data = await response.json();
+        setExamConfig(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch exam config:', err);
     }
   };
 
@@ -708,6 +736,71 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
         )}
       </Card>
 
+      {/* Exam Configuration */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Exam Configuration</h3>
+            <p className="text-gray-600">
+              Configure question bank size and exam settings for this course
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowExamConfig(!showExamConfig)}
+            variant="outline"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            {showExamConfig ? 'Hide Settings' : 'Show Settings'}
+          </Button>
+        </div>
+
+        {showExamConfig && examConfig && (
+          <ExamConfigForm 
+            config={examConfig} 
+            onSave={async (newConfig) => {
+              try {
+                const response = await fetch(`/api/admin/courses/${courseId}/exam-config`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(newConfig),
+                });
+                if (response.ok) {
+                  const updatedConfig = await response.json();
+                  setExamConfig(updatedConfig);
+                  alert('Exam configuration saved successfully');
+                } else {
+                  const error = await response.json();
+                  alert(`Failed to save configuration: ${error.error}`);
+                }
+              } catch (err) {
+                alert('Failed to save exam configuration');
+              }
+            }}
+          />
+        )}
+
+        {!showExamConfig && examConfig && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-gray-600">Question Bank Size</p>
+              <p className="font-medium">{examConfig.questionBankSize}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Essay Questions</p>
+              <p className="font-medium">{examConfig.essayQuestionsInBank}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Exam Questions</p>
+              <p className="font-medium">{examConfig.examQuestionCount}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Time Limit</p>
+              <p className="font-medium">{examConfig.examTimeLimit ? `${examConfig.examTimeLimit} min` : 'No limit'}</p>
+            </div>
+          </div>
+        )}
+      </Card>
+
       {/* Enrollments and Certificates */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
@@ -764,5 +857,123 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
         </Card>
       </div>
     </div>
+  );
+}
+
+function ExamConfigForm({ config, onSave }: { 
+  config: CourseExamConfig; 
+  onSave: (config: CourseExamConfig) => void; 
+}) {
+  const [formData, setFormData] = useState(config);
+
+  const updateField = (field: keyof CourseExamConfig, value: number | null) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="questionBankSize">Question Bank Size</Label>
+          <Input
+            id="questionBankSize"
+            type="number"
+            min="1"
+            max="500"
+            value={formData.questionBankSize}
+            onChange={(e) => updateField('questionBankSize', parseInt(e.target.value))}
+          />
+          <p className="text-sm text-gray-600">
+            Total number of questions to generate for the question bank
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="essayQuestionsInBank">Essay Questions in Bank</Label>
+          <Input
+            id="essayQuestionsInBank"
+            type="number"
+            min="0"
+            max={formData.questionBankSize}
+            value={formData.essayQuestionsInBank}
+            onChange={(e) => updateField('essayQuestionsInBank', parseInt(e.target.value))}
+          />
+          <p className="text-sm text-gray-600">
+            Number of essay questions to include in the bank
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="examQuestionCount">Questions Per Exam</Label>
+          <Input
+            id="examQuestionCount"
+            type="number"
+            min="1"
+            max={formData.questionBankSize}
+            value={formData.examQuestionCount}
+            onChange={(e) => updateField('examQuestionCount', parseInt(e.target.value))}
+          />
+          <p className="text-sm text-gray-600">
+            Number of questions to randomly select for each exam
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="examTimeLimit">Time Limit (minutes)</Label>
+          <Input
+            id="examTimeLimit"
+            type="number"
+            min="1"
+            max="600"
+            value={formData.examTimeLimit || ''}
+            onChange={(e) => updateField('examTimeLimit', e.target.value ? parseInt(e.target.value) : null)}
+          />
+          <p className="text-sm text-gray-600">
+            Maximum time allowed for the exam (leave empty for no limit)
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="minEssayQuestions">Min Essay Questions</Label>
+          <Input
+            id="minEssayQuestions"
+            type="number"
+            min="0"
+            max={formData.essayQuestionsInBank}
+            value={formData.minEssayQuestions}
+            onChange={(e) => updateField('minEssayQuestions', parseInt(e.target.value))}
+          />
+          <p className="text-sm text-gray-600">
+            Minimum essay questions to include in each exam
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="maxEssayQuestions">Max Essay Questions</Label>
+          <Input
+            id="maxEssayQuestions"
+            type="number"
+            min={formData.minEssayQuestions}
+            max={formData.essayQuestionsInBank}
+            value={formData.maxEssayQuestions}
+            onChange={(e) => updateField('maxEssayQuestions', parseInt(e.target.value))}
+          />
+          <p className="text-sm text-gray-600">
+            Maximum essay questions to include in each exam
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button type="submit">
+          Save Configuration
+        </Button>
+      </div>
+    </form>
   );
 }

@@ -696,6 +696,7 @@ model Course {
   finalExamAttempts   FinalExamAttempt[]
   finalExamQuestionBank FinalExamQuestionBank[]
   finalExamSessions   FinalExamSession[]
+  examConfig          CourseExamConfig?
 
   @@index([slug])
   @@index([status])
@@ -1181,4 +1182,22 @@ model BullMQConfig {
   updatedAt                    DateTime @updatedAt
 
   @@map("bullmq_config")
+}
+
+model CourseExamConfig {
+  configId           String   @id @default(cuid())
+  courseId           String   @unique
+  questionBankSize   Int      @default(125)
+  essayQuestionsInBank Int    @default(10)
+  examQuestionCount  Int      @default(25)
+  minEssayQuestions  Int      @default(1)
+  maxEssayQuestions  Int      @default(2)
+  examTimeLimit      Int?     @default(120)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  course             Course   @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("course_exam_configs")
 }

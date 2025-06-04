@@ -137,7 +137,7 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Create new exam session with 25 randomly selected questions
+    // Create new exam session with configured number of randomly selected questions
     const examSession = await createFinalExamSession(courseId, userId);
 
     return NextResponse.json({ 
@@ -155,27 +155,36 @@ export async function POST(
 }
 
 async function createFinalExamSession(courseId: string, clerkUserId: string) {
+  // Get course-specific exam configuration
+  const examConfig = await prisma.courseExamConfig.findUnique({
+    where: { courseId },
+  });
+
+  const totalQuestions = examConfig?.examQuestionCount || 25;
+  const minEssayQuestions = examConfig?.minEssayQuestions || 1;
+  const maxEssayQuestions = examConfig?.maxEssayQuestions || 2;
+
   // Get all questions from the question bank
   const allQuestions = await prisma.finalExamQuestionBank.findMany({
     where: { courseId },
   });
 
-  if (allQuestions.length < 25) {
-    throw new Error('Insufficient questions in question bank');
+  if (allQuestions.length < totalQuestions) {
+    throw new Error(`Insufficient questions in question bank (need ${totalQuestions}, have ${allQuestions.length})`);
   }
 
   // Separate essay and non-essay questions
   const essayQuestions = allQuestions.filter(q => q.questionType === 'ESSAY');
   const nonEssayQuestions = allQuestions.filter(q => q.questionType !== 'ESSAY');
 
-  // Select 1-2 essay questions randomly
-  const essayCount = Math.floor(Math.random() * 2) + 1; // 1 or 2 essays
+  // Select essay questions within the configured range
+  const essayCount = Math.floor(Math.random() * (maxEssayQuestions - minEssayQuestions + 1)) + minEssayQuestions;
   const selectedEssays = essayQuestions
     .sort(() => Math.random() - 0.5)
     .slice(0, Math.min(essayCount, essayQuestions.length));
 
   // Select remaining questions from non-essay questions
-  const remainingQuestions = 25 - selectedEssays.length;
+  const remainingQuestions = totalQuestions - selectedEssays.length;
   const selectedNonEssays = nonEssayQuestions
     .sort(() => Math.random() - 0.5)
     .slice(0, remainingQuestions);

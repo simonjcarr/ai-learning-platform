@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Save, Settings, Award, Clock, Target, TrendingUp } from "lucide-react";
+import { Save, Settings, Award, Clock, Target, TrendingUp, HelpCircle } from "lucide-react";
 
 interface CourseCompletionSettings {
   settingsId: string;
@@ -21,8 +21,19 @@ interface CourseCompletionSettings {
   finalExamCooldownHours: number;
 }
 
+interface QuizGenerationSettings {
+  settingsId: string;
+  articleQuizMinQuestions: number;
+  articleQuizMaxQuestions: number;
+  sectionQuizMinQuestions: number;
+  sectionQuizMaxQuestions: number;
+  finalExamMinQuestions: number;
+  finalExamMaxQuestions: number;
+}
+
 export default function CourseCompletionSettingsPage() {
   const [settings, setSettings] = useState<CourseCompletionSettings | null>(null);
+  const [quizSettings, setQuizSettings] = useState<QuizGenerationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,10 +45,19 @@ export default function CourseCompletionSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch('/api/admin/course-completion/settings');
-      if (!response.ok) throw new Error('Failed to fetch settings');
-      const data = await response.json();
-      setSettings(data);
+      const [completionResponse, quizResponse] = await Promise.all([
+        fetch('/api/admin/course-completion/settings'),
+        fetch('/api/admin/quiz-generation/settings')
+      ]);
+      
+      if (!completionResponse.ok) throw new Error('Failed to fetch completion settings');
+      if (!quizResponse.ok) throw new Error('Failed to fetch quiz generation settings');
+      
+      const completionData = await completionResponse.json();
+      const quizData = await quizResponse.json();
+      
+      setSettings(completionData);
+      setQuizSettings(quizData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load settings');
     } finally {
@@ -46,20 +66,28 @@ export default function CourseCompletionSettingsPage() {
   };
 
   const handleSave = async () => {
-    if (!settings) return;
+    if (!settings || !quizSettings) return;
 
     setSaving(true);
     setError(null);
     setSuccess(false);
 
     try {
-      const response = await fetch('/api/admin/course-completion/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
+      const [completionResponse, quizResponse] = await Promise.all([
+        fetch('/api/admin/course-completion/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings),
+        }),
+        fetch('/api/admin/quiz-generation/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(quizSettings),
+        })
+      ]);
 
-      if (!response.ok) throw new Error('Failed to save settings');
+      if (!completionResponse.ok) throw new Error('Failed to save completion settings');
+      if (!quizResponse.ok) throw new Error('Failed to save quiz generation settings');
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -70,9 +98,14 @@ export default function CourseCompletionSettingsPage() {
     }
   };
 
-  const updateSetting = (key: keyof CourseCompletionSettings, value: any) => {
+  const updateSetting = (key: keyof CourseCompletionSettings, value: number | boolean) => {
     if (!settings) return;
     setSettings({ ...settings, [key]: value });
+  };
+
+  const updateQuizSetting = (key: keyof QuizGenerationSettings, value: number) => {
+    if (!quizSettings) return;
+    setQuizSettings({ ...quizSettings, [key]: value });
   };
 
   if (loading) {
@@ -285,6 +318,60 @@ export default function CourseCompletionSettingsPage() {
                 How long students must wait before retaking a failed final exam (0 = no cooldown)
               </p>
             </div>
+          </div>
+        </Card>
+
+        {/* Default Question Bank Settings */}
+        <Card className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <HelpCircle className="h-6 w-6 text-indigo-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Default Question Bank Settings</h2>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <p className="text-sm text-gray-600">
+              These are the default settings for new courses. Each course can override these settings individually.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="finalExamMinQuestions">Default Question Bank Size</Label>
+              <Input
+                id="finalExamMinQuestions"
+                type="number"
+                min="1"
+                max="500"
+                value={quizSettings?.finalExamMinQuestions || 0}
+                onChange={(e) => updateQuizSetting('finalExamMinQuestions', parseInt(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Total number of questions to generate in the question bank for each course
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="finalExamMaxQuestions">Default Essay Questions in Bank</Label>
+              <Input
+                id="finalExamMaxQuestions"
+                type="number"
+                min="0"
+                max={quizSettings?.finalExamMinQuestions || 125}
+                value={quizSettings?.finalExamMaxQuestions || 0}
+                onChange={(e) => updateQuizSetting('finalExamMaxQuestions', parseInt(e.target.value))}
+              />
+              <p className="text-sm text-gray-600">
+                Number of essay-style questions to include in the question bank
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-amber-50 rounded-lg">
+            <p className="text-sm text-amber-800">
+              <strong>Note:</strong> Changing these settings only affects new courses. Existing courses will 
+              continue to use their individual settings. You can configure per-course settings from the course 
+              management page.
+            </p>
           </div>
         </Card>
 

@@ -985,10 +985,13 @@ async function generateFinalExamQuestionBank(courseId: string, context?: any) {
     return { success: true, skipped: true, questionCount: existingQuestions.length };
   }
 
-  // Generate 125 questions total: 10 essay + 115 other types
-  // Temporarily reducing for testing - can be changed back to 125 total later
-  const totalQuestions = 30; // TODO: Change back to 125 after testing
-  const essayQuestions = 3;  // TODO: Change back to 10 after testing
+  // Get course-specific exam configuration or use defaults
+  const examConfig = await prisma.courseExamConfig.findUnique({
+    where: { courseId },
+  });
+
+  const totalQuestions = examConfig?.questionBankSize || 125;
+  const essayQuestions = examConfig?.essayQuestionsInBank || 10;
   const otherQuestions = totalQuestions - essayQuestions;
 
   // Aggregate content from all sections and articles
