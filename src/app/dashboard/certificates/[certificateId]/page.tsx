@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Award, Download, ArrowLeft, Calendar, Clock, Target, TrendingUp, CheckCircle, Star } from "lucide-react";
+import { Award, Download, ArrowLeft, Calendar, Clock, Target, TrendingUp, CheckCircle, Star, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -262,6 +262,12 @@ export default function CertificateDetailPage({ params }: { params: Promise<{ ce
           <Download className="h-4 w-4 mr-2" />
           {downloading ? 'Generating PDF...' : 'Download Certificate'}
         </Button>
+        <Link href={`/dashboard/certificates/${certificate.certificateId}/summary`}>
+          <Button variant="outline" size="lg">
+            <FileText className="h-4 w-4 mr-2" />
+            Learning Summary
+          </Button>
+        </Link>
         <Link href={`/courses/${certificate.course.slug}`}>
           <Button variant="outline" size="lg">
             View Course
