@@ -129,8 +129,8 @@ export async function POST(
             sectionTitle: section.title,
           };
         } else {
-          // Generate final exam for course
-          jobData.jobType = 'quiz_generation';
+          // Generate final exam question bank for course
+          jobData.jobType = 'final_exam_bank';
         }
         break;
 

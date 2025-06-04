@@ -152,21 +152,23 @@ export async function POST(
       }
     }
 
-    // Check if we should generate final exam
-    const hasFinalExam = course.finalExams.length > 0;
+    // Check if we should generate final exam question bank
+    const hasQuestionBank = await prisma.finalExamQuestionBank.count({
+      where: { courseId },
+    }) > 0;
     const hasAnyContent = course.sections.some(section => 
       section.articles.length > 0
     );
 
-    if (hasAnyContent && ((regenerateOnly && hasFinalExam) || (!regenerateOnly && !hasFinalExam))) {
+    if (hasAnyContent && ((regenerateOnly && hasQuestionBank) || (!regenerateOnly && !hasQuestionBank))) {
       quizzesToGenerate.push({
-        type: 'final_exam',
-        title: `${course.title} - Final Exam`,
+        type: 'final_exam_bank',
+        title: `${course.title} - Final Exam Question Bank`,
       });
 
       const jobData = {
         courseId,
-        jobType: 'quiz_generation' as const,
+        jobType: 'final_exam_bank' as const,
         context: {
           ...context,
           regenerateOnly,

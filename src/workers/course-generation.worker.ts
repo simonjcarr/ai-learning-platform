@@ -709,8 +709,9 @@ async function generateFinalExamQuestionBank(courseId: string, context?: any) {
   }
 
   // Generate 125 questions total: 10 essay + 115 other types
-  const totalQuestions = 125;
-  const essayQuestions = 10;
+  // Temporarily reducing for testing - can be changed back to 125 total later
+  const totalQuestions = 30; // TODO: Change back to 125 after testing
+  const essayQuestions = 3;  // TODO: Change back to 10 after testing
   const otherQuestions = totalQuestions - essayQuestions;
 
   // Aggregate content from all sections and articles
@@ -748,7 +749,7 @@ IMPORTANT: Use exactly these question type values:
 - "TRUE_FALSE" for true/false questions (about 20% of questions)
 - "FILL_IN_BLANK" for fill in the blank questions (about 10% of questions)
 
-Return the response as a JSON object with this structure:
+Return the response as a JSON object with this EXACT structure:
 {
   "questions": [
     {
@@ -778,7 +779,12 @@ Return the response as a JSON object with this structure:
   ]
 }
 
-Return ONLY the JSON object.`;
+CRITICAL REQUIREMENTS:
+- Return ONLY valid JSON - no markdown, no code blocks, no extra text
+- Ensure all strings are properly escaped (use double quotes for JSON strings)
+- Make sure there are no trailing commas
+- Ensure the JSON array is properly closed with ]
+- Do NOT include any explanatory text before or after the JSON`;
 
   // Generate essay questions (10 questions)
   const essayQuestionsPrompt = `Generate ${essayQuestions} comprehensive essay questions for a final exam question bank covering this entire course.
@@ -800,7 +806,7 @@ Create ${essayQuestions} essay questions that:
 IMPORTANT: Use exactly this question type value:
 - "ESSAY" for all questions
 
-Return the response as a JSON object with this structure:
+Return the response as a JSON object with this EXACT structure:
 {
   "questions": [
     {
@@ -812,7 +818,12 @@ Return the response as a JSON object with this structure:
   ]
 }
 
-Return ONLY the JSON object.`;
+CRITICAL REQUIREMENTS:
+- Return ONLY valid JSON - no markdown, no code blocks, no extra text
+- Ensure all strings are properly escaped (use double quotes for JSON strings)
+- Make sure there are no trailing commas
+- Ensure the JSON array is properly closed with ]
+- Do NOT include any explanatory text before or after the JSON`;
 
   // Generate non-essay questions
   console.log(`📝 Generating ${otherQuestions} non-essay questions...`);
@@ -832,9 +843,46 @@ Return ONLY the JSON object.`;
     examType: 'final_exam_bank_essay',
   });
 
-  // Parse responses
-  const otherData = JSON.parse(cleanAIResponse(otherResponse));
-  const essayData = JSON.parse(cleanAIResponse(essayResponse));
+  // Parse responses with better error handling
+  let otherData, essayData;
+  
+  try {
+    const cleanedOtherResponse = cleanAIResponse(otherResponse);
+    console.log(`📝 Cleaned other questions response (${cleanedOtherResponse.length} chars)`);
+    otherData = JSON.parse(cleanedOtherResponse);
+  } catch (error) {
+    console.error(`❌ Failed to parse non-essay questions JSON:`, error);
+    console.log(`🔧 Attempting to fix JSON issues...`);
+    try {
+      const fixedJson = fixCommonJSONIssues(cleanAIResponse(otherResponse));
+      otherData = JSON.parse(fixedJson);
+      console.log(`✅ Fixed JSON successfully`);
+    } catch (fixError) {
+      console.error(`❌ JSON fix also failed:`, fixError);
+      console.log(`🔍 Raw response preview:`, otherResponse.substring(0, 500));
+      console.log(`🔍 Cleaned response preview:`, cleanAIResponse(otherResponse).substring(0, 500));
+      throw new Error(`Failed to parse non-essay questions: ${error.message}`);
+    }
+  }
+  
+  try {
+    const cleanedEssayResponse = cleanAIResponse(essayResponse);
+    console.log(`📝 Cleaned essay questions response (${cleanedEssayResponse.length} chars)`);
+    essayData = JSON.parse(cleanedEssayResponse);
+  } catch (error) {
+    console.error(`❌ Failed to parse essay questions JSON:`, error);
+    console.log(`🔧 Attempting to fix JSON issues...`);
+    try {
+      const fixedJson = fixCommonJSONIssues(cleanAIResponse(essayResponse));
+      essayData = JSON.parse(fixedJson);
+      console.log(`✅ Fixed JSON successfully`);
+    } catch (fixError) {
+      console.error(`❌ JSON fix also failed:`, fixError);
+      console.log(`🔍 Raw response preview:`, essayResponse.substring(0, 500));
+      console.log(`🔍 Cleaned response preview:`, cleanAIResponse(essayResponse).substring(0, 500));
+      throw new Error(`Failed to parse essay questions: ${error.message}`);
+    }
+  }
 
   // Combine all questions
   const allQuestions = [...otherData.questions, ...essayData.questions];
@@ -885,15 +933,61 @@ function cleanAIResponse(response: string): string {
   // Remove markdown code block wrappers if present
   if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
     cleanedResponse = cleanedResponse.slice(8, -4).trim();
-  } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
-    cleanedResponse = cleanedResponse.slice(4, -4).trim();
   } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
     cleanedResponse = cleanedResponse.slice(7, -3).trim();
+  } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(4, -4).trim();
   } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
     cleanedResponse = cleanedResponse.slice(3, -3).trim();
   }
   
+  // Additional cleaning: remove any remaining backticks at start/end
+  while (cleanedResponse.startsWith('`') || cleanedResponse.endsWith('`')) {
+    if (cleanedResponse.startsWith('`')) {
+      cleanedResponse = cleanedResponse.slice(1);
+    }
+    if (cleanedResponse.endsWith('`')) {
+      cleanedResponse = cleanedResponse.slice(0, -1);
+    }
+    cleanedResponse = cleanedResponse.trim();
+  }
+  
+  // Try to find JSON content if still wrapped
+  const jsonStart = cleanedResponse.indexOf('{');
+  const jsonEnd = cleanedResponse.lastIndexOf('}');
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
+    cleanedResponse = cleanedResponse.slice(jsonStart, jsonEnd + 1);
+  }
+  
   return cleanedResponse;
+}
+
+// Helper function to fix common JSON issues
+function fixCommonJSONIssues(jsonString: string): string {
+  let fixed = jsonString;
+  
+  // Remove trailing commas before } or ]
+  fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+  
+  // Fix unescaped quotes in strings (basic attempt)
+  // This is a simple fix - more complex scenarios might need better handling
+  fixed = fixed.replace(/([^\\])"([^",\]}]*)"([^,\]}\s])/g, '$1\\"$2\\"$3');
+  
+  // Ensure proper closing of arrays/objects
+  const openBraces = (fixed.match(/{/g) || []).length;
+  const closeBraces = (fixed.match(/}/g) || []).length;
+  const openBrackets = (fixed.match(/\[/g) || []).length;
+  const closeBrackets = (fixed.match(/\]/g) || []).length;
+  
+  // Add missing closing braces/brackets
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    fixed += '}';
+  }
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    fixed += ']';
+  }
+  
+  return fixed;
 }
 
 async function generateFinalExam(courseId: string, context?: any) {

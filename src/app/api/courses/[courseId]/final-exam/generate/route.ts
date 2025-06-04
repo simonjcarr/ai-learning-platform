@@ -116,28 +116,9 @@ export async function POST(
     });
 
     if (questionBank.length === 0) {
-      // Generate question bank using the worker
-      console.log(`Generating question bank for course ${courseId}`);
-      
-      await addCourseGenerationToQueue({
-        courseId,
-        jobType: 'final_exam_bank',
-        context: {},
-      });
-
-      // Wait a moment for the job to complete (in a real app, you might use polling)
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      // Check if question bank was created
-      const newQuestionBank = await prisma.finalExamQuestionBank.findMany({
-        where: { courseId },
-      });
-
-      if (newQuestionBank.length === 0) {
-        return NextResponse.json({ 
-          error: 'Question bank generation is in progress. Please try again in a moment.' 
-        }, { status: 202 });
-      }
+      return NextResponse.json({ 
+        error: 'Final exam question bank has not been generated yet. Please contact an administrator to generate the exam questions first.' 
+      }, { status: 400 });
     }
 
     // Check cooldown period for previous attempts

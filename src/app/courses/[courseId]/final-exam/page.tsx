@@ -69,7 +69,8 @@ export default function FinalExamPage({ params }: PageParams) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate final exam');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate final exam');
       }
 
       const data = await response.json();
