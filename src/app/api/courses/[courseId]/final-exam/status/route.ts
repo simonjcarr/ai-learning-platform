@@ -82,23 +82,23 @@ export async function GET(
       ? sectionQuizzes.reduce((sum, attempt) => sum + (attempt.score || 0), 0) / sectionQuizzes.length 
       : 0;
 
-    // Get previous final exam attempts
-    const finalExamAttempts = await prisma.finalExamAttempt.findMany({
+    // Get previous final exam sessions
+    const finalExamSessions = await prisma.finalExamSession.findMany({
       where: {
         courseId,
         clerkUserId: userId,
       },
-      orderBy: { attemptedAt: 'desc' },
+      orderBy: { startedAt: 'desc' },
     });
 
-    const bestScore = finalExamAttempts.length > 0 
-      ? Math.max(...finalExamAttempts.map(a => a.score || 0))
+    const bestScore = finalExamSessions.length > 0 
+      ? Math.max(...finalExamSessions.map(s => s.score || 0))
       : null;
 
-    const passed = finalExamAttempts.some(a => a.passed === true);
+    const passed = finalExamSessions.some(s => s.passed === true);
 
     // Check cooldown
-    const lastAttempt = finalExamAttempts[0];
+    const lastAttempt = finalExamSessions[0];
     let canTakeExam = true;
     let nextAttemptAt = null;
     let reason = '';
@@ -121,13 +121,11 @@ export async function GET(
     }
 
     // Check cooldown period
-    if (canTakeExam && lastAttempt && !lastAttempt.passed) {
-      const cooldownHours = settings?.finalExamCooldownHours ?? 24;
-      const nextAttemptTime = new Date(lastAttempt.attemptedAt.getTime() + (cooldownHours * 60 * 60 * 1000));
-      
-      if (new Date() < nextAttemptTime) {
+    if (canTakeExam && lastAttempt && !lastAttempt.passed && lastAttempt.canRetakeAt) {
+      if (new Date() < lastAttempt.canRetakeAt) {
         canTakeExam = false;
-        nextAttemptAt = nextAttemptTime.toISOString();
+        nextAttemptAt = lastAttempt.canRetakeAt.toISOString();
+        const cooldownHours = settings?.finalExamCooldownHours ?? 24;
         reason = `Must wait ${cooldownHours} hours between failed exam attempts`;
       }
     }
@@ -136,7 +134,7 @@ export async function GET(
       canTake: canTakeExam,
       reason,
       nextAttemptAt,
-      attempts: finalExamAttempts.length,
+      attempts: finalExamSessions.length,
       bestScore,
       passed,
       engagementScore: Math.round(engagementData.finalScore * 100) / 100,

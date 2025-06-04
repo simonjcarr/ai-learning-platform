@@ -47,6 +47,7 @@ model User {
   courseArticleChangeHistories CourseArticleChangeHistory[]
   courseRollbackChangeHistories CourseArticleChangeHistory[] @relation("CourseRollbackUser")
   finalExamAttempts            FinalExamAttempt[]
+  finalExamSessions            FinalExamSession[]
 
   @@map("users")
 }
@@ -671,6 +672,8 @@ model Course {
   certificates        CourseCertificate[]
   finalExams          CourseQuiz[]
   finalExamAttempts   FinalExamAttempt[]
+  finalExamQuestionBank FinalExamQuestionBank[]
+  finalExamSessions   FinalExamSession[]
 
   @@index([slug])
   @@index([status])
@@ -1025,6 +1028,82 @@ model QuizGenerationSettings {
   updatedAt                 DateTime @updatedAt
 
   @@map("quiz_generation_settings")
+}
+
+model FinalExamQuestionBank {
+  questionId    String            @id @default(cuid())
+  courseId      String
+  questionType  QuizQuestionType
+  questionText  String
+  optionsJson   Json?             // For multiple choice questions
+  correctAnswer String            // For multiple choice: option key, for others: the answer
+  explanation   String?
+  points        Float             @default(1.0)
+  createdAt     DateTime          @default(now())
+  
+  course        Course            @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  examQuestions FinalExamQuestion[]
+
+  @@index([courseId])
+  @@index([questionType])
+  @@map("final_exam_question_bank")
+}
+
+model FinalExamSession {
+  sessionId   String              @id @default(cuid())
+  courseId    String
+  clerkUserId String
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  score       Float?
+  passed      Boolean?
+  canRetakeAt DateTime?
+  
+  course      Course              @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user        User                @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  questions   FinalExamQuestion[]
+  answers     FinalExamAnswer[]
+
+  @@index([courseId])
+  @@index([clerkUserId])
+  @@index([startedAt])
+  @@map("final_exam_sessions")
+}
+
+model FinalExamQuestion {
+  id            String                 @id @default(cuid())
+  sessionId     String
+  bankQuestionId String
+  orderIndex    Int
+  
+  session       FinalExamSession       @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  bankQuestion  FinalExamQuestionBank  @relation(fields: [bankQuestionId], references: [questionId], onDelete: Cascade)
+  answers       FinalExamAnswer[]
+
+  @@unique([sessionId, orderIndex])
+  @@index([sessionId])
+  @@index([bankQuestionId])
+  @@map("final_exam_questions")
+}
+
+model FinalExamAnswer {
+  answerId      String            @id @default(cuid())
+  sessionId     String
+  questionId    String
+  userAnswer    String
+  isCorrect     Boolean?          // null for essay questions pending AI grading
+  pointsEarned  Float?            // null for essay questions pending AI grading
+  aiGrading     Json?             // AI grading details for essay questions
+  submittedAt   DateTime          @default(now())
+  gradedAt      DateTime?
+  
+  session       FinalExamSession  @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  question      FinalExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
+  @@index([sessionId])
+  @@index([questionId])
+  @@map("final_exam_answers")
 }
 
 model FinalExamAttempt {

@@ -101,7 +101,7 @@ export type SitemapJobData = {
 
 export type CourseGenerationJobData = {
   courseId: string;
-  jobType: 'outline' | 'article_content' | 'quiz_generation';
+  jobType: 'outline' | 'article_content' | 'quiz_generation' | 'final_exam_bank';
   sectionId?: string;
   articleId?: string;
   context?: {

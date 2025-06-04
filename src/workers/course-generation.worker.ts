@@ -39,6 +39,8 @@ async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
         return await generateArticleContent(courseId, articleId!, context);
       case 'quiz_generation':
         return await generateQuizzes(courseId, sectionId, articleId, context);
+      case 'final_exam_bank':
+        return await generateFinalExamQuestionBank(courseId, context);
       default:
         throw new Error(`Unknown job type: ${jobType}`);
     }
@@ -663,6 +665,235 @@ Return ONLY the JSON object.`;
 
   console.log(`✅ Section quiz generated successfully for section ${sectionId}`);
   return { success: true, quizId: quiz.quizId };
+}
+
+async function generateFinalExamQuestionBank(courseId: string, context?: any) {
+  console.log(`🏦 Generating question bank for final exam - course ${courseId}`);
+  
+  const course = await prisma.course.findUnique({
+    where: { courseId },
+    include: {
+      sections: {
+        include: {
+          articles: {
+            where: {
+              contentHtml: { not: null },
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+        orderBy: { orderIndex: 'asc' },
+      },
+    },
+  });
+
+  if (!course || course.sections.length === 0) {
+    throw new Error('Course not found or has no sections with content');
+  }
+
+  // Check for existing question bank
+  const existingQuestions = await prisma.finalExamQuestionBank.findMany({
+    where: { courseId },
+  });
+
+  // Only delete existing questions if this is a regeneration operation
+  const regenerateOnly = context?.regenerateOnly || false;
+  if (existingQuestions.length > 0 && regenerateOnly) {
+    console.log(`📝 Deleting existing question bank (${existingQuestions.length} questions) before regenerating`);
+    await prisma.finalExamQuestionBank.deleteMany({
+      where: { courseId },
+    });
+  } else if (existingQuestions.length > 0 && !regenerateOnly) {
+    console.log(`📝 Question bank already exists for ${courseId} (${existingQuestions.length} questions), skipping generation`);
+    return { success: true, skipped: true, questionCount: existingQuestions.length };
+  }
+
+  // Generate 125 questions total: 10 essay + 115 other types
+  const totalQuestions = 125;
+  const essayQuestions = 10;
+  const otherQuestions = totalQuestions - essayQuestions;
+
+  // Aggregate content from all sections and articles
+  const courseContent = course.sections
+    .map(section => {
+      const articlesContent = section.articles
+        .map(article => `Article: ${article.title}\n${article.contentHtml?.substring(0, 1000)}`)
+        .join('\n');
+      return `Section: ${section.title}\n${section.description || ''}\n${articlesContent}`;
+    })
+    .join('\n\n');
+
+  // Generate non-essay questions (115 questions)
+  const otherQuestionsPrompt = `Generate ${otherQuestions} comprehensive questions for a final exam question bank covering this entire course.
+
+Course: ${course.title} (${course.level} level)
+Course Description: ${course.description}
+Number of Sections: ${course.sections.length}
+Total Articles: ${course.sections.reduce((total, section) => total + section.articles.length, 0)}
+
+Course Content Overview:
+${courseContent.substring(0, 10000)}
+
+Create ${otherQuestions} questions that:
+- Test comprehensive understanding of the ENTIRE course
+- Cover key concepts from ALL sections
+- Use a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_BLANK question types
+- Are challenging enough for a final exam
+- Test both theoretical understanding and practical application
+- Are appropriate for ${course.level.toLowerCase()} level learners
+- Avoid essay questions (those will be generated separately)
+
+IMPORTANT: Use exactly these question type values:
+- "MULTIPLE_CHOICE" for multiple choice questions (about 70% of questions)
+- "TRUE_FALSE" for true/false questions (about 20% of questions)
+- "FILL_IN_BLANK" for fill in the blank questions (about 10% of questions)
+
+Return the response as a JSON object with this structure:
+{
+  "questions": [
+    {
+      "type": "MULTIPLE_CHOICE",
+      "question": "Question text here?",
+      "options": {
+        "a": "Option A",
+        "b": "Option B", 
+        "c": "Option C",
+        "d": "Option D"
+      },
+      "correctAnswer": "a",
+      "explanation": "Explanation of why this is correct"
+    },
+    {
+      "type": "TRUE_FALSE",
+      "question": "Statement to evaluate",
+      "correctAnswer": "true",
+      "explanation": "Explanation"
+    },
+    {
+      "type": "FILL_IN_BLANK",
+      "question": "The _____ command is used to list files in Linux",
+      "correctAnswer": "ls",
+      "explanation": "The ls command lists directory contents"
+    }
+  ]
+}
+
+Return ONLY the JSON object.`;
+
+  // Generate essay questions (10 questions)
+  const essayQuestionsPrompt = `Generate ${essayQuestions} comprehensive essay questions for a final exam question bank covering this entire course.
+
+Course: ${course.title} (${course.level} level)
+Course Description: ${course.description}
+
+Course Content Overview:
+${courseContent.substring(0, 8000)}
+
+Create ${essayQuestions} essay questions that:
+- Test deep understanding and critical thinking about the course material
+- Cover major concepts and themes from across the entire course
+- Require students to synthesize information from multiple sections
+- Are appropriate for ${course.level.toLowerCase()} level learners
+- Allow for thoughtful, comprehensive responses (not simple definitions)
+- Test practical application and problem-solving skills
+
+IMPORTANT: Use exactly this question type value:
+- "ESSAY" for all questions
+
+Return the response as a JSON object with this structure:
+{
+  "questions": [
+    {
+      "type": "ESSAY",
+      "question": "Comprehensive essay question that requires analysis and synthesis of course concepts...",
+      "correctAnswer": "Sample ideal answer or key points that should be covered in a good response...",
+      "explanation": "Grading criteria and what to look for in student responses..."
+    }
+  ]
+}
+
+Return ONLY the JSON object.`;
+
+  // Generate non-essay questions
+  console.log(`📝 Generating ${otherQuestions} non-essay questions...`);
+  const otherResponse = await callAI('course_quiz_generation', otherQuestionsPrompt, {
+    courseId,
+    courseTitle: course.title,
+    courseLevel: course.level,
+    examType: 'final_exam_bank_other',
+  });
+
+  // Generate essay questions
+  console.log(`📝 Generating ${essayQuestions} essay questions...`);
+  const essayResponse = await callAI('course_quiz_generation', essayQuestionsPrompt, {
+    courseId,
+    courseTitle: course.title,
+    courseLevel: course.level,
+    examType: 'final_exam_bank_essay',
+  });
+
+  // Parse responses
+  const otherData = JSON.parse(cleanAIResponse(otherResponse));
+  const essayData = JSON.parse(cleanAIResponse(essayResponse));
+
+  // Combine all questions
+  const allQuestions = [...otherData.questions, ...essayData.questions];
+
+  // Validate we have the right number of questions
+  if (allQuestions.length !== totalQuestions) {
+    console.warn(`Expected ${totalQuestions} questions but got ${allQuestions.length}. Proceeding with generated questions.`);
+  }
+
+  // Create questions in the database
+  for (let i = 0; i < allQuestions.length; i++) {
+    const questionData = allQuestions[i];
+    
+    // Map AI-generated question types to database enum values
+    let questionType = questionData.type;
+    if (questionType === 'FILL_IN_THE_BLANK') {
+      questionType = 'FILL_IN_BLANK';
+    }
+    
+    // Validate question type
+    const validTypes = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_BLANK', 'ESSAY'];
+    if (!validTypes.includes(questionType)) {
+      console.error(`Invalid question type: ${questionType}, defaulting to MULTIPLE_CHOICE`);
+      questionType = 'MULTIPLE_CHOICE';
+    }
+    
+    await prisma.finalExamQuestionBank.create({
+      data: {
+        courseId,
+        questionType: questionType as any,
+        questionText: questionData.question,
+        optionsJson: questionData.options || null,
+        correctAnswer: questionData.correctAnswer,
+        explanation: questionData.explanation,
+        points: 1.0,
+      },
+    });
+  }
+
+  console.log(`✅ Question bank generated successfully for course ${courseId} - ${allQuestions.length} questions created`);
+  return { success: true, questionCount: allQuestions.length };
+}
+
+// Helper function to clean AI responses
+function cleanAIResponse(response: string): string {
+  let cleanedResponse = response.trim();
+  
+  // Remove markdown code block wrappers if present
+  if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(8, -4).trim();
+  } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
+    cleanedResponse = cleanedResponse.slice(4, -4).trim();
+  } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(7, -3).trim();
+  } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
+    cleanedResponse = cleanedResponse.slice(3, -3).trim();
+  }
+  
+  return cleanedResponse;
 }
 
 async function generateFinalExam(courseId: string, context?: any) {

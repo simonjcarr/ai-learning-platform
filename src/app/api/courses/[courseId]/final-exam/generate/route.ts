@@ -110,46 +110,59 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Check if final exam already exists for this course
-    let finalExam = await prisma.courseQuiz.findFirst({
-      where: {
-        courseId,
-        quizType: 'final_exam',
-      },
+    // Check if question bank exists for this course
+    const questionBank = await prisma.finalExamQuestionBank.findMany({
+      where: { courseId },
     });
 
-    if (!finalExam) {
-      // Generate final exam using the worker
-      console.log(`Generating final exam for course ${courseId}`);
+    if (questionBank.length === 0) {
+      // Generate question bank using the worker
+      console.log(`Generating question bank for course ${courseId}`);
       
       await addCourseGenerationToQueue({
         courseId,
-        jobType: 'quiz_generation',
-        context: { examType: 'final_exam' },
+        jobType: 'final_exam_bank',
+        context: {},
       });
 
       // Wait a moment for the job to complete (in a real app, you might use polling)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // Check if exam was created
-      finalExam = await prisma.courseQuiz.findFirst({
-        where: {
-          courseId,
-          quizType: 'final_exam',
-        },
+      // Check if question bank was created
+      const newQuestionBank = await prisma.finalExamQuestionBank.findMany({
+        where: { courseId },
       });
 
-      if (!finalExam) {
+      if (newQuestionBank.length === 0) {
         return NextResponse.json({ 
-          error: 'Final exam generation is in progress. Please try again in a moment.' 
+          error: 'Question bank generation is in progress. Please try again in a moment.' 
         }, { status: 202 });
       }
     }
 
+    // Check cooldown period for previous attempts
+    const lastAttempt = await prisma.finalExamSession.findFirst({
+      where: {
+        courseId,
+        clerkUserId: userId,
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (lastAttempt && !lastAttempt.passed && lastAttempt.canRetakeAt && new Date() < lastAttempt.canRetakeAt) {
+      return NextResponse.json({ 
+        error: 'Must wait before retaking the exam',
+        canRetakeAt: lastAttempt.canRetakeAt 
+      }, { status: 400 });
+    }
+
+    // Create new exam session with 25 randomly selected questions
+    const examSession = await createFinalExamSession(courseId, userId);
+
     return NextResponse.json({ 
       success: true, 
-      examId: finalExam.quizId,
-      message: 'Final exam is ready' 
+      sessionId: examSession.sessionId,
+      message: 'Final exam session created' 
     });
   } catch (error) {
     console.error('Error generating final exam:', error);
@@ -158,4 +171,63 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+async function createFinalExamSession(courseId: string, clerkUserId: string) {
+  // Get all questions from the question bank
+  const allQuestions = await prisma.finalExamQuestionBank.findMany({
+    where: { courseId },
+  });
+
+  if (allQuestions.length < 25) {
+    throw new Error('Insufficient questions in question bank');
+  }
+
+  // Separate essay and non-essay questions
+  const essayQuestions = allQuestions.filter(q => q.questionType === 'ESSAY');
+  const nonEssayQuestions = allQuestions.filter(q => q.questionType !== 'ESSAY');
+
+  // Select 1-2 essay questions randomly
+  const essayCount = Math.floor(Math.random() * 2) + 1; // 1 or 2 essays
+  const selectedEssays = essayQuestions
+    .sort(() => Math.random() - 0.5)
+    .slice(0, Math.min(essayCount, essayQuestions.length));
+
+  // Select remaining questions from non-essay questions
+  const remainingQuestions = 25 - selectedEssays.length;
+  const selectedNonEssays = nonEssayQuestions
+    .sort(() => Math.random() - 0.5)
+    .slice(0, remainingQuestions);
+
+  // Combine and shuffle all selected questions
+  const selectedQuestions = [...selectedEssays, ...selectedNonEssays]
+    .sort(() => Math.random() - 0.5);
+
+  // Get completion settings for cooldown
+  const settings = await prisma.courseCompletionSettings.findFirst({
+    where: { settingsId: 'default' },
+  });
+
+  // Create exam session
+  const examSession = await prisma.finalExamSession.create({
+    data: {
+      courseId,
+      clerkUserId,
+    },
+  });
+
+  // Create questions for this session
+  for (let i = 0; i < selectedQuestions.length; i++) {
+    await prisma.finalExamQuestion.create({
+      data: {
+        sessionId: examSession.sessionId,
+        bankQuestionId: selectedQuestions[i].questionId,
+        orderIndex: i,
+      },
+    });
+  }
+
+  console.log(`✅ Final exam session created for course ${courseId}, user ${clerkUserId} - ${selectedQuestions.length} questions (${selectedEssays.length} essays)`);
+  
+  return examSession;
 }

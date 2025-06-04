@@ -7,7 +7,7 @@ import { Loader2, ArrowLeft, Award, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import CourseQuiz from "@/components/course-quiz";
+import FinalExamInterface from "@/components/final-exam-interface";
 import { CourseFloatingActionMenu } from "@/components/course-floating-action-menu";
 import { useAuth } from "@clerk/nextjs";
 
@@ -36,6 +36,7 @@ export default function FinalExamPage({ params }: PageParams) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showQuiz, setShowQuiz] = useState(false);
+  const [examSession, setExamSession] = useState<{ sessionId: string } | null>(null);
 
   useEffect(() => {
     checkExamStatus();
@@ -71,8 +72,8 @@ export default function FinalExamPage({ params }: PageParams) {
         throw new Error('Failed to generate final exam');
       }
 
-      // Refresh status after generation
-      await checkExamStatus();
+      const data = await response.json();
+      setExamSession({ sessionId: data.sessionId });
       setShowQuiz(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate exam');
@@ -138,7 +139,7 @@ export default function FinalExamPage({ params }: PageParams) {
           <h1 className="text-3xl font-bold text-gray-900">Final Exam</h1>
         </div>
 
-        <CourseQuiz courseId={courseId} />
+        <FinalExamInterface sessionId={examSession?.sessionId} />
         
         {/* Floating Action Menu */}
         {isSignedIn && (
