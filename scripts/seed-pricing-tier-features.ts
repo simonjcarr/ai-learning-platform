@@ -44,6 +44,11 @@ async function main() {
       "view_article_analytics": { enabled: false },
       "priority_support": { enabled: false },
       "view_change_history": { enabled: false },
+      "access_courses": { enabled: false },
+      "course_progress_tracking": { enabled: false },
+      "course_quizzes": { enabled: false },
+      "course_certificates": { enabled: false },
+      "course_ai_chat": { enabled: false },
     },
     "Standard": {
       // All basic features plus more
@@ -65,26 +70,11 @@ async function main() {
       "daily_article_generation_limit": { enabled: true, limitValue: 0 },
       "monthly_download_limit": { enabled: true, limitValue: 100 },
       "priority_support": { enabled: false },
-    },
-    "PRO": {
-      // Everything in Standard plus AI features
-      "view_articles": { enabled: true },
-      "like_articles": { enabled: true },
-      "article_search": { enabled: true },
-      "ai_chat": { enabled: true },
-      "comment_on_articles": { enabled: true },
-      "flag_content": { enabled: true },
-      "suggest_article_improvements": { enabled: true },
-      "manage_curated_lists": { enabled: true },
-      "article_groups": { enabled: true },
-      "view_article_analytics": { enabled: true },
-      "view_change_history": { enabled: true },
-      "generate_article_content": { enabled: true },
-      "generate_example_questions": { enabled: true, limitValue: 5 },
-      "priority_support": { enabled: true },
-      "daily_ai_chat_limit": { enabled: true, limitValue: 200 },
-      "daily_article_generation_limit": { enabled: true, limitValue: 5 },
-      "monthly_download_limit": { enabled: true, limitValue: 500 },
+      "access_courses": { enabled: true },
+      "course_progress_tracking": { enabled: true },
+      "course_quizzes": { enabled: true },
+      "course_certificates": { enabled: true },
+      "course_ai_chat": { enabled: true },
     },
     "Max": {
       // Everything unlimited
@@ -105,12 +95,17 @@ async function main() {
       "daily_ai_chat_limit": { enabled: true, limitValue: -1 }, // -1 = unlimited
       "daily_article_generation_limit": { enabled: true, limitValue: -1 },
       "monthly_download_limit": { enabled: true, limitValue: -1 },
+      "access_courses": { enabled: true },
+      "course_progress_tracking": { enabled: true },
+      "course_quizzes": { enabled: true },
+      "course_certificates": { enabled: true },
+      "course_ai_chat": { enabled: true },
     },
   };
 
   // Process each pricing tier
   for (const tier of pricingTiers) {
-    const assignments = tierFeatureAssignments[tier.tier.toUpperCase()];
+    const assignments = tierFeatureAssignments[tier.tier];
     
     if (!assignments) {
       console.log(`⚠️  No feature assignments defined for tier: ${tier.tier}`);

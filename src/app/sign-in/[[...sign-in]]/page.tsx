@@ -1,11 +1,12 @@
 import { SignIn } from "@clerk/nextjs";
 
-export default function SignInPage({
+export default async function SignInPage({
   searchParams
 }: {
-  searchParams: { redirect_url?: string }
+  searchParams: Promise<{ redirect_url?: string }>
 }) {
-  const redirectUrl = searchParams.redirect_url || "/dashboard";
+  const params = await searchParams;
+  const redirectUrl = params.redirect_url || "/dashboard";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { CourseLevel } from "@prisma/client";
 import Link from "next/link";
 import { 
@@ -21,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { FeatureGuard } from "@/components/feature-guard";
+import { CourseFeaturesPromotion } from "@/components/course-features-promotion";
 
 interface Course {
   courseId: string;
@@ -48,9 +50,10 @@ interface Course {
   completedAt?: string;
   progressPercentage: number;
   completedArticles: number;
+  certificateId?: string | null;
 }
 
-export default function CoursesPage() {
+function CoursesContent() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
@@ -143,8 +146,7 @@ export default function CoursesPage() {
   }
 
   return (
-    <FeatureGuard featureKey="access_courses">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Courses</h1>
           <p className="text-lg text-gray-600">
@@ -213,17 +215,19 @@ export default function CoursesPage() {
             </div>
           </Card>
           
-          <Card className="p-6">
-            <div className="flex items-center">
-              <Award className="h-8 w-8 text-yellow-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Certificates</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {enrolledCourses.filter(course => course.isCompleted).length}
-                </p>
+          <Link href="/dashboard/certificates" className="block">
+            <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center">
+                <Award className="h-8 w-8 text-yellow-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Certificates</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {enrolledCourses.filter(course => course.certificateId).length}
+                  </p>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </Link>
         </div>
 
         {/* Enrolled Courses Section */}
@@ -255,8 +259,8 @@ export default function CoursesPage() {
                     {course.description}
                   </p>
                   
-                  {/* Progress Bar */}
-                  {!course.isCompleted && (
+                  {/* Progress Bar or Completion Status */}
+                  {!course.isCompleted ? (
                     <div className="mb-4">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-sm font-medium text-gray-700">Progress</span>
@@ -273,6 +277,28 @@ export default function CoursesPage() {
                       <p className="text-xs text-gray-500 mt-1">
                         {course.completedArticles} of {course.totalArticles} articles completed
                       </p>
+                    </div>
+                  ) : (
+                    <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                          <div>
+                            <p className="text-sm font-semibold text-green-800">Course Completed!</p>
+                            <p className="text-xs text-green-600">
+                              Completed on {new Date(course.completedAt!).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        {course.certificateId && (
+                          <Link href={`/dashboard/certificates/${course.certificateId}`}>
+                            <Button size="sm" variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
+                              <Award className="h-4 w-4 mr-1" />
+                              View Certificate
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   )}
                   
@@ -378,6 +404,25 @@ export default function CoursesPage() {
           )}
         </div>
       </div>
-    </FeatureGuard>
   );
+}
+
+export default function CoursesPage() {
+  const { access: courseAccess, loading: accessLoading } = useFeatureAccess("access_courses");
+
+  if (accessLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!courseAccess?.hasAccess) {
+    return <CourseFeaturesPromotion />;
+  }
+
+  return <CoursesContent />;
 }

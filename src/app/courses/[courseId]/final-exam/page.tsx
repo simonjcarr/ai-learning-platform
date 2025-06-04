@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import CourseQuiz from "@/components/course-quiz";
+import { CourseFloatingActionMenu } from "@/components/course-floating-action-menu";
+import { useAuth } from "@clerk/nextjs";
 
 interface FinalExamStatus {
   canTake: boolean;
@@ -29,6 +31,7 @@ interface PageParams {
 export default function FinalExamPage({ params }: PageParams) {
   const router = useRouter();
   const { courseId } = use(params);
+  const { isSignedIn } = useAuth();
   const [examStatus, setExamStatus] = useState<FinalExamStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +139,14 @@ export default function FinalExamPage({ params }: PageParams) {
         </div>
 
         <CourseQuiz courseId={courseId} />
+        
+        {/* Floating Action Menu */}
+        {isSignedIn && (
+          <CourseFloatingActionMenu 
+            courseId={courseId}
+            currentQuizId="final-exam"
+          />
+        )}
       </div>
     );
   }

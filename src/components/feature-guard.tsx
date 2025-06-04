@@ -2,7 +2,9 @@
 
 import { ReactNode } from 'react';
 import { useFeatureAccess } from '@/hooks/use-feature-access';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { CourseFeaturesPromotion } from '@/components/course-features-promotion';
 import Link from 'next/link';
 
 interface FeatureGuardProps {
@@ -26,6 +28,7 @@ export function FeatureGuard({
   className
 }: FeatureGuardProps) {
   const { access, loading, error } = useFeatureAccess(featureKey);
+  const { isSignedIn, isLoaded } = useAuth();
 
   if (loading) {
     return (
@@ -43,16 +46,56 @@ export function FeatureGuard({
 
   if (!access?.hasAccess) {
     if (showUpgradePrompt) {
+      // Show detailed course promotion for access_courses feature
+      if (featureKey === 'access_courses') {
+        return <CourseFeaturesPromotion />;
+      }
+      
+      // Show default upgrade prompt for other features
+      const isUserSignedIn = isLoaded && isSignedIn;
+      
       return (
-        <div className={`p-4 bg-orange-50 border border-orange-200 rounded-lg ${className}`}>
-          <p className="text-orange-800 mb-3">
-            {upgradePromptText || `This feature requires a subscription upgrade.`}
-          </p>
-          <Link href="/pricing">
-            <Button variant="outline" size="sm" className="text-orange-700 border-orange-300 hover:bg-orange-100">
-              View Pricing Plans
-            </Button>
-          </Link>
+        <div className={`p-6 bg-orange-50 border border-orange-200 rounded-lg ${className}`}>
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              {isUserSignedIn ? 'Upgrade Required' : 'Sign Up to Access This Feature'}
+            </h2>
+            <p className="text-orange-800 mb-6 text-lg">
+              {upgradePromptText || (isUserSignedIn 
+                ? `This feature requires a subscription upgrade.`
+                : `Create an account to access our comprehensive learning platform.`
+              )}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {!isUserSignedIn && (
+                <Link href="/sign-up">
+                  <Button size="lg" className="bg-orange-600 hover:bg-orange-700 text-white">
+                    Sign Up for Free
+                  </Button>
+                </Link>
+              )}
+              <Link href="/pricing">
+                <Button 
+                  variant={isUserSignedIn ? "default" : "outline"} 
+                  size="lg" 
+                  className={isUserSignedIn 
+                    ? "bg-orange-600 hover:bg-orange-700 text-white" 
+                    : "text-orange-700 border-orange-300 hover:bg-orange-100"
+                  }
+                >
+                  {isUserSignedIn ? 'Upgrade Now' : 'View Pricing Plans'}
+                </Button>
+              </Link>
+            </div>
+            {!isUserSignedIn && (
+              <p className="text-sm text-gray-600 mt-4">
+                Already have an account?{' '}
+                <Link href="/sign-in" className="text-orange-600 hover:text-orange-700 font-medium">
+                  Sign in here
+                </Link>
+              </p>
+            )}
+          </div>
         </div>
       );
     }

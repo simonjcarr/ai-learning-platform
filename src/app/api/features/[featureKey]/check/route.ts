@@ -11,10 +11,14 @@ export async function GET(
     const { featureKey } = await params;
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      // For non-authenticated users, return no access instead of 401
+      // This allows FeatureGuard to show upgrade prompts instead of errors
+      return NextResponse.json({ 
+        access: { 
+          hasAccess: false, 
+          reason: "Authentication required" 
+        } 
+      });
     }
 
     const access = await checkFeatureAccess(featureKey, userId);

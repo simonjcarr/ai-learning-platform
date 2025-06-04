@@ -6,9 +6,17 @@ import { ChatMessage } from './chat-message';
 import { Send, MessageCircle, X, Loader2, Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+interface ChatContext {
+  type: 'article' | 'course_article';
+  courseId?: string;
+  articleId?: string;
+  quizId?: string;
+}
+
 interface ChatInterfaceProps {
   articleId: string;
   currentExampleId?: string;
+  context?: ChatContext;
 }
 
 interface Message {
@@ -19,7 +27,7 @@ interface Message {
   exampleId?: string | null;
 }
 
-export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProps) {
+export function ChatInterface({ articleId, currentExampleId, context }: ChatInterfaceProps) {
   const { isSignedIn } = useAuth();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -88,7 +96,11 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
   const fetchChatHistory = async () => {
     setIsFetchingHistory(true);
     try {
-      const response = await fetch(`/api/articles/${articleId}/chat`);
+      const endpoint = context?.type === 'course_article' && context.courseId
+        ? `/api/courses/${context.courseId}/articles/${articleId}/chat`
+        : `/api/articles/${articleId}/chat`;
+        
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
@@ -123,7 +135,11 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/articles/${articleId}/chat`, {
+      const endpoint = context?.type === 'course_article' && context.courseId
+        ? `/api/courses/${context.courseId}/articles/${articleId}/chat`
+        : `/api/articles/${articleId}/chat`;
+        
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,6 +147,7 @@ export function ChatInterface({ articleId, currentExampleId }: ChatInterfaceProp
         body: JSON.stringify({
           content: userInput,
           exampleId: currentExampleId,
+          context: context,
         }),
       });
 
