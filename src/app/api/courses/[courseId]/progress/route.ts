@@ -17,6 +17,15 @@ export async function POST(
     const body = await request.json();
     const { articleId, isCompleted, timeSpent, scrollPercentage } = body;
 
+    console.log('📊 Progress API received:', {
+      courseId,
+      articleId,
+      isCompleted,
+      timeSpent,
+      scrollPercentage,
+      userId
+    });
+
     // Calculate engagement score based on time spent and scroll percentage
     const calculateEngagementScore = (timeSpent: number, scrollPercentage: number, contentLength: number = 1000) => {
       // Expected time: 2 minutes per 1000 characters, minimum 3 minutes
@@ -91,6 +100,15 @@ export async function POST(
         lastAccessedAt: new Date(),
         ...(isCompleted && { completedAt: new Date() }),
       },
+    });
+
+    console.log('💾 Progress saved to database:', {
+      progressId: progress.progressId,
+      isCompleted: progress.isCompleted,
+      timeSpent: progress.timeSpent,
+      scrollPercentage: progress.scrollPercentage,
+      engagementScore: progress.engagementScore,
+      completedAt: progress.completedAt
     });
 
     // Check if course is now complete

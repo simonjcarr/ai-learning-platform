@@ -132,9 +132,12 @@ export async function generateCertificate(data: CertificateData) {
       ? (completedArticles / totalArticles) * 100
       : 0;
 
-    // Calculate total time invested (in hours)
+    // Calculate total time invested
     const totalTimeSeconds = enrollment.progress.reduce((sum, p) => sum + p.timeSpent, 0);
-    const totalTimeHours = Math.round(totalTimeSeconds / 3600);
+    const totalTimeHours = totalTimeSeconds / 3600;
+    const displayTime = totalTimeHours >= 1 
+      ? `${Math.round(totalTimeHours)}h` 
+      : `${Math.round(totalTimeSeconds / 60)}m`;
 
     // Get completion settings
     const settings = await prisma.courseCompletionSettings.findFirst();
@@ -168,7 +171,7 @@ export async function generateCertificate(data: CertificateData) {
       finalExamScore: Math.round(data.finalExamScore * 10) / 10,
       engagementScore: Math.round(avgEngagement * 10) / 10,
       quizAverage: Math.round(avgQuizScore * 10) / 10,
-      timeInvested: totalTimeHours,
+      timeInvested: displayTime,
       instructorName: `${course.createdBy.firstName || ''} ${course.createdBy.lastName || ''}`.trim() || 'IT Learning Platform',
     };
 

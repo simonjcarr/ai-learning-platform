@@ -279,15 +279,23 @@ Return the content as properly formatted Markdown suitable for educational purpo
   });
 
   // Clean up any markdown code block wrappers in content
+  // Only remove outer markdown code block wrappers if the entire content is wrapped
+  // This preserves inner code blocks (like mermaid diagrams)
   let cleanedContent = content.trim();
   if (cleanedContent.startsWith('```markdown\n') && cleanedContent.endsWith('\n```')) {
-    cleanedContent = cleanedContent.slice(12, -4).trim();
-  } else if (cleanedContent.startsWith('```\n') && cleanedContent.endsWith('\n```')) {
-    cleanedContent = cleanedContent.slice(4, -4).trim();
+    // Check if there are any other code blocks inside
+    const innerContent = cleanedContent.slice(12, -4);
+    if (!innerContent.includes('```')) {
+      // Safe to remove outer wrapper
+      cleanedContent = innerContent.trim();
+    }
   } else if (cleanedContent.startsWith('```markdown') && cleanedContent.endsWith('```')) {
-    cleanedContent = cleanedContent.slice(11, -3).trim();
-  } else if (cleanedContent.startsWith('```') && cleanedContent.endsWith('```')) {
-    cleanedContent = cleanedContent.slice(3, -3).trim();
+    // Check if there are any other code blocks inside
+    const innerContent = cleanedContent.slice(11, -3);
+    if (!innerContent.includes('```')) {
+      // Safe to remove outer wrapper
+      cleanedContent = innerContent.trim();
+    }
   }
 
   // Update the article with generated content

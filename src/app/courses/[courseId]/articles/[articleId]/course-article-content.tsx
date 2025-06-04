@@ -34,15 +34,22 @@ interface CourseArticleContentProps {
 function cleanMarkdownContent(content: string): string {
   let cleaned = content.trim();
   
-  // Remove markdown code block wrappers if present
+  // Only remove outer markdown code block wrappers if the entire content is wrapped
+  // This preserves inner code blocks (like mermaid diagrams)
   if (cleaned.startsWith('```markdown\n') && cleaned.endsWith('\n```')) {
-    cleaned = cleaned.slice(12, -4).trim();
-  } else if (cleaned.startsWith('```\n') && cleaned.endsWith('\n```')) {
-    cleaned = cleaned.slice(4, -4).trim();
+    // Check if there are any other code blocks inside
+    const innerContent = cleaned.slice(12, -4);
+    if (!innerContent.includes('```')) {
+      // Safe to remove outer wrapper
+      cleaned = innerContent.trim();
+    }
   } else if (cleaned.startsWith('```markdown') && cleaned.endsWith('```')) {
-    cleaned = cleaned.slice(11, -3).trim();
-  } else if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
-    cleaned = cleaned.slice(3, -3).trim();
+    // Check if there are any other code blocks inside
+    const innerContent = cleaned.slice(11, -3);
+    if (!innerContent.includes('```')) {
+      // Safe to remove outer wrapper
+      cleaned = innerContent.trim();
+    }
   }
   
   return cleaned;
