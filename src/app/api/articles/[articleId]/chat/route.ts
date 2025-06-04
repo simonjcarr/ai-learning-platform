@@ -59,7 +59,7 @@ export async function POST(
   }
 
   // Check usage limits (admins have unlimited access)
-  const usageCheck = await checkFeatureUsageWithAdmin('daily_ai_chat_limit', userId, 'daily');
+  const usageCheck = await checkFeatureUsageWithAdmin('daily_article_ai_chat_limit', userId, 'daily');
   
   if (!usageCheck.hasAccess) {
     return NextResponse.json(

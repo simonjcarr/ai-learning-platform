@@ -338,8 +338,39 @@ export async function checkFeatureUsage(
       startDate.setHours(0, 0, 0, 0);
     }
 
-    // Generic usage counting based on feature key patterns
-    if (featureKey.includes('ai_chat') || featureKey.includes('chat_limit')) {
+    // Specific usage counting based on feature key patterns
+    if (featureKey === 'daily_article_ai_chat_limit') {
+      // Count only regular article chat messages (not course chat)
+      currentUsage = await prisma.chatMessage.count({
+        where: {
+          clerkUserId: userId,
+          role: 'USER',
+          createdAt: { gte: startDate },
+          article: {
+            id: {
+              not: {
+                startsWith: 'course-'
+              }
+            }
+          }
+        },
+      });
+    } else if (featureKey === 'daily_course_ai_chat_limit') {
+      // Count only course chat messages (articleId starts with 'course-')
+      currentUsage = await prisma.chatMessage.count({
+        where: {
+          clerkUserId: userId,
+          role: 'USER',
+          createdAt: { gte: startDate },
+          article: {
+            id: {
+              startsWith: 'course-'
+            }
+          }
+        },
+      });
+    } else if (featureKey.includes('ai_chat') || featureKey.includes('chat_limit')) {
+      // Legacy: count all chat messages for backward compatibility
       currentUsage = await prisma.chatMessage.count({
         where: {
           clerkUserId: userId,
@@ -423,7 +454,7 @@ export async function checkSubscription(userId?: string | null) {
     canCreateCustomLists: userAccess.features.get('manage_curated_lists')?.hasAccess || false,
     canAccessAnalytics: userAccess.features.get('view_article_analytics')?.hasAccess || false,
     canGetPrioritySupport: userAccess.features.get('priority_support')?.hasAccess || false,
-    dailyAIChatsLimit: userAccess.features.get('daily_ai_chat_limit')?.limitValue || 0,
+    dailyAIChatsLimit: userAccess.features.get('daily_ai_chat_limit')?.limitValue || userAccess.features.get('daily_article_ai_chat_limit')?.limitValue || 0,
     monthlyDownloadsLimit: userAccess.features.get('monthly_download_limit')?.limitValue || 0,
   };
 

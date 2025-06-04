@@ -75,8 +75,8 @@ export async function POST(
     );
   }
 
-  // Check usage limits using the same daily AI chat limit (admins have unlimited access)
-  const usageCheck = await checkFeatureUsageWithAdmin('daily_ai_chat_limit', userId, 'daily');
+  // Check usage limits for course AI chat (admins have unlimited access)
+  const usageCheck = await checkFeatureUsageWithAdmin('daily_course_ai_chat_limit', userId, 'daily');
   
   if (!usageCheck.hasAccess) {
     return NextResponse.json(
