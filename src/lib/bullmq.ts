@@ -77,6 +77,29 @@ export const courseGenerationQueueEvents = new QueueEvents('course-generation', 
   connection: connection.duplicate(),
 });
 
+export const suggestionQueue = new Queue('suggestion', {
+  connection: connection.duplicate(),
+  defaultJobOptions: {
+    removeOnComplete: {
+      age: 24 * 3600, // keep completed jobs for 24 hours
+      count: 100, // keep the last 100 completed jobs
+    },
+    removeOnFail: {
+      age: 48 * 3600, // keep failed jobs for 48 hours
+      count: 100, // keep last 100 failed jobs
+    },
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  },
+});
+
+export const suggestionQueueEvents = new QueueEvents('suggestion', {
+  connection: connection.duplicate(),
+});
+
 export type EmailJobData = {
   to: string | string[];
   subject: string;
@@ -114,6 +137,16 @@ export type CourseGenerationJobData = {
     articleDescription?: string;
     regenerateOnly?: boolean;
   };
+};
+
+export type SuggestionJobData = {
+  articleId: string;
+  clerkUserId: string;
+  suggestionType: string;
+  suggestionDetails: string;
+  articleTitle: string;
+  articleSlug: string;
+  contentHtml: string;
 };
 
 export async function addEmailToQueue(data: EmailJobData) {
@@ -195,6 +228,26 @@ export async function addCourseGenerationToQueue(data: CourseGenerationJobData) 
     return job;
   } catch (error) {
     console.error('❌ Error in addCourseGenerationToQueue:', error);
+    throw error;
+  }
+}
+
+export async function addSuggestionToQueue(data: SuggestionJobData) {
+  try {
+    console.log(`💡 Adding suggestion job for article ${data.articleId}`);
+    
+    const job = await suggestionQueue.add('process-suggestion', data, {
+      // No delay needed, process immediately
+      removeOnComplete: {
+        age: 24 * 3600, // Keep for 24 hours for status checking
+        count: 100,
+      },
+    });
+    
+    console.log(`✅ Suggestion job added with ID: ${job.id}`);
+    return job;
+  } catch (error) {
+    console.error('❌ Error in addSuggestionToQueue:', error);
     throw error;
   }
 }

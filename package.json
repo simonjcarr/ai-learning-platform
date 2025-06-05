@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "dev:all": "concurrently -n \"Next.js,Email Worker\" -c \"cyan,yellow\" \"npm run dev\" \"npm run worker:email\"",
+    "dev:all": "concurrently -n \"Next.js,Email Worker,Suggestion Worker\" -c \"cyan,yellow,magenta\" \"npm run dev\" \"npm run worker:email\" \"npm run worker:suggestion\"",
     "dev:email": "concurrently -n \"Next.js,Email Worker\" -c \"cyan,yellow\" \"npm run dev\" \"npm run worker:email\"",
     "build": "next build",
     "start": "next start",
-    "start:all": "concurrently \"npm run start\" \"npm run worker:email\"",
+    "start:all": "concurrently \"npm run start\" \"npm run worker:email\" \"npm run worker:suggestion\"",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -23,6 +23,7 @@
     "delete-user": "tsx scripts/delete-user.ts",
     "update-role": "tsx scripts/update-user-role.ts",
     "worker:email": "tsx src/workers/start-worker.ts",
+    "worker:suggestion": "tsx src/workers/start-suggestion-worker.ts",
     "seed:email-templates": "tsx scripts/seed-email-templates.ts"
   },
   "dependencies": {

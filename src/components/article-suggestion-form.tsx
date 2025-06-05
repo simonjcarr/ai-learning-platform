@@ -35,6 +35,8 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const [hasFreshResponse, setHasFreshResponse] = useState(false); // True when API responds, false after user acknowledges
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   const isSubmittingRef = useRef(isSubmitting);
   const hasFreshResponseRef = useRef(hasFreshResponse);
@@ -53,6 +55,8 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
     setResult(null);
     setHasFreshResponse(false);
     setIsSubmitting(false); // Ensure submitting state is also reset
+    setJobId(null);
+    setIsPolling(false);
   };
 
   const handleDialogTriggerClick = () => {
@@ -78,6 +82,38 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
     setDialogOpen(open); // Update the actual dialog state
   };
 
+  const checkJobStatus = async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/articles/${articleId}/suggest/status?jobId=${jobId}`);
+      const data = await response.json();
+      
+      if (data.status === 'completed') {
+        const result = data.result;
+        if (result.suggestion && typeof result.suggestion.isApproved === 'boolean') {
+          setResult({
+            success: result.suggestion.isApproved,
+            message: result.suggestion.isApproved 
+              ? `Great! Your suggestion has been approved and applied. You now have ${result.approvedSuggestionsCount} approved suggestions! Please refresh your browser to see the changes.`
+              : result.message || result.suggestion.rejectionReason || 'Your suggestion was not approved at this time. It has been saved for review.',
+          });
+        } else {
+          setResult({ success: false, message: 'Received an unexpected response from the server.' });
+        }
+        setHasFreshResponse(true);
+        return true; // Job is complete
+      } else if (data.status === 'failed') {
+        setResult({ success: false, message: data.error || 'Failed to process suggestion' });
+        setHasFreshResponse(true);
+        return true; // Job is complete (with failure)
+      }
+      
+      return false; // Job is still processing
+    } catch (error) {
+      console.error('Failed to check job status:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async () => {
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -96,67 +132,64 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
     try {
       console.log("handleSubmit: Attempting fetch for articleId:", articleId);
       
-      // Create an AbortController with a 90-second timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds
-      
       const response = await fetch(`/api/articles/${articleId}/suggest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ suggestionType, suggestionDetails }),
-        redirect: 'manual',
-        signal: controller.signal,
       });
       
-      clearTimeout(timeoutId);
       console.log("handleSubmit: Fetch response received", response.status);
 
       const data = await response.json();
       console.log("handleSubmit: JSON data parsed", data);
 
-      if (response.ok) {
-        if (data.suggestion && typeof data.suggestion.isApproved === 'boolean') {
-          setResult({
-            success: data.suggestion.isApproved,
-            message: data.suggestion.isApproved 
-              ? `Great! Your suggestion has been approved and applied. You now have ${data.approvedSuggestionsCount} approved suggestions! Please refresh your browser to see the changes.`
-              : data.message || data.suggestion.rejectionReason || 'Your suggestion was not approved at this time. It has been saved for review.',
-          });
-        } else {
-          // Handle cases where response is ok but data structure is unexpected
-          setResult({ success: false, message: data.message || 'Received an unexpected response from the server.' });
-        }
+      if (response.ok && data.jobId) {
+        // Job was queued successfully
+        setJobId(data.jobId);
+        setIsPolling(true);
+        
+        // Start polling for job status
+        const pollInterval = setInterval(async () => {
+          const isComplete = await checkJobStatus(data.jobId);
+          if (isComplete) {
+            clearInterval(pollInterval);
+            setIsPolling(false);
+            setIsSubmitting(false);
+            isSubmittingRef.current = false;
+          }
+        }, 1000); // Poll every second
+        
+        // Set a maximum polling duration
+        setTimeout(() => {
+          if (isPolling) {
+            clearInterval(pollInterval);
+            setIsPolling(false);
+            setIsSubmitting(false);
+            isSubmittingRef.current = false;
+            setResult({
+              success: false,
+              message: 'Processing is taking longer than expected. Please refresh the page to check if your suggestion was applied.',
+            });
+            setHasFreshResponse(true);
+          }
+        }, 120000); // Stop polling after 2 minutes
       } else {
-        // Handle non-ok responses (e.g., 400, 403, 500)
+        // Handle non-ok responses or missing jobId
         setResult({ success: false, message: data.message || data.error || `Request failed with status ${response.status}.` });
+        setHasFreshResponse(true);
+        setIsSubmitting(false);
+        isSubmittingRef.current = false;
       }
-      setHasFreshResponse(true); // Signal that a fresh response is available
 
     } catch (err) {
       console.error("handleSubmit: Error during fetch or processing", err);
-      
-      if (err instanceof Error && err.name === 'AbortError') {
-        setResult({
-          success: false,
-          message: 'The request took too long to process. Your suggestion has been submitted and will be reviewed. Please refresh the page to see if changes were applied.',
-        });
-      } else if (err instanceof Error && err.message.includes('JSON')) {
-        // Handle JSON parsing errors (likely due to timeout/redirect)
-        setResult({
-          success: false,
-          message: 'The server response was interrupted. Your suggestion may have been processed. Please refresh the page to check for updates.',
-        });
-      } else {
-        setResult({
-          success: false,
-          message: err instanceof Error ? err.message : 'Failed to submit suggestion',
-        });
-      }
+      setResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to submit suggestion',
+      });
       setHasFreshResponse(true);
-    } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
-      console.log("handleSubmit: Finished, isSubmittingRef.current:", isSubmittingRef.current);
     }
   };
 
@@ -292,7 +325,7 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
                 disabled={isSubmitting}
                 className="bg-orange-600 text-white hover:bg-orange-700 focus:ring-2 focus:ring-orange-500 disabled:bg-gray-400"
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Suggestion'}
+                {isSubmitting ? (isPolling ? 'Processing...' : 'Submitting...') : 'Submit Suggestion'}
               </Button>
             </DialogFooter>
           </>
