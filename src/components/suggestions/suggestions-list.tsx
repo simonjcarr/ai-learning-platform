@@ -48,23 +48,39 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
   const { isSignedIn } = useUser();
   const { access: suggestionsAccess, loading: accessLoading } = useFeatureAccess('suggest_article_improvements');
   const suggestionsRef = useRef<Suggestion[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Keep ref in sync with state
   useEffect(() => {
     suggestionsRef.current = suggestions;
   }, [suggestions]);
 
+  // Scroll to bottom only when section is first expanded, not on every update
+  useEffect(() => {
+    if (isExpanded && messagesEndRef.current && suggestions.length > 0) {
+      // Only scroll the container, not the entire page
+      const timeoutId = setTimeout(() => {
+        if (messagesEndRef.current) {
+          const container = messagesEndRef.current.closest('.overflow-y-auto');
+          if (container) {
+            // Scroll only the container, not the page
+            container.scrollTop = container.scrollHeight;
+          }
+        }
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isExpanded]); // Remove suggestions dependency to prevent scroll on polls
+
   useEffect(() => {
     if (isSignedIn) {
       fetchSuggestions();
       
-      // Set up polling for pending suggestions - using ref to avoid dependency issues
+      // Set up polling - poll every 2 seconds for faster updates
       const interval = setInterval(() => {
-        const hasPending = suggestionsRef.current.some(s => s.status === 'pending' || s.status === 'processing');
-        if (hasPending) {
-          fetchSuggestions();
-        }
-      }, 5000); // Poll every 5 seconds
+        fetchSuggestions();
+      }, 2000); // Poll every 2 seconds for faster status updates
 
       return () => clearInterval(interval);
     }
@@ -78,6 +94,11 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
       }
       const data = await response.json();
       setSuggestions(data.suggestions || []);
+      
+      // Auto-expand if there are suggestions
+      if (data.suggestions && data.suggestions.length > 0 && !isExpanded) {
+        setIsExpanded(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load suggestions');
     } finally {
@@ -152,99 +173,93 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
       </button>
       
       {isExpanded && suggestions.length > 0 && (
-        <div className="mt-4 space-y-6 mb-6">
-          {suggestions.map((suggestion) => (
-            <div key={suggestion.id} className="space-y-3">
-              {/* User Message */}
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    <User className="h-4 w-4 text-blue-600" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="font-medium text-sm">{suggestion.userName}</span>
-                      {currentUserId === suggestion.userId && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">You</span>
-                      )}
-                      <span className="text-xs text-gray-500">•</span>
-                      <span className="text-xs text-gray-500">
-                        {formatDistanceToNow(new Date(suggestion.createdAt), { addSuffix: true })}
-                      </span>
-                    </div>
-                    
-                    <div className="mb-2">
-                      <span className="inline-block text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
-                        {suggestionTypeLabels[suggestion.type] || suggestion.type}
-                      </span>
-                    </div>
-                    
-                    <p className="text-sm text-gray-800">
-                      {suggestion.details}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Response */}
-              {(suggestion.status !== 'pending' || suggestion.aiResponse) && (
-                <div className="flex items-start space-x-3 ml-11">
+        <div className="mt-4 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <div className="space-y-6">
+            {suggestions.map((suggestion) => (
+              <div key={suggestion.id} className="space-y-3">
+                {/* User Message */}
+                <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0">
-                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-purple-600" />
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <User className="h-4 w-4 text-blue-600" />
                     </div>
                   </div>
                   <div className="flex-1">
-                    <div className={`rounded-lg p-4 shadow-sm border ${
-                      suggestion.status === 'applied' ? 'bg-green-50 border-green-200' :
-                      suggestion.status === 'approved' ? 'bg-blue-50 border-blue-200' :
-                      suggestion.status === 'rejected' ? 'bg-red-50 border-red-200' :
-                      suggestion.status === 'processing' ? 'bg-gray-50 border-gray-200 animate-pulse' :
-                      'bg-gray-50 border-gray-200'
-                    }`}>
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                       <div className="flex items-center space-x-2 mb-2">
-                        <span className="font-medium text-sm">AI Assistant</span>
-                        {getStatusIcon(suggestion.status)}
+                        <span className="font-medium text-sm">{suggestion.userName}</span>
+                        {currentUserId === suggestion.userId && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">You</span>
+                        )}
                         <span className="text-xs text-gray-500">•</span>
                         <span className="text-xs text-gray-500">
-                          {suggestion.processedAt 
-                            ? formatDistanceToNow(new Date(suggestion.processedAt), { addSuffix: true })
-                            : 'Processing...'}
+                          {formatDistanceToNow(new Date(suggestion.createdAt), { addSuffix: true })}
                         </span>
                       </div>
                       
-                      {suggestion.status === 'processing' ? (
-                        <p className="text-sm text-gray-600 italic">
-                          Analyzing your suggestion...
-                        </p>
-                      ) : (
-                        <>
-                          <div className="text-sm text-gray-800 mb-2">
-                            {suggestion.statusMessage}
-                          </div>
-                          
-                          {suggestion.aiResponse && (
-                            <div className="mt-2 text-sm text-gray-700">
-                              <MarkdownViewer content={suggestion.aiResponse} />
-                            </div>
-                          )}
-                          
-                          {suggestion.status === 'approved' && !suggestion.appliedAt && (
-                            <div className="mt-2 flex items-center text-xs text-blue-600">
-                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              Applying changes to the article...
-                            </div>
-                          )}
-                        </>
-                      )}
+                      <div className="mb-2">
+                        <span className="inline-block text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                          {suggestionTypeLabels[suggestion.type] || suggestion.type}
+                        </span>
+                      </div>
+                      
+                      <p className="text-sm text-gray-800">
+                        {suggestion.details}
+                      </p>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* AI Response */}
+                {(suggestion.status !== 'pending' || suggestion.aiResponse) && (
+                  <div className="flex items-start space-x-3 ml-11">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                        <Bot className="h-4 w-4 text-purple-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className={`rounded-lg p-4 shadow-sm border ${
+                        suggestion.status === 'applied' ? 'bg-green-50 border-green-200' :
+                        suggestion.status === 'approved' ? 'bg-blue-50 border-blue-200' :
+                        suggestion.status === 'rejected' ? 'bg-red-50 border-red-200' :
+                        suggestion.status === 'processing' ? 'bg-gray-50 border-gray-200 animate-pulse' :
+                        'bg-gray-50 border-gray-200'
+                      }`}>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="font-medium text-sm">AI Assistant</span>
+                          {getStatusIcon(suggestion.status)}
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">
+                            {suggestion.processedAt 
+                              ? formatDistanceToNow(new Date(suggestion.processedAt), { addSuffix: true })
+                              : 'Processing...'}
+                          </span>
+                        </div>
+                        
+                        {suggestion.status === 'processing' ? (
+                          <p className="text-sm text-gray-600 italic">
+                            Analyzing your suggestion...
+                          </p>
+                        ) : suggestion.status === 'applied' ? (
+                          <div className="text-sm text-gray-800">
+                            {suggestion.statusMessage}
+                          </div>
+                        ) : (
+                          suggestion.aiResponse && (
+                            <div className="text-sm text-gray-700">
+                              <MarkdownViewer content={suggestion.aiResponse} />
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div ref={messagesEndRef} />
         </div>
       )}
       

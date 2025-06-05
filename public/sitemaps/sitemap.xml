@@ -25,6 +25,30 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/using-docker-compose-to-deploy-a-nexus-repository-with-caching-proxy</loc>
+      <lastmod>2025-06-05</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/dockerizing-a-nextjs-application-a-step-by-step-guide</loc>
+      <lastmod>2025-06-05</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/how-to-simulate-donkey-stacking-with-docker-containers-for-high-availability</loc>
+      <lastmod>2025-06-05</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/docker-for-microservices-building-and-deploying-scalable-applications</loc>
+      <lastmod>2025-06-04</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/how-to-dockerize-a-nextjs-application-a-step-by-step-guide</loc>
       <lastmod>2025-06-05</lastmod>
       <changefreq>weekly</changefreq>
@@ -50,12 +74,6 @@
     </url>
     <url>
       <loc>https://yourdomain.com/articles/orchestrating-multi-container-applications-with-docker-compose</loc>
-      <lastmod>2025-06-04</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-    <url>
-      <loc>https://yourdomain.com/articles/docker-for-microservices-building-and-deploying-scalable-applications</loc>
       <lastmod>2025-06-04</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.8</priority>

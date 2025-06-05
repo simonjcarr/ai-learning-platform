@@ -13,7 +13,7 @@ const connection = new Redis(redisUrl, {
 });
 
 async function processSuggestion(job: Job<SuggestionJobData>) {
-  const { articleId, clerkUserId, suggestionType, suggestionDetails, articleTitle, articleSlug, contentHtml } = job.data;
+  const { articleId, clerkUserId, suggestionType, suggestionDetails, articleTitle, articleSlug, contentHtml, suggestionId } = job.data;
   
   console.log(`🔄 Processing suggestion job ${job.id} for article ${articleId}`);
   
@@ -37,6 +37,45 @@ async function processSuggestion(job: Job<SuggestionJobData>) {
       
       const aiEndTime = Date.now();
       console.log(`AI validation completed in ${aiEndTime - aiStartTime}ms`);
+      
+      // If worker AI rejected but didn't generate content, check if API route approved
+      if (!aiValidation.isValid && !aiValidation.updatedContent) {
+        console.log('Worker AI rejected suggestion, checking if API route approved...');
+        
+        // Get the existing suggestion to check API route's decision
+        const existingSuggestion = await prisma.articleSuggestion.findUnique({
+          where: { suggestionId: suggestionId },
+        });
+        
+        if (existingSuggestion?.isApproved) {
+          console.log('API route approved suggestion, forcing content generation...');
+          
+          // Force generate content by calling AI with a different prompt
+          try {
+            const forceGenerationResult = await aiService.validateArticleSuggestion(
+              articleTitle + ' (IMPLEMENT APPROVED SUGGESTION)',
+              contentHtml || '',
+              suggestionType,
+              suggestionDetails + ' [USER APPROVED - IMPLEMENT THIS CHANGE NOW]',
+              clerkUserId
+            );
+            
+            // Use the forced generation result if it has content
+            if (forceGenerationResult.updatedContent && forceGenerationResult.diff) {
+              aiValidation = {
+                ...aiValidation,
+                isValid: true, // Override the validity since API route approved
+                updatedContent: forceGenerationResult.updatedContent,
+                diff: forceGenerationResult.diff,
+                description: forceGenerationResult.description || 'Applied user-approved suggestion'
+              };
+              console.log('Successfully generated content for API-approved suggestion');
+            }
+          } catch (forceError) {
+            console.error('Failed to force generate content:', forceError);
+          }
+        }
+      }
     } catch (aiError) {
       console.error('AI service error:', aiError);
       
@@ -57,23 +96,52 @@ async function processSuggestion(job: Job<SuggestionJobData>) {
     
     // Start a transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
-      // Create suggestion record first
-      const suggestion = await tx.articleSuggestion.create({
-        data: {
-          articleId: articleId,
-          clerkUserId: clerkUserId,
-          suggestionType,
-          suggestionDetails,
-          aiValidationResponse: JSON.stringify(aiValidation),
-          isApproved: aiValidation.isValid === true,
-          rejectionReason: aiValidation.isValid ? null : aiValidation.reason,
-          processedAt: new Date(),
-          aiInteractionId: null,
+      // Get the existing suggestion to preserve the user-friendly AI response
+      const existingSuggestion = await tx.articleSuggestion.findUnique({
+        where: { suggestionId: suggestionId },
+      });
+
+      // Trust the API route's approval/rejection decision 
+      // Worker only overrides for spam detection or critical security issues
+      const isSpamOrSecurity = !aiValidation.isValid && (
+        aiValidation.reason?.toLowerCase().includes('spam') ||
+        aiValidation.reason?.toLowerCase().includes('url') ||
+        aiValidation.reason?.toLowerCase().includes('external') ||
+        aiValidation.reason?.toLowerCase().includes('security')
+      );
+      
+      const updateData = {
+        // Preserve API route's decision unless worker found spam/security issues
+        isApproved: isSpamOrSecurity ? false : existingSuggestion?.isApproved,
+        // Always preserve the user-friendly AI response from API route
+        aiValidationResponse: existingSuggestion?.aiValidationResponse,
+        // Only set rejection reason for spam/security, preserve existing otherwise
+        rejectionReason: isSpamOrSecurity ? aiValidation.reason : existingSuggestion?.rejectionReason,
+        processedAt: new Date(),
+        aiInteractionId: null,
+      };
+
+      const suggestion = await tx.articleSuggestion.update({
+        where: {
+          suggestionId: suggestionId,
         },
+        data: updateData,
       });
       
-      // If AI validation is successful and provides updated content, update the article and create change history
-      if (aiValidation.isValid === true && aiValidation.updatedContent && aiValidation.diff) {
+      // Apply changes if either worker AI approves OR API route already approved the suggestion
+      const shouldApplyChanges = (aiValidation.isValid === true || existingSuggestion?.isApproved === true) 
+        && aiValidation.updatedContent && aiValidation.diff;
+        
+      console.log('Content application check:', {
+        workerAIValid: aiValidation.isValid,
+        apiRouteApproved: existingSuggestion?.isApproved,
+        hasUpdatedContent: !!aiValidation.updatedContent,
+        hasDiff: !!aiValidation.diff,
+        shouldApplyChanges
+      });
+        
+      if (shouldApplyChanges) {
+        console.log('Applying content changes to article...');
         try {
           const updatedMarkdownFromAI = aiValidation.updatedContent;
           

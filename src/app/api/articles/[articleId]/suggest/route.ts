@@ -153,38 +153,26 @@ export async function POST(
     let shouldApply = false;
 
     try {
-      // Create AI prompt for immediate evaluation
-      const evaluationPrompt = `You are an AI assistant helping to evaluate article improvement suggestions. 
-      
-Article Title: ${article.articleTitle}
+      // Create AI prompt that matches the expected JSON format
+      const evaluationPrompt = `Article Title: ${article.articleTitle}
 Article Content: ${article.contentHtml ? article.contentHtml.substring(0, 2000) : 'No content yet'}
 
 User Suggestion:
 Type: ${suggestionType}
 Details: ${suggestionDetails}
 
-Please evaluate this suggestion and respond in a conversational way as if you're chatting with the user. Be helpful and constructive.
+Evaluate this suggestion for technical accuracy, educational value, and whether it should be implemented.
 
 Consider:
-1. Is this suggestion relevant and potentially helpful?
-2. Does it identify a real issue or improvement opportunity?
-3. Is it actionable and specific enough?
+1. Does this fix an error, outdated information, or improve accuracy?
+2. Would this make the article more helpful for learners?
+3. Is the suggestion technically correct and actionable?
 
-Respond with ONLY a friendly, conversational message to the user. Do NOT include any JSON, technical details, or structured data in your response.
+Respond with a JSON object containing:
+- isApproved: boolean (true if this should be implemented)
+- reasoning: string (friendly explanation of your decision - be conversational and encouraging)
 
-Your response should:
-- Acknowledge their suggestion in a friendly way
-- Explain whether the suggestion is valuable and why
-- If you think it should be implemented, say so clearly
-- If not, explain why in a helpful way
-- Keep it conversational and encouraging
-- Be concise and to the point
-
-CRITICAL: You MUST end your response with either:
-"RELEVANT: YES" if this suggestion should be queued for implementation
-"RELEVANT: NO" if this suggestion should not be implemented
-
-This marker is essential for the system to process your decision correctly. Do not forget to include it.`;
+Be decisive - approve suggestions that improve the article, reject those that don't add value or could cause confusion.`;
 
       const response = await callAI('article_suggestion_validation', evaluationPrompt, {
         articleTitle: article.articleTitle,
@@ -193,25 +181,42 @@ This marker is essential for the system to process your decision correctly. Do n
 
       aiResponse = response;
       
-      // Check if AI thinks the suggestion is relevant BEFORE cleaning the response
-      isRelevant = response.toLowerCase().includes('relevant: yes');
-      
-      // Check for explicit approval language with more natural keywords
-      const approvalKeywords = [
-        'should be implemented', 'good suggestion', 'excellent point', 'valid concern', 
-        'this would improve', 'great idea', 'valuable addition', 'would be helpful',
-        'make the guide more complete', 'definitely make', 'would enhance',
-        'worth adding', 'good point', 'makes sense', 'valuable suggestion'
-      ];
-      shouldApply = approvalKeywords.some(keyword => aiResponse.toLowerCase().includes(keyword));
-      
-      // If AI uses positive language but didn't include RELEVANT: YES, treat as relevant
-      if (!isRelevant && shouldApply) {
-        isRelevant = true;
+      // Parse JSON response from AI
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const aiDecision = JSON.parse(jsonMatch[0]);
+          isRelevant = aiDecision.isApproved === true;
+          shouldApply = aiDecision.isApproved === true;
+          
+          // Use the reasoning as the AI response for display
+          if (aiDecision.reasoning) {
+            aiResponse = aiDecision.reasoning;
+          }
+        } else {
+          // Fallback to old method if no JSON found
+          isRelevant = response.toLowerCase().includes('relevant: yes');
+          shouldApply = response.toLowerCase().includes('should implement') || 
+                       response.toLowerCase().includes('should update') ||
+                       response.toLowerCase().includes('should be implemented');
+        }
+      } catch (jsonError) {
+        console.error('Failed to parse AI JSON response:', jsonError);
+        // Fallback to old method
+        isRelevant = response.toLowerCase().includes('relevant: yes');
+        shouldApply = response.toLowerCase().includes('should implement') || 
+                     response.toLowerCase().includes('should update') ||
+                     response.toLowerCase().includes('should be implemented');
       }
       
-      // Clean up the AI response to remove any JSON or technical details (after checking)
-      aiResponse = cleanAIResponse(aiResponse);
+      // Debug logging for job creation
+      console.log('Job creation check:', {
+        isRelevant,
+        shouldApply,
+        willCreateJob: isRelevant && shouldApply,
+        aiResponseType: typeof aiResponse,
+        aiResponsePreview: aiResponse.substring(0, 100)
+      });
 
     } catch (aiError) {
       console.error('AI evaluation failed:', aiError);
@@ -220,6 +225,9 @@ This marker is essential for the system to process your decision correctly. Do n
       isRelevant = true; // Default to reviewing when AI fails
     }
 
+    // Store the AI response for display (already cleaned from JSON parsing)
+    const displayResponse = aiResponse;
+    
     // Create the suggestion record immediately
     const suggestion = await prisma.articleSuggestion.create({
       data: {
@@ -228,11 +236,11 @@ This marker is essential for the system to process your decision correctly. Do n
         suggestionType,
         suggestionDetails,
         suggestedAt: now,
-        aiValidationResponse: aiResponse,
+        aiValidationResponse: displayResponse,
         processedAt: now,
         isApproved: isRelevant && shouldApply,
         isApplied: false,
-        rejectionReason: (!isRelevant || !shouldApply) ? aiResponse : null,
+        rejectionReason: (!isRelevant || !shouldApply) ? displayResponse : null,
       },
     });
 
@@ -257,6 +265,7 @@ This marker is essential for the system to process your decision correctly. Do n
     // Only queue job if AI thinks it's relevant and should be applied
     let jobId = null;
     if (isRelevant && shouldApply) {
+      console.log('Creating BullMQ job for approved suggestion:', suggestion.suggestionId);
       try {
         const job = await addSuggestionToQueue({
           articleId,
@@ -269,17 +278,18 @@ This marker is essential for the system to process your decision correctly. Do n
           suggestionId: suggestion.suggestionId,
         });
         jobId = job.id;
-        
-        // Update suggestion with job ID
-        await prisma.articleSuggestion.update({
-          where: { suggestionId: suggestion.suggestionId },
-          data: { bullmqJobId: jobId },
-        });
+        console.log('BullMQ job created successfully with ID:', jobId);
         
       } catch (queueError) {
         console.error('Failed to queue approved suggestion:', queueError);
         // Still return success since we have the AI response
       }
+    } else {
+      console.log('Not creating job - suggestion not approved for implementation:', {
+        isRelevant,
+        shouldApply,
+        suggestionId: suggestion.suggestionId
+      });
     }
 
     // Return the immediate AI response
@@ -288,9 +298,9 @@ This marker is essential for the system to process your decision correctly. Do n
       suggestion: {
         id: suggestion.suggestionId,
         status: isRelevant && shouldApply ? 'approved' : 'rejected',
-        aiResponse,
+        aiResponse: displayResponse,
         isApproved: isRelevant && shouldApply,
-        rejectionReason: (!isRelevant || !shouldApply) ? aiResponse : null,
+        rejectionReason: (!isRelevant || !shouldApply) ? displayResponse : null,
         createdAt: suggestion.suggestedAt,
       },
       jobId,

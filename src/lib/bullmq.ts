@@ -147,6 +147,7 @@ export type SuggestionJobData = {
   articleTitle: string;
   articleSlug: string;
   contentHtml: string;
+  suggestionId: string;
 };
 
 export async function addEmailToQueue(data: EmailJobData) {

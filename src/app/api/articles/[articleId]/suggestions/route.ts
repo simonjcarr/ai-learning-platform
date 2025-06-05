@@ -105,6 +105,11 @@ export async function GET(
       aiResponse: suggestion.aiValidationResponse ? cleanAIResponse(suggestion.aiValidationResponse) : suggestion.aiValidationResponse,
     }));
 
+    // Sort by creation date ascending (oldest first, newest last)
+    transformedSuggestions.sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
     return NextResponse.json({ suggestions: transformedSuggestions });
   } catch (error) {
     console.error("Failed to fetch suggestions:", error);
@@ -116,7 +121,15 @@ export async function GET(
 }
 
 function getStatus(suggestion: any): "pending" | "processing" | "approved" | "rejected" | "applied" {
-  if (suggestion.isApplied) return "applied";
+  // Debug logging for applied status
+  if (suggestion.isApplied) {
+    console.log('Suggestion marked as applied:', suggestion.suggestionId, {
+      isApplied: suggestion.isApplied,
+      appliedAt: suggestion.appliedAt,
+      isApproved: suggestion.isApproved
+    });
+    return "applied";
+  }
   if (suggestion.isApproved && !suggestion.isApplied) return "approved";
   if (suggestion.rejectionReason) return "rejected";
   if (suggestion.processedAt) return "rejected"; // Processed but not approved
