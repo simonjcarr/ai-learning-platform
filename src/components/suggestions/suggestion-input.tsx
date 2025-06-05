@@ -29,14 +29,6 @@ export function SuggestionInput({ articleId, onSuggestionSubmitted }: Suggestion
   const { isSignedIn, user } = useUser();
   const { access: suggestionsAccess, loading: accessLoading } = useFeatureAccess('suggest_article_improvements');
 
-  // Debug logging (remove in production)
-  console.log('SuggestionInput Debug:', {
-    isSignedIn,
-    accessLoading,
-    suggestionsAccess,
-    hasAccess: suggestionsAccess?.hasAccess
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     

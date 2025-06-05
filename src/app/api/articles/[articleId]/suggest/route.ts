@@ -180,9 +180,11 @@ Your response should:
 - Keep it conversational and encouraging
 - Be concise and to the point
 
-End your response with either:
+CRITICAL: You MUST end your response with either:
 "RELEVANT: YES" if this suggestion should be queued for implementation
-"RELEVANT: NO" if this suggestion should not be implemented`;
+"RELEVANT: NO" if this suggestion should not be implemented
+
+This marker is essential for the system to process your decision correctly. Do not forget to include it.`;
 
       const response = await callAI('article_suggestion_validation', evaluationPrompt, {
         articleTitle: article.articleTitle,
@@ -191,15 +193,25 @@ End your response with either:
 
       aiResponse = response;
       
-      // Clean up the AI response to remove any JSON or technical details
-      aiResponse = cleanAIResponse(aiResponse);
-      
-      // Check if AI thinks the suggestion is relevant
+      // Check if AI thinks the suggestion is relevant BEFORE cleaning the response
       isRelevant = response.toLowerCase().includes('relevant: yes');
       
-      // Also check for explicit approval language
-      const approvalKeywords = ['should be implemented', 'good suggestion', 'excellent point', 'valid concern', 'this would improve'];
+      // Check for explicit approval language with more natural keywords
+      const approvalKeywords = [
+        'should be implemented', 'good suggestion', 'excellent point', 'valid concern', 
+        'this would improve', 'great idea', 'valuable addition', 'would be helpful',
+        'make the guide more complete', 'definitely make', 'would enhance',
+        'worth adding', 'good point', 'makes sense', 'valuable suggestion'
+      ];
       shouldApply = approvalKeywords.some(keyword => aiResponse.toLowerCase().includes(keyword));
+      
+      // If AI uses positive language but didn't include RELEVANT: YES, treat as relevant
+      if (!isRelevant && shouldApply) {
+        isRelevant = true;
+      }
+      
+      // Clean up the AI response to remove any JSON or technical details (after checking)
+      aiResponse = cleanAIResponse(aiResponse);
 
     } catch (aiError) {
       console.error('AI evaluation failed:', aiError);

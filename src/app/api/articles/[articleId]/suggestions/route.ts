@@ -131,10 +131,10 @@ function getStatusMessage(suggestion: any): string {
     return "This suggestion has been approved and will be applied soon.";
   }
   if (suggestion.rejectionReason) {
-    return cleanAIResponse(suggestion.rejectionReason);
+    return "This suggestion was not accepted.";
   }
   if (suggestion.processedAt && !suggestion.isApproved) {
-    return cleanAIResponse(suggestion.aiValidationResponse) || "This suggestion was not accepted.";
+    return "This suggestion was not accepted.";
   }
   return "This suggestion is being reviewed...";
 }

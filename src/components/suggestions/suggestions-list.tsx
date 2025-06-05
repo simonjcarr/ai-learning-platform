@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { formatDistanceToNow } from 'date-fns';
 import { useFeatureAccess } from '@/hooks/use-feature-access';
@@ -47,14 +47,20 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
   const [isExpanded, setIsExpanded] = useState(false);
   const { isSignedIn } = useUser();
   const { access: suggestionsAccess, loading: accessLoading } = useFeatureAccess('suggest_article_improvements');
+  const suggestionsRef = useRef<Suggestion[]>([]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    suggestionsRef.current = suggestions;
+  }, [suggestions]);
 
   useEffect(() => {
     if (isSignedIn) {
       fetchSuggestions();
       
-      // Set up polling for pending suggestions
+      // Set up polling for pending suggestions - using ref to avoid dependency issues
       const interval = setInterval(() => {
-        const hasPending = suggestions.some(s => s.status === 'pending' || s.status === 'processing');
+        const hasPending = suggestionsRef.current.some(s => s.status === 'pending' || s.status === 'processing');
         if (hasPending) {
           fetchSuggestions();
         }
@@ -62,7 +68,7 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
 
       return () => clearInterval(interval);
     }
-  }, [articleId, isSignedIn, suggestions]);
+  }, [articleId, isSignedIn]);
 
   const fetchSuggestions = async () => {
     try {
