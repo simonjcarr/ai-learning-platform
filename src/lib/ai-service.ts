@@ -870,7 +870,7 @@ Consider what someone searching for "${query}" would most likely want to learn a
   },
 
   async validateArticleSuggestion(articleTitle: string, articleContent: string, suggestionType: string, suggestionDetails: string, clerkUserId: string | null = null) {
-    // Check for URLs in the suggestion details first to prevent spam
+    // Check for actual URLs in the suggestion details first to prevent spam
     const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}\b/gi;
     const containsUrl = urlPattern.test(suggestionDetails);
     
@@ -885,11 +885,12 @@ Consider what someone searching for "${query}" would most likely want to learn a
       };
     }
     
-    // Check for references to external websites or resources
-    const websiteReferencePattern = /\b(website|site|webpage|web page|blog|portal|platform|resource|link|reference|check out|visit|go to|see|refer to|found at|available at|hosted at|located at)\b.*\b(com|org|net|io|dev|edu|gov|co|uk|ca|au|de|fr|it|es|nl|be|ch|at|se|no|dk|fi|pl|ru|jp|cn|in|br|mx|za)\b/gi;
-    const domainNamePattern = /\b(github|gitlab|bitbucket|stackoverflow|medium|reddit|youtube|google|facebook|twitter|linkedin|amazon|microsoft|apple|mozilla|wikipedia|wikimedia|npm|pypi|docker|kubernetes)\b/gi;
+    // Check for explicit references to visiting external websites
+    // Only match when explicitly asking to visit/check external sites
+    const explicitWebsiteReferencePattern = /\b(check out|visit|go to|see|refer to|found at|available at|hosted at|located at)\s+(the\s+)?(website|site|webpage|web page|blog|portal|platform|documentation|docs|repo|repository)\b/gi;
+    const promotionalPattern = /\b(my|our|their)\s+(website|site|blog|channel|platform|service|product)\b/gi;
     
-    if (websiteReferencePattern.test(suggestionDetails) || domainNamePattern.test(suggestionDetails)) {
+    if (explicitWebsiteReferencePattern.test(suggestionDetails) || promotionalPattern.test(suggestionDetails)) {
       return {
         isValid: false,
         reason: 'Suggestions that reference external websites or resources are not allowed. Please describe the improvement using only the content that should be added to the article itself.',
@@ -927,13 +928,13 @@ Please analyze this suggestion carefully:
    - Does it improve the article's quality or clarity?
    
 2. CRITICAL SPAM PREVENTION RULES - Immediately REJECT if the suggestion:
-   - Contains ANY URLs, links, or web addresses
-   - References ANY external websites, blogs, or online resources
-   - Mentions specific website names (GitHub, Stack Overflow, etc.)
-   - Asks to add references to external content
-   - Suggests visiting, checking out, or referring to any external resource
-   - Contains phrases like "see [website]", "refer to [resource]", "check out [site]"
-   - Attempts to promote or reference any external platform or service
+   - Contains ANY URLs, links, or web addresses (http://, https://, www.)
+   - Explicitly asks users to visit external websites or resources
+   - Contains promotional language about external services
+   - Contains phrases like "visit [website]", "check out [site]", "go to [url]"
+   - Attempts to promote specific external platforms or services
+   
+   NOTE: Technology names (Docker, GitHub, Kubernetes, etc.) used in technical context are ALLOWED when not promoting external visits
    
 3. If the suggestion is VALID and contains NO external references:
    - Apply the suggested change to the article
@@ -944,7 +945,7 @@ Please analyze this suggestion carefully:
    
 4. If the suggestion is INVALID:
    - Explain clearly why the suggestion cannot be applied
-   - If it references external content, state: "Suggestions referencing external websites or resources are not allowed. Please provide self-contained improvements."
+   - If it contains URLs or promotes external sites, state: "Suggestions containing URLs or promoting external websites are not allowed. Please provide self-contained improvements."
 
 IMPORTANT: 
 - The updatedContent field must contain the ENTIRE article in valid Markdown format
