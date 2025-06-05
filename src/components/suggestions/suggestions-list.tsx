@@ -94,11 +94,6 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
       }
       const data = await response.json();
       setSuggestions(data.suggestions || []);
-      
-      // Auto-expand if there are suggestions
-      if (data.suggestions && data.suggestions.length > 0 && !isExpanded) {
-        setIsExpanded(true);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load suggestions');
     } finally {
@@ -272,9 +267,9 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
         </div>
       )}
       
-      {/* Input for new suggestions - always visible when the section is expanded OR when user doesn't have access */}
-      {(isExpanded || !isSignedIn || !suggestionsAccess?.hasAccess) && (
-        <div className={isExpanded ? "mt-4" : "mt-4 border-t pt-4"}>
+      {/* Input for new suggestions - visible when expanded OR when collapsed but user doesn't have access (to show upgrade) */}
+      {(isExpanded || (!isSignedIn || !suggestionsAccess?.hasAccess)) && (
+        <div className="mt-4">
           <SuggestionInput articleId={articleId} onSuggestionSubmitted={handleSuggestionSubmitted} />
         </div>
       )}
