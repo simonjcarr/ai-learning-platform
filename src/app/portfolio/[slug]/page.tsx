@@ -8,9 +8,9 @@ import Link from 'next/link';
 import PortfolioShare from '@/components/portfolio-share';
 
 interface PageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 interface Portfolio {
@@ -57,7 +57,7 @@ interface Portfolio {
 async function getPortfolio(slug: string): Promise<Portfolio | null> {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/portfolio/${slug}`, {
-      cache: 'revalidate',
+      cache: 'force-cache',
       next: { revalidate: 300 } // Revalidate every 5 minutes
     });
 
@@ -99,7 +99,8 @@ function getLevelColor(level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED') {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const portfolio = await getPortfolio(params.slug);
+  const { slug } = await params;
+  const portfolio = await getPortfolio(slug);
 
   if (!portfolio) {
     return {
@@ -147,7 +148,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PortfolioPage({ params }: PageProps) {
-  const portfolio = await getPortfolio(params.slug);
+  const { slug } = await params;
+  const portfolio = await getPortfolio(slug);
 
   if (!portfolio) {
     notFound();

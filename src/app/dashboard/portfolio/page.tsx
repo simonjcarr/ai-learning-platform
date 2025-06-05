@@ -105,7 +105,7 @@ export default function PortfolioPage() {
     
     setSaving(true);
     try {
-      const defaultSlug = user.username || `user-${user.id.slice(-8)}`;
+      const defaultSlug = (user.username || `user-${user.id.slice(-8)}`).toLowerCase().replace(/[^a-z0-9-]/g, '-');
       const response = await fetch('/api/portfolio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -264,11 +264,16 @@ export default function PortfolioPage() {
                 <Input
                   id="slug"
                   value={portfolio.slug}
-                  onChange={(e) => setPortfolio({ ...portfolio, slug: e.target.value })}
+                  onChange={(e) => {
+                    const slug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                    setPortfolio({ ...portfolio, slug });
+                  }}
                   onBlur={() => updatePortfolio({ slug: portfolio.slug })}
                   placeholder="your-portfolio-url"
+                  pattern="[a-z0-9-]+"
                 />
               </div>
+              <p className="text-xs text-gray-500 mt-1">Only lowercase letters, numbers, and hyphens allowed</p>
             </div>
             
             <div>
