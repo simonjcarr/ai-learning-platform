@@ -48,6 +48,7 @@ model User {
   courseRollbackChangeHistories CourseArticleChangeHistory[] @relation("CourseRollbackUser")
   finalExamAttempts            FinalExamAttempt[]
   finalExamSessions            FinalExamSession[]
+  portfolio                    Portfolio?
 
   @@map("users")
 }
@@ -890,14 +891,65 @@ model CourseCertificate {
   grade         CertificateGrade? // Bronze, Silver, Gold
   finalScore    Float?    // Overall completion score
   engagementScore Float?  // Engagement score
+  isPublic      Boolean   @default(false) // Whether the certificate is shown on public portfolio
   
   course        Course    @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
   user          User      @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  portfolioCerts PortfolioCertificate[]
 
   @@unique([courseId, clerkUserId])
   @@index([courseId])
   @@index([clerkUserId])
+  @@index([isPublic])
   @@map("course_certificates")
+}
+
+model Portfolio {
+  portfolioId       String    @id @default(cuid())
+  clerkUserId       String    @unique
+  slug              String    @unique
+  displayName       String?
+  bio               String?
+  location          String?
+  website           String?
+  linkedinUrl       String?
+  githubUrl         String?
+  isPublic          Boolean   @default(false)
+  isAvailableForWork Boolean  @default(false)
+  jobTypes          String[]  @default([]) // Array of job types like "Full-time", "Contract", "Remote", etc.
+  skills            String[]  @default([]) // Array of skills/technologies
+  preferredJobTitles String[] @default([]) // Array of preferred job titles
+  salaryRange       String?   // Optional salary range
+  availabilityDate  DateTime? // When available to start
+  customSections    Json?     // Custom sections for additional portfolio content
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  user              User                   @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  certificates      PortfolioCertificate[]
+
+  @@index([slug])
+  @@index([isPublic])
+  @@index([isAvailableForWork])
+  @@map("portfolios")
+}
+
+model PortfolioCertificate {
+  portfolioCertId String    @id @default(cuid())
+  portfolioId     String
+  certificateId   String
+  displayOrder    Int       @default(0)
+  addedAt         DateTime  @default(now())
+  
+  portfolio       Portfolio         @relation(fields: [portfolioId], references: [portfolioId], onDelete: Cascade)
+  certificate     CourseCertificate @relation(fields: [certificateId], references: [certificateId], onDelete: Cascade)
+
+  @@unique([portfolioId, certificateId])
+  @@index([portfolioId])
+  @@index([certificateId])
+  @@index([displayOrder])
+  @@map("portfolio_certificates")
 }
 
 model CourseArticleChangeHistory {
