@@ -243,13 +243,26 @@ export default function ChangeDetailPage() {
                   <summary className="cursor-pointer font-medium">
                     AI Validation Response
                   </summary>
-                  <pre className="mt-2 p-2 bg-white rounded overflow-x-auto">
-                    {JSON.stringify(
-                      JSON.parse(change.suggestion.aiValidationResponse),
-                      null,
-                      2
-                    )}
-                  </pre>
+                  <div className="mt-2 p-2 bg-white rounded overflow-x-auto">
+                    {(() => {
+                      try {
+                        // Try to parse as JSON first (old format)
+                        const parsed = JSON.parse(change.suggestion.aiValidationResponse);
+                        return (
+                          <pre>
+                            {JSON.stringify(parsed, null, 2)}
+                          </pre>
+                        );
+                      } catch {
+                        // If parsing fails, it's the new user-friendly format
+                        return (
+                          <div className="text-gray-700 whitespace-pre-wrap">
+                            {change.suggestion.aiValidationResponse}
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
                 </details>
               )}
             </div>
