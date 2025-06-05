@@ -25,6 +25,12 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/how-to-dockerize-a-nextjs-application-a-step-by-step-guide</loc>
+      <lastmod>2025-06-05</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/cicd-for-nextjs-applications-with-docker-and-github-actions</loc>
       <lastmod>2025-06-05</lastmod>
       <changefreq>weekly</changefreq>

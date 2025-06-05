@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useSubscription } from '@/hooks/use-subscription';
+import { useFeatureAccess } from '@/hooks/use-feature-access';
 import { CreditCard } from 'lucide-react';
 import Link from 'next/link';
 
@@ -29,6 +30,7 @@ const suggestionTypes = [
 export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps) {
   const { user } = useAuth();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
+  const { access: suggestionsAccess } = useFeatureAccess('suggest_article_improvements');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [suggestionType, setSuggestionType] = useState('');
   const [suggestionDetails, setSuggestionDetails] = useState('');
@@ -143,38 +145,22 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
       const data = await response.json();
       console.log("handleSubmit: JSON data parsed", data);
 
-      if (response.ok && data.jobId) {
-        // Job was queued successfully
-        setJobId(data.jobId);
-        setIsPolling(true);
+      if (response.ok && data.suggestion) {
+        // AI has immediately evaluated the suggestion
+        setResult({
+          success: data.suggestion.isApproved,
+          message: data.suggestion.isApproved 
+            ? `Great! Your suggestion has been approved and will be applied. ${data.message || ''}`
+            : `${data.message || 'Thanks for your feedback!'} The AI has responded below.`,
+        });
+        setHasFreshResponse(true);
+        setIsSubmitting(false);
+        isSubmittingRef.current = false;
         
-        // Start polling for job status
-        const pollInterval = setInterval(async () => {
-          const isComplete = await checkJobStatus(data.jobId);
-          if (isComplete) {
-            clearInterval(pollInterval);
-            setIsPolling(false);
-            setIsSubmitting(false);
-            isSubmittingRef.current = false;
-          }
-        }, 1000); // Poll every second
-        
-        // Set a maximum polling duration
-        setTimeout(() => {
-          if (isPolling) {
-            clearInterval(pollInterval);
-            setIsPolling(false);
-            setIsSubmitting(false);
-            isSubmittingRef.current = false;
-            setResult({
-              success: false,
-              message: 'Processing is taking longer than expected. Please refresh the page to check if your suggestion was applied.',
-            });
-            setHasFreshResponse(true);
-          }
-        }, 120000); // Stop polling after 2 minutes
+        // Refresh the suggestions list to show the new conversation
+        window.location.reload();
       } else {
-        // Handle non-ok responses or missing jobId
+        // Handle non-ok responses
         setResult({ success: false, message: data.message || data.error || `Request failed with status ${response.status}.` });
         setHasFreshResponse(true);
         setIsSubmitting(false);
@@ -194,6 +180,11 @@ export function ArticleSuggestionForm({ articleId }: ArticleSuggestionFormProps)
   };
 
   if (!user) return null;
+  
+  // Check if user has access to suggestions feature
+  if (!suggestionsAccess?.hasAccess) {
+    return null;
+  }
 
   return (
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>

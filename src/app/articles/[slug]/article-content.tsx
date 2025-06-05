@@ -13,8 +13,8 @@ import MarkdownViewer from "@/components/markdown-viewer";
 import CommentsList from "@/components/comments/comments-list";
 import LikeButton from "@/components/like-button";
 // import { ArticleSuggestionFormInline } from "@/components/article-suggestion-form-inline";
-import { ArticleChangeHistory } from "@/components/article-change-history";
 import { FloatingActionMenu } from "@/components/floating-action-menu";
+import { SuggestionsList } from "@/components/suggestions/suggestions-list";
 
 interface Article {
   articleId: string;
@@ -77,7 +77,6 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState(false);
-  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [focusedExampleId, setFocusedExampleId] = useState<string | null>(null);
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -87,13 +86,14 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
     slug: string;
     level: string;
   } | null>(null);
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
   const { isSubscribed, isLoadingSubscription } = useSubscription();
   const { signInWithRedirect } = useRedirectUrl();
   
   // Feature access hooks
   const { access: contentAccess, loading: contentAccessLoading } = useFeatureAccess('generate_article_content');
   const { usage: generationUsage, loading: usageLoading } = useFeatureUsage('daily_article_generation_limit', 'daily');
+  const { access: suggestionsAccess } = useFeatureAccess('suggest_article_improvements');
 
 
   useEffect(() => {
@@ -394,7 +394,6 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                 articleId={article.articleId}
                 articleTitle={article.articleTitle}
                 isFlagged={article.isFlagged}
-                onShowSuggestion={() => setShowSuggestionModal(true)}
               />
             )}
           </div>
@@ -449,8 +448,10 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
             />
           )}
           
-          {/* Change History Section */}
-          <ArticleChangeHistory articleId={article.articleId} />
+          {/* Suggestions Section */}
+          {isSignedIn && suggestionsAccess && (
+            <SuggestionsList articleId={article.articleId} currentUserId={user?.id} />
+          )}
           
           {/* Comments Section */}
           <CommentsList articleId={article.articleId} />
@@ -569,14 +570,6 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       )}
     </div>
     
-    {showSuggestionModal && (
-      <SuggestionModal
-        articleId={article.articleId}
-        isOpen={showSuggestionModal}
-        onClose={() => setShowSuggestionModal(false)}
-      />
-    )}
-    
     {/* Floating Action Menu */}
     {isSignedIn && <FloatingActionMenu articleId={article.articleId} currentExampleId={focusedExampleId || undefined} />}
     </>
@@ -587,10 +580,9 @@ interface MoreOptionsDropdownProps {
   articleId: string;
   articleTitle: string;
   isFlagged: boolean;
-  onShowSuggestion: () => void;
 }
 
-function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggestion }: MoreOptionsDropdownProps) {
+function MoreOptionsDropdown({ articleId, articleTitle, isFlagged }: MoreOptionsDropdownProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [showFlagModal, setShowFlagModal] = useState(false);
@@ -626,19 +618,6 @@ function MoreOptionsDropdown({ articleId, articleTitle, isFlagged, onShowSuggest
                 >
                   <BookmarkPlus className="h-4 w-4 mr-2" />
                   Manage Lists
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Suggest Improvement clicked');
-                    setShowDropdown(false);
-                    onShowSuggestion();
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Suggest Improvement
                 </button>
                 <div className="border-t border-gray-100">
                   <FlagButtonMenuItem
@@ -936,11 +915,6 @@ function ListManagementModal({ articleId, articleTitle, isOpen, onClose }: ListM
   );
 }
 
-interface SuggestionModalProps {
-  articleId: string;
-  isOpen: boolean;
-  onClose: () => void;
-}
 
 interface FlagModalProps {
   articleId: string;
@@ -1017,212 +991,3 @@ function FlagModal({ articleId, isOpen, onClose }: FlagModalProps) {
   );
 }
 
-function SuggestionModal({ articleId, isOpen, onClose }: SuggestionModalProps) {
-  const { user } = useUser();
-  const { isSubscribed, isLoadingSubscription } = useSubscription();
-  const [suggestionType, setSuggestionType] = useState('');
-  const [suggestionDetails, setSuggestionDetails] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [hasFreshResponse, setHasFreshResponse] = useState(false);
-
-  const suggestionTypes = [
-    { value: 'CONTENT_ADDITION', label: 'Add missing content' },
-    { value: 'CONTENT_CORRECTION', label: 'Correct an error' },
-    { value: 'GRAMMAR_SPELLING', label: 'Fix grammar/spelling' },
-    { value: 'CODE_IMPROVEMENT', label: 'Improve code example' },
-    { value: 'CLARITY_IMPROVEMENT', label: 'Improve clarity' },
-    { value: 'EXAMPLE_ADDITION', label: 'Add an example' },
-    { value: 'LINK_UPDATE', label: 'Update a link' },
-    { value: 'OTHER', label: 'Other improvement' },
-  ];
-
-  const fullReset = () => {
-    setSuggestionType('');
-    setSuggestionDetails('');
-    setResult(null);
-    setHasFreshResponse(false);
-    setIsSubmitting(false);
-  };
-
-  const handleClose = () => {
-    onClose();
-    fullReset();
-  };
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-
-    if (!suggestionType || !suggestionDetails.trim()) {
-      setResult({ success: false, message: 'Please select a suggestion type and provide details.' });
-      setHasFreshResponse(true);
-      setIsSubmitting(false);
-      return;
-    }
-    setResult(null);
-
-    try {
-      const response = await fetch(`/api/articles/${articleId}/suggest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ suggestionType, suggestionDetails }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.suggestion && typeof data.suggestion.isApproved === 'boolean') {
-          setResult({
-            success: data.suggestion.isApproved,
-            message: data.suggestion.isApproved 
-              ? `Great! Your suggestion has been approved and applied. You now have ${data.approvedSuggestionsCount} approved suggestions! Please refresh your browser to see the changes.`
-              : data.message || data.suggestion.rejectionReason || 'Your suggestion was not approved at this time. It has been saved for review.',
-          });
-        } else {
-          setResult({ success: false, message: data.message || 'Received an unexpected response from the server.' });
-        }
-      } else {
-        setResult({ success: false, message: data.message || data.error || `Request failed with status ${response.status}.` });
-      }
-      setHasFreshResponse(true);
-
-    } catch (err) {
-      setResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'Failed to submit suggestion',
-      });
-      setHasFreshResponse(true);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!isOpen || !user) return null;
-
-  return (
-    <div 
-      className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ 
-        backgroundColor: 'rgba(0, 0, 0, 0.3)', 
-        zIndex: 9999
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          handleClose();
-        }
-      }}
-    >
-      <div 
-        className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold">Suggest an Improvement</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Your feedback helps us improve our content.
-            </p>
-          </div>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {!isSubscribed && !isLoadingSubscription ? (
-            <div className="text-center">
-              <CreditCard className="mx-auto h-12 w-12 text-blue-600 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Subscription Required
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Article suggestions are available to subscribed users. Upgrade your plan to suggest improvements.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleClose}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-                <Link href="/pricing" className="flex-1">
-                  <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                    View Plans
-                  </button>
-                </Link>
-              </div>
-            </div>
-          ) : hasFreshResponse && result ? (
-            <div>
-              <div className={`p-3 rounded-md text-sm mb-4 ${result.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                {result.message}
-              </div>
-              <button
-                onClick={handleClose}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                OK
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="suggestion-type" className="block text-sm font-medium text-gray-700 mb-2">
-                  Type
-                </label>
-                <select
-                  id="suggestion-type"
-                  value={suggestionType}
-                  onChange={(e) => setSuggestionType(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select improvement type</option>
-                  {suggestionTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label htmlFor="suggestion-details" className="block text-sm font-medium text-gray-700 mb-2">
-                  Details
-                </label>
-                <textarea
-                  id="suggestion-details"
-                  placeholder="Please provide specific details about your suggestion..."
-                  value={suggestionDetails}
-                  onChange={(e) => setSuggestionDetails(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px]"
-                  disabled={isSubmitting}
-                />
-              </div>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={handleClose}
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400"
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Suggestion'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
