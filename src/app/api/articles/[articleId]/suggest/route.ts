@@ -209,15 +209,6 @@ Be decisive - approve suggestions that improve the article, reject those that do
                      response.toLowerCase().includes('should be implemented');
       }
       
-      // Debug logging for job creation
-      console.log('Job creation check:', {
-        isRelevant,
-        shouldApply,
-        willCreateJob: isRelevant && shouldApply,
-        aiResponseType: typeof aiResponse,
-        aiResponsePreview: aiResponse.substring(0, 100)
-      });
-
     } catch (aiError) {
       console.error('AI evaluation failed:', aiError);
       // Fallback response
@@ -265,7 +256,6 @@ Be decisive - approve suggestions that improve the article, reject those that do
     // Only queue job if AI thinks it's relevant and should be applied
     let jobId = null;
     if (isRelevant && shouldApply) {
-      console.log('Creating BullMQ job for approved suggestion:', suggestion.suggestionId);
       try {
         const job = await addSuggestionToQueue({
           articleId,
@@ -278,18 +268,11 @@ Be decisive - approve suggestions that improve the article, reject those that do
           suggestionId: suggestion.suggestionId,
         });
         jobId = job.id;
-        console.log('BullMQ job created successfully with ID:', jobId);
         
       } catch (queueError) {
         console.error('Failed to queue approved suggestion:', queueError);
         // Still return success since we have the AI response
       }
-    } else {
-      console.log('Not creating job - suggestion not approved for implementation:', {
-        isRelevant,
-        shouldApply,
-        suggestionId: suggestion.suggestionId
-      });
     }
 
     // Return the immediate AI response

@@ -25,6 +25,12 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/automating-nextjs-deployment-with-docker-and-github-actions</loc>
+      <lastmod>2025-06-05</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/using-docker-compose-to-deploy-a-nexus-repository-with-caching-proxy</loc>
       <lastmod>2025-06-05</lastmod>
       <changefreq>weekly</changefreq>

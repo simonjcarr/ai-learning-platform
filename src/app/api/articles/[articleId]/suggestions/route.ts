@@ -121,15 +121,7 @@ export async function GET(
 }
 
 function getStatus(suggestion: any): "pending" | "processing" | "approved" | "rejected" | "applied" {
-  // Debug logging for applied status
-  if (suggestion.isApplied) {
-    console.log('Suggestion marked as applied:', suggestion.suggestionId, {
-      isApplied: suggestion.isApplied,
-      appliedAt: suggestion.appliedAt,
-      isApproved: suggestion.isApproved
-    });
-    return "applied";
-  }
+  if (suggestion.isApplied) return "applied";
   if (suggestion.isApproved && !suggestion.isApplied) return "approved";
   if (suggestion.rejectionReason) return "rejected";
   if (suggestion.processedAt) return "rejected"; // Processed but not approved

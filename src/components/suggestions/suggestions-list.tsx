@@ -242,8 +242,17 @@ export function SuggestionsList({ articleId, currentUserId }: SuggestionsListPro
                             Analyzing your suggestion...
                           </p>
                         ) : suggestion.status === 'applied' ? (
-                          <div className="text-sm text-gray-800">
-                            {suggestion.statusMessage}
+                          <div className="space-y-3">
+                            {/* Show original AI approval message */}
+                            {suggestion.aiResponse && (
+                              <div className="text-sm text-gray-700">
+                                <MarkdownViewer content={suggestion.aiResponse} />
+                              </div>
+                            )}
+                            {/* Show applied confirmation */}
+                            <div className="text-sm font-medium text-green-800 bg-green-50 px-3 py-2 rounded-md border border-green-200">
+                              ✅ {suggestion.statusMessage}
+                            </div>
                           </div>
                         ) : (
                           suggestion.aiResponse && (
