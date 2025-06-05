@@ -55,8 +55,8 @@ export async function PUT(request: NextRequest) {
       if (min < 1) {
         return `${type}: Minimum must be at least 1`;
       }
-      if (max > 50) {
-        return `${type}: Maximum cannot exceed 50 questions`;
+      if (max > 500) {
+        return `${type}: Maximum cannot exceed 500 questions`;
       }
       return null;
     };

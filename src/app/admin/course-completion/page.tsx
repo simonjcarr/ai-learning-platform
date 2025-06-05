@@ -106,9 +106,18 @@ export default function CourseCompletionSettingsPage() {
         })
       ]);
 
-      if (!completionResponse.ok) throw new Error('Failed to save completion settings');
-      if (!quizResponse.ok) throw new Error('Failed to save quiz generation settings');
-      if (!pointResponse.ok) throw new Error('Failed to save question point settings');
+      if (!completionResponse.ok) {
+        const errorData = await completionResponse.json();
+        throw new Error(`Completion settings: ${errorData.error || 'Failed to save'}`);
+      }
+      if (!quizResponse.ok) {
+        const errorData = await quizResponse.json();
+        throw new Error(`Quiz settings: ${errorData.error || 'Failed to save'}`);
+      }
+      if (!pointResponse.ok) {
+        const errorData = await pointResponse.json();
+        throw new Error(`Point settings: ${errorData.error || 'Failed to save'}`);
+      }
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -347,22 +356,22 @@ export default function CourseCompletionSettingsPage() {
           </div>
         </Card>
 
-        {/* Default Question Bank Settings */}
+        {/* Final Exam Question Settings */}
         <Card className="p-6">
           <div className="flex items-center space-x-3 mb-6">
             <HelpCircle className="h-6 w-6 text-indigo-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Default Question Bank Settings</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Final Exam Question Range Settings</h2>
           </div>
 
           <div className="space-y-4 mb-6">
             <p className="text-sm text-gray-600">
-              These are the default settings for new courses. Each course can override these settings individually.
+              Configure the range of questions that can be selected for final exams across all courses.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="finalExamMinQuestions">Default Question Bank Size</Label>
+              <Label htmlFor="finalExamMinQuestions">Minimum Final Exam Questions</Label>
               <Input
                 id="finalExamMinQuestions"
                 type="number"
@@ -372,31 +381,30 @@ export default function CourseCompletionSettingsPage() {
                 onChange={(e) => updateQuizSetting('finalExamMinQuestions', parseInt(e.target.value))}
               />
               <p className="text-sm text-gray-600">
-                Total number of questions to generate in the question bank for each course
+                Minimum number of questions that can be included in a final exam
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="finalExamMaxQuestions">Default Essay Questions in Bank</Label>
+              <Label htmlFor="finalExamMaxQuestions">Maximum Final Exam Questions</Label>
               <Input
                 id="finalExamMaxQuestions"
                 type="number"
-                min="0"
-                max={quizSettings?.finalExamMinQuestions || 125}
+                min="1"
+                max="500"
                 value={quizSettings?.finalExamMaxQuestions || 0}
                 onChange={(e) => updateQuizSetting('finalExamMaxQuestions', parseInt(e.target.value))}
               />
               <p className="text-sm text-gray-600">
-                Number of essay-style questions to include in the question bank
+                Maximum number of questions that can be included in a final exam
               </p>
             </div>
           </div>
 
-          <div className="mt-4 p-4 bg-amber-50 rounded-lg">
-            <p className="text-sm text-amber-800">
-              <strong>Note:</strong> Changing these settings only affects new courses. Existing courses will 
-              continue to use their individual settings. You can configure per-course settings from the course 
-              management page.
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> These settings control the question count range for final exams. Individual 
+              course question bank sizes and exam configurations are managed per-course in the course settings.
             </p>
           </div>
         </Card>
