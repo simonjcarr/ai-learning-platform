@@ -5,7 +5,8 @@ import { Role } from "@prisma/client";
 import { notFound, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History, Mail, Layers, Folder, GraduationCap, Award, HelpCircle, Activity, Youtube } from "lucide-react";
+import { FileText, Flag, DollarSign, Users, Shield, FolderOpen, Tags, Brain, Zap, BarChart, Settings, History, Mail, Layers, Folder, GraduationCap, Award, HelpCircle, Activity, Youtube, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function AdminLayout({
   children,
@@ -14,6 +15,36 @@ export default function AdminLayout({
 }) {
   const { userRole, hasMinRole, isLoadingRole } = useAuth();
   const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar when route changes
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
+
+  // Close sidebar when clicking outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const sidebar = document.getElementById('admin-sidebar');
+      const menuButton = document.getElementById('menu-button');
+      
+      if (isSidebarOpen && 
+          sidebar && 
+          !sidebar.contains(event.target as Node) && 
+          menuButton && 
+          !menuButton.contains(event.target as Node)) {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    if (isSidebarOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSidebarOpen]);
 
   // Show loading state while role is being fetched
   if (isLoadingRole) {
@@ -165,9 +196,30 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mobile menu button */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
+        <button
+          id="menu-button"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="p-2 rounded-md bg-white shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+        >
+          {isSidebarOpen ? (
+            <X className="h-6 w-6 text-gray-600" />
+          ) : (
+            <Menu className="h-6 w-6 text-gray-600" />
+          )}
+        </button>
+      </div>
+
       <div className="flex">
         {/* Sidebar */}
-        <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg">
+        <div 
+          id="admin-sidebar"
+          className={cn(
+            "fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
           <div className="flex h-full flex-col">
             <div className="flex h-16 items-center justify-between px-4 border-b">
               <div className="flex items-center gap-2">
@@ -210,14 +262,22 @@ export default function AdminLayout({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 pl-64">
+        <div className="flex-1 lg:pl-64">
           <main className="flex-1">
-            <div className="py-8 px-4 sm:px-6 lg:px-8">
+            <div className="py-8 px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8">
               {children}
             </div>
           </main>
         </div>
       </div>
+
+      {/* Mobile overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 }
