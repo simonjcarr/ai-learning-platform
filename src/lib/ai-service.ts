@@ -1,7 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { generateObject, generateText } from 'ai';
+import { generateObject, generateText, streamText } from 'ai';
 import { z } from 'zod';
 import { prisma } from './prisma';
 import crypto from 'crypto';
@@ -568,6 +568,176 @@ IMPORTANT: Return ONLY valid JSON with "title", "content", and "seo" fields. Ens
     }
     
     // Use model info from the successful generation attempt
+    
+    // Track the interaction
+    await trackAIInteraction(
+      model.modelId,
+      interactionType.typeId,
+      clerkUserId,
+      result.usage?.promptTokens || 0,
+      result.usage?.completionTokens || 0,
+      startTime,
+      endTime,
+      { title, categoryName },
+      userPrompt,
+      JSON.stringify(result.object)
+    );
+
+    return {
+      title: result.object.title,
+      content,
+      seo: {
+        ...result.object.seo,
+        seoLastModified: new Date(),
+      },
+      metaDescription: result.object.seo.seoDescription // Keep for backward compatibility
+    };
+  },
+
+  async generateArticleContentWithStreaming(
+    title: string, 
+    categoryName: string, 
+    clerkUserId: string | null = null,
+    onProgress?: (message: string, percentage: number) => void,
+    onContentChunk?: (chunk: string, fullContent: string) => void
+  ) {
+    const hardcodedSystemPrompt = `You are an expert IT technical writer. Create comprehensive, detailed articles in Markdown format.
+
+CONTENT REQUIREMENTS:
+- Write a comprehensive IT article in Markdown format
+- Start directly with the title using # heading
+- Use proper Markdown formatting throughout (##, ###, etc.)
+- Include practical examples and real-world scenarios
+- Include command-line examples where relevant
+- Aim for 1200-1800 words of high-quality content
+- Structure with clear sections: Introduction, Key Concepts, Examples, Best Practices, Common Issues, Conclusion
+- Make it educational and practical for IT professionals
+
+Write ONLY the markdown content - no JSON, no metadata, just pure markdown article content.`;
+    
+    let userPrompt = `Write a comprehensive IT article about "${title}" in the category "${categoryName}".
+
+Start directly with the title using # (h1 heading) and then write the full article content using proper Markdown formatting.
+
+Include:
+- Clear introduction explaining the topic
+- Key concepts and definitions
+- Practical examples with code blocks where appropriate
+- Best practices and recommendations
+- Common issues and troubleshooting
+- Conclusion summarizing key points
+
+Write the article content directly in Markdown format - no JSON wrapper, no additional formatting.`;
+
+    const startTime = new Date();
+    let result, error;
+    let attempts = 0;
+    const maxAttempts = 2;
+    let model, interactionType;
+    
+    onProgress?.('Initializing AI generation...', 15);
+    
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        onProgress?.('Configuring AI model...', 20);
+        
+        const config = await getAIConfigForInteraction('article_generation');
+        model = config.model;
+        interactionType = config.interactionType;
+        const { temperature, maxTokens, systemPrompt } = config;
+        const aiModel = await createProviderForModel(model.modelId);
+        
+        onProgress?.('Generating content...', 25);
+        
+        // Use streaming approach and send content chunks
+        const stream = await streamText({
+          model: aiModel,
+          system: systemPrompt || hardcodedSystemPrompt,
+          prompt: userPrompt,
+          temperature,
+          maxTokens,
+        });
+
+        let fullContent = '';
+        let lastProgress = 25;
+        
+        onProgress?.('Starting content generation...', lastProgress);
+        
+        // Stream the content and send chunks to callback
+        for await (const chunk of stream.textStream) {
+          fullContent += chunk;
+          lastProgress = Math.min(90, Math.round(lastProgress + Math.random() * 2)); // Gradually increase progress, rounded to integer
+          
+          // Send the chunk and full content to the callback
+          onContentChunk?.(chunk, fullContent);
+          onProgress?.('Generating content...', lastProgress);
+        }
+        
+        onProgress?.('Finalizing content...', 95);
+        
+        // Clean up any accidental code block wrappers in content
+        let cleanContent = fullContent.trim();
+        if (cleanContent.startsWith('```markdown\n') && cleanContent.endsWith('\n```')) {
+          cleanContent = cleanContent.slice(12, -4).trim();
+        } else if (cleanContent.startsWith('```\n') && cleanContent.endsWith('\n```')) {
+          cleanContent = cleanContent.slice(4, -4).trim();
+        }
+        
+        // Create a simple result structure for the streaming version
+        result = {
+          object: {
+            title: title, // Use the provided title
+            content: cleanContent,
+            seo: {
+              seoTitle: title.substring(0, 60),
+              seoDescription: `Learn about ${title} in our comprehensive guide covering key concepts, examples, and best practices.`,
+              seoKeywords: [categoryName.toLowerCase(), title.toLowerCase().split(' ').slice(0, 3)].flat(),
+              seoChangeFreq: 'WEEKLY',
+              seoPriority: 0.7,
+              seoNoIndex: false,
+              seoNoFollow: false
+            }
+          },
+          usage: await stream.usage
+        };
+        
+        // If we get here, generation was successful
+        break;
+        
+      } catch (genError) {
+        console.error(`Article generation attempt ${attempts} failed:`, genError);
+        
+        if (attempts >= maxAttempts) {
+          error = genError;
+          break;
+        }
+        
+        // For any error, we can try again with a simplified prompt
+        if (genError instanceof Error) {
+          userPrompt = userPrompt + '\n\nIMPORTANT: Keep the content focused and well-structured. Write clear, concise markdown.';
+        }
+        
+        onProgress?.(`Retrying generation (attempt ${attempts + 1})...`, 20);
+        
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    if (error) {
+      throw error;
+    }
+
+    const endTime = new Date();
+    
+    // Clean up any accidental code block wrappers in content
+    let content = result.object.content.trim();
+    if (content.startsWith('```markdown\n') && content.endsWith('\n```')) {
+      content = content.slice(12, -4).trim();
+    } else if (content.startsWith('```\n') && content.endsWith('\n```')) {
+      content = content.slice(4, -4).trim();
+    }
     
     // Track the interaction
     await trackAIInteraction(

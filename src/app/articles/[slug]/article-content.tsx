@@ -77,6 +77,11 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState(false);
+  const [streamingContent, setStreamingContent] = useState<string>('');
+  const [streamingProgress, setStreamingProgress] = useState(0);
+  const [streamingMessage, setStreamingMessage] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isContentComplete, setIsContentComplete] = useState(false);
   const [focusedExampleId, setFocusedExampleId] = useState<string | null>(null);
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -161,11 +166,14 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
     setGenerating(true);
     setError(null);
     setSubscriptionError(false);
+    setIsStreaming(true);
+    setStreamingContent('');
+    setStreamingProgress(0);
+    setStreamingMessage('Initializing generation...');
+    setIsContentComplete(false);
 
     try {
-      const response = await fetch(`/api/articles/${article.articleId}/generate`, {
-        method: "POST",
-      });
+      const response = await fetch(`/api/articles/${article.articleId}/generate/stream`);
 
       if (!response.ok) {
         const data = await response.json();
@@ -180,15 +188,88 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         throw new Error(data.error || "Failed to generate content");
       }
 
-      const data = await response.json();
-      setArticle(data.article);
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error("No response stream available");
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('Stream ended naturally');
+          break;
+        }
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              switch (data.type) {
+                case 'status':
+                case 'progress':
+                  setStreamingMessage(data.message);
+                  setStreamingProgress(data.progress || 0);
+                  break;
+                  
+                case 'content_chunk':
+                  // Update the streaming content with the latest full content
+                  setStreamingContent(data.content);
+                  setStreamingMessage(data.message || 'Streaming content...');
+                  break;
+                  
+                case 'content_complete':
+                  setStreamingContent(data.content);
+                  setStreamingMessage(data.message);
+                  setStreamingProgress(data.progress || 95);
+                  setIsContentComplete(true);
+                  break;
+                  
+                case 'complete':
+                  console.log('Received completion event:', data);
+                  setArticle(data.article);
+                  setStreamingMessage('Generation completed successfully!');
+                  setStreamingProgress(100);
+                  
+                  // Close streaming after a brief delay to show completion
+                  setTimeout(() => {
+                    setIsStreaming(false);
+                    // Refetch usage after successful generation
+                    window.location.reload(); // Simple way to refresh the usage data
+                  }, 1500);
+                  return; // Exit the while loop early when complete
+                  
+                case 'error':
+                  throw new Error(data.message);
+              }
+            } catch (parseError) {
+              console.error('Failed to parse streaming data:', parseError);
+            }
+          }
+        }
+      }
       
-      // Refetch usage after successful generation
-      setTimeout(() => {
-        window.location.reload(); // Simple way to refresh the usage data
-      }, 1000);
+      // If we get here, the stream ended without a complete event
+      // This might happen if the stream closes before completion
+      console.log('Stream ended without complete event, checking if content was generated');
+      if (isContentComplete && streamingContent) {
+        console.log('Content was generated, treating as complete');
+        setStreamingMessage('Generation completed!');
+        setStreamingProgress(100);
+        setTimeout(() => {
+          setIsStreaming(false);
+          window.location.reload();
+        }, 1500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
+      setIsStreaming(false);
     } finally {
       setGenerating(false);
     }
@@ -429,10 +510,72 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
       )}
 
       {generating ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-          <p className="text-gray-600">Generating article content...</p>
-          <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
+        <div className="py-8">
+          {isStreaming ? (
+            <div className="space-y-4">
+              {/* Compact Progress Header */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-600 mr-3" />
+                    <div>
+                      <h3 className="text-sm font-medium text-blue-900">
+                        Generating Article Content
+                      </h3>
+                      <p className="text-xs text-blue-700">{streamingMessage}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-blue-900">{Math.round(streamingProgress)}%</div>
+                    <div className="w-24 bg-blue-200 rounded-full h-1.5 mt-1">
+                      <div 
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${streamingProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Streaming Content */}
+              {streamingContent && (
+                <div className="mb-12">
+                  <div className="relative">
+                    {/* Live indicator */}
+                    <div className="absolute top-4 right-4 z-10">
+                      <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center">
+                        <div className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></div>
+                        LIVE
+                      </div>
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="prose prose-lg max-w-none">
+                      <MarkdownViewer content={streamingContent} removeFirstHeading={true} />
+                    </div>
+                    
+                    {/* Typing indicator at the end - only show while actively generating */}
+                    {!isContentComplete && (
+                      <div className="flex items-center mt-4 text-gray-500">
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        </div>
+                        <span className="ml-2 text-sm">AI is writing...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+              <p className="text-gray-600">Generating article content...</p>
+              <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
+            </div>
+          )}
         </div>
       ) : article.contentHtml ? (
         <>
