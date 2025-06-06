@@ -1614,8 +1614,8 @@ Return your analysis as structured data.`;
   let result, error;
   
   try {
-    // Use a generic interaction type or create a new one for video recommendations
-    const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('article_generation');
+    // Use the specific video_recommendations interaction type
+    const { model, interactionType, temperature, maxTokens, systemPrompt } = await getAIConfigForInteraction('video_recommendations');
     const aiModel = await createProviderForModel(model.modelId);
     
     // Check rate limits
@@ -1627,7 +1627,7 @@ Return your analysis as structured data.`;
       prompt: userPrompt,
       schema: VideoRecommendationsSchema,
       temperature: temperature || 0.7,
-      maxTokens: Math.min(maxTokens || 2000, 2000), // Limit tokens for this specific task
+      maxTokens: maxTokens || 4000, // Use configured max tokens for video recommendations
     });
     
     const endTime = new Date();
@@ -1658,7 +1658,7 @@ Return your analysis as structured data.`;
     
     // Try to get model info for error tracking and rate limit handling
     try {
-      const { model, interactionType } = await getModelForInteraction('article_generation');
+      const { model, interactionType } = await getModelForInteraction('video_recommendations');
       
       // Handle rate limit errors
       if (!(err instanceof RateLimitError)) {

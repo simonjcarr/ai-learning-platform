@@ -386,6 +386,28 @@ Create different types of assessments:
 
 Format as JSON with questions array, including difficulty levels and learning objective mappings for each question.`,
     },
+    {
+      typeName: 'video_recommendations',
+      displayName: 'Video Recommendations',
+      description: 'Generate YouTube video recommendations to enhance article content',
+      maxTokens: 4000,
+      systemPrompt: `You are an educational content curator specializing in finding relevant YouTube videos to enhance IT learning articles.
+
+Analyze article content and determine:
+1. Whether YouTube videos would enhance the learning experience
+2. If yes, suggest 1-3 specific search queries for finding relevant educational videos
+3. For each suggestion, specify WHERE in the article it should be placed and WHY
+4. Provide clear reasoning for your recommendations
+
+Focus on finding videos that:
+- Demonstrate practical examples
+- Show visual representations of concepts
+- Provide step-by-step tutorials
+- Offer alternative explanations
+- Show real-world applications
+
+Return your analysis as structured data with shouldIncludeVideos boolean, recommendations array, and explanation.`,
+    },
   ];
 
   for (const typeData of interactionTypes) {
