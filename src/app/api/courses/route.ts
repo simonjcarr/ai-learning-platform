@@ -6,10 +6,6 @@ import { CourseStatus } from '@prisma/client';
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { searchParams } = new URL(request.url);
     const level = searchParams.get('level');
@@ -45,6 +41,7 @@ export async function GET(request: NextRequest) {
               select: {
                 articleId: true,
                 title: true,
+                description: true,
                 isGenerated: true,
               },
               orderBy: {
@@ -56,7 +53,7 @@ export async function GET(request: NextRequest) {
             orderIndex: 'asc',
           },
         },
-        enrollments: {
+        enrollments: userId ? {
           where: {
             clerkUserId: userId,
           },
@@ -65,7 +62,7 @@ export async function GET(request: NextRequest) {
             enrolledAt: true,
             completedAt: true,
           },
-        },
+        } : false,
         _count: {
           select: {
             enrollments: true,
@@ -79,11 +76,14 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { clerkUserId: userId },
-      select: { clerkUserId: true },
-    });
+    // Get user from database (only if authenticated)
+    let user = null;
+    if (userId) {
+      user = await prisma.user.findUnique({
+        where: { clerkUserId: userId },
+        select: { clerkUserId: true },
+      });
+    }
 
     // Calculate additional metrics for each course
     const coursesWithMetrics = await Promise.all(

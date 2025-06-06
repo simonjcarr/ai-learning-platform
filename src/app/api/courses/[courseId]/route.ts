@@ -9,22 +9,21 @@ export async function GET(
 ) {
   try {
     const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { courseId } = await params;
 
-    // First check if course exists and user is enrolled
-    const courseEnrollment = await prisma.courseEnrollment.findFirst({
-      where: {
-        courseId: courseId,
-        user: {
-          clerkUserId: userId,
+    // First check if course exists and user is enrolled (only if user is authenticated)
+    let courseEnrollment = null;
+    if (userId) {
+      courseEnrollment = await prisma.courseEnrollment.findFirst({
+        where: {
+          courseId: courseId,
+          user: {
+            clerkUserId: userId,
+          },
         },
-      },
-    });
+      });
+    }
 
     // Get the course first - check if course exists and is not deleted
     const course = await prisma.course.findFirst({
@@ -105,6 +104,54 @@ export async function GET(
     
     if (!isPublished && !isEnrolled) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+
+    // For non-authenticated users, return basic course outline if published
+    if (!userId && isPublished) {
+      const courseOutline = {
+        courseId: course.courseId,
+        title: course.title,
+        slug: course.slug,
+        description: course.description,
+        level: course.level,
+        status: course.status,
+        estimatedHours: course.estimatedHours,
+        passMarkPercentage: course.passMarkPercentage,
+        createdAt: course.createdAt,
+        publishedAt: course.publishedAt,
+        createdBy: course.createdBy,
+        sections: course.sections.map(section => ({
+          sectionId: section.sectionId,
+          title: section.title,
+          description: section.description,
+          orderIndex: section.orderIndex,
+          articles: section.articles.map(article => ({
+            articleId: article.articleId,
+            title: article.title,
+            description: article.description,
+            orderIndex: article.orderIndex,
+            isGenerated: article.isGenerated,
+          })),
+          quizzes: section.quizzes,
+        })),
+        totalSections: course.sections.length,
+        totalArticles: course.sections.reduce((sum, section) => sum + section.articles.length, 0),
+        generatedArticles: course.sections.reduce(
+          (sum, section) => sum + section.articles.filter(article => article.isGenerated).length,
+          0
+        ),
+        enrollmentCount: course._count.enrollments,
+        certificateCount: course._count.certificates,
+        isEnrolled: false,
+        enrolledAt: null,
+        isCompleted: false,
+        completedAt: null,
+        progressPercentage: 0,
+        completedArticles: 0,
+        progress: [],
+        quizAttempts: {},
+      };
+      return NextResponse.json(courseOutline);
     }
 
     // Calculate progress metrics

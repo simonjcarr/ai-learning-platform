@@ -262,44 +262,14 @@ async function generateArticleContent(courseId: string, articleId: string, conte
   const course = article.section.course;
   const section = article.section;
 
-  const prompt = `Generate comprehensive educational content for this course article.
+  // Use AI service to generate content with SEO optimization
+  const result = await aiService.generateArticleContent(
+    article.title,
+    `${course.title} - ${section.title}`,
+    null // No clerk user ID for course generation
+  );
 
-Course: ${course.title} (${course.level} level)
-Course Description: ${course.description}
-Section: ${section.title}
-Section Description: ${section.description}
-Article: ${article.title}
-Article Description: ${article.description}
-
-Please write detailed, educational content that:
-- Is appropriate for ${course.level.toLowerCase()} level learners
-- Covers the topic thoroughly with practical examples
-- Uses clear explanations and step-by-step instructions where applicable
-- Includes code examples if relevant to the subject matter
-- Uses proper Markdown formatting with headings, paragraphs, lists, and code blocks
-- Is engaging and educational
-- Builds upon previous concepts appropriately
-
-The content should be substantial (at least 1000 words) and include:
-1. Introduction to the topic
-2. Key concepts and explanations
-3. Practical examples and demonstrations
-4. Best practices and common pitfalls
-5. Summary and next steps
-
-Return the content as properly formatted Markdown suitable for educational purposes. Start directly with the title using # heading and use proper Markdown formatting throughout.
-
-IMPORTANT: Return ONLY the markdown content, do NOT wrap the entire response in markdown code blocks (\`\`\`markdown). Return the raw markdown content directly.`;
-
-  const content = await callAI('course_article_generation', prompt, {
-    courseId,
-    sectionId: section.sectionId,
-    articleId,
-    courseTitle: course.title,
-    courseLevel: course.level,
-    sectionTitle: section.title,
-    articleTitle: article.title,
-  });
+  const content = result.content;
 
   // Clean up any markdown code block wrappers in content
   // Only remove outer markdown code block wrappers if the entire content is wrapped
@@ -321,13 +291,25 @@ IMPORTANT: Return ONLY the markdown content, do NOT wrap the entire response in 
     }
   }
 
-  // Update the article with generated content
+  // Update the article with generated content and SEO data
   await prisma.courseArticle.update({
     where: { articleId },
     data: {
       contentHtml: cleanedContent,
       isGenerated: true,
       generatedAt: new Date(),
+      // Add SEO fields from AI generation
+      description: result.seo?.seoDescription,
+      seoTitle: result.seo?.seoTitle,
+      seoDescription: result.seo?.seoDescription,
+      seoKeywords: result.seo?.seoKeywords || [],
+      seoCanonicalUrl: result.seo?.seoCanonicalUrl,
+      seoImageAlt: result.seo?.seoImageAlt,
+      seoLastModified: result.seo?.seoLastModified || new Date(),
+      seoChangeFreq: result.seo?.seoChangeFreq || 'WEEKLY',
+      seoPriority: result.seo?.seoPriority || 0.7,
+      seoNoIndex: result.seo?.seoNoIndex || false,
+      seoNoFollow: result.seo?.seoNoFollow || false,
     },
   });
 
