@@ -25,12 +25,20 @@ export async function GET(
       });
     }
 
-    // Get the course first - check if course exists and is not deleted
+    // Get the course - for unauthenticated users, only show published courses
+    // For authenticated users, show any course they're enrolled in
+    const whereClause: any = {
+      courseId: courseId,
+      deletedAt: null, // Only include non-deleted courses
+    };
+    
+    // If user is not authenticated, only show published courses
+    if (!userId) {
+      whereClause.status = CourseStatus.PUBLISHED;
+    }
+    
     const course = await prisma.course.findFirst({
-      where: { 
-        courseId: courseId,
-        deletedAt: null, // Only include non-deleted courses
-      },
+      where: whereClause,
       include: {
         createdBy: {
           select: {
@@ -71,7 +79,7 @@ export async function GET(
             orderIndex: 'asc',
           },
         },
-        enrollments: {
+        enrollments: userId ? {
           where: {
             user: {
               clerkUserId: userId,
@@ -84,7 +92,7 @@ export async function GET(
               },
             },
           },
-        },
+        } : false,
         _count: {
           select: {
             enrollments: true,
@@ -161,7 +169,7 @@ export async function GET(
       0
     );
 
-    const enrollment = course.enrollments[0];
+    const enrollment = course.enrollments && course.enrollments.length > 0 ? course.enrollments[0] : null;
     let progressPercentage = 0;
     let completedArticles = 0;
     let quizAttempts: Record<string, { score: number; passed: boolean; completedAt: string }[]> = {};
@@ -259,7 +267,7 @@ export async function GET(
       generatedArticles,
       enrollmentCount: course._count.enrollments,
       certificateCount: course._count.certificates,
-      isEnrolled: course.enrollments.length > 0,
+      isEnrolled: course.enrollments && course.enrollments.length > 0,
       enrolledAt: enrollment?.enrolledAt || null,
       isCompleted: enrollment?.completedAt !== null,
       completedAt: enrollment?.completedAt || null,
