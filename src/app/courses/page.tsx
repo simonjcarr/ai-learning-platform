@@ -16,13 +16,15 @@ import {
   CheckCircle,
   Play,
   GraduationCap,
-  Heart
+  Heart,
+  Info,
+  LogIn,
+  CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { FeatureGuard } from "@/components/feature-guard";
 import { CourseFeaturesPromotion } from "@/components/course-features-promotion";
 
 interface Course {
@@ -55,8 +57,9 @@ interface Course {
   certificateId?: string | null;
 }
 
-function CoursesContent() {
-  const { user } = useAuth();
+export default function CoursesPage() {
+  const { user, isSignedIn } = useAuth();
+  const { access: courseAccess, loading: accessLoading } = useFeatureAccess("access_courses");
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,7 +126,16 @@ function CoursesContent() {
   };
 
   const enrolledCourses = filteredCourses.filter(course => course.isEnrolled);
-  const availableCourses = filteredCourses.filter(course => !course.isEnrolled);
+  const allAvailableCourses = filteredCourses.filter(course => !course.isEnrolled);
+  
+  // Featured courses are the most popular non-enrolled courses
+  const featuredCourses = allAvailableCourses
+    .sort((a, b) => (b.enrollmentCount + b.likesCount) - (a.enrollmentCount + a.likesCount))
+    .slice(0, 3);
+    
+  // Available courses excluding featured ones
+  const featuredCourseIds = new Set(featuredCourses.map(c => c.courseId));
+  const availableCourses = allAvailableCourses.filter(course => !featuredCourseIds.has(course.courseId));
 
   if (isLoading) {
     return (
@@ -150,10 +162,22 @@ function CoursesContent() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Courses</h1>
-          <p className="text-lg text-gray-600">
-            Comprehensive learning paths designed to take you from beginner to expert
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Courses</h1>
+              <p className="text-lg text-gray-600">
+                Comprehensive learning paths designed to take you from beginner to expert
+              </p>
+            </div>
+            <div className="mt-4 sm:mt-0">
+              <CourseFeaturesPromotion trigger={(
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Info className="h-4 w-4" />
+                  <span>About Our Courses</span>
+                </Button>
+              )} />
+            </div>
+          </div>
         </div>
 
         {/* Search and Filter Bar */}
@@ -217,23 +241,35 @@ function CoursesContent() {
             </div>
           </Card>
           
-          <Link href="/dashboard/certificates" className="block">
-            <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
+          {isSignedIn ? (
+            <Link href="/dashboard/certificates" className="block">
+              <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer">
+                <div className="flex items-center">
+                  <Award className="h-8 w-8 text-yellow-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Certificates</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {enrolledCourses.filter(course => course.certificateId).length}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+          ) : (
+            <Card className="p-6">
               <div className="flex items-center">
                 <Award className="h-8 w-8 text-yellow-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Certificates</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {enrolledCourses.filter(course => course.certificateId).length}
-                  </p>
+                  <p className="text-2xl font-bold text-gray-900">-</p>
                 </div>
               </div>
             </Card>
-          </Link>
+          )}
         </div>
 
         {/* Enrolled Courses Section */}
-        {enrolledCourses.length > 0 && (
+        {isSignedIn && enrolledCourses.length > 0 && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Enrolled Courses</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -339,13 +375,108 @@ function CoursesContent() {
           </div>
         )}
 
+        {/* Featured Courses Section */}
+        {featuredCourses.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Featured Courses</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredCourses.map((course) => (
+                <Card key={course.courseId} className="p-6 hover:shadow-lg transition-shadow border-2 border-orange-100">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {course.title}
+                      </h3>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Badge className={getLevelBadgeColor(course.level)}>
+                          {course.level}
+                        </Badge>
+                        <Badge className="bg-orange-100 text-orange-800">
+                          Featured
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <p className="text-gray-600 mb-4 line-clamp-3">
+                    {course.description}
+                  </p>
+                  
+                  <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
+                    <div className="flex items-center">
+                      <BookOpen className="h-4 w-4 mr-1" />
+                      {course.totalSections} sections
+                    </div>
+                    <div className="flex items-center">
+                      <Users className="h-4 w-4 mr-1" />
+                      {course.enrollmentCount} enrolled
+                    </div>
+                    <div className="flex items-center">
+                      <Heart className="h-4 w-4 mr-1" />
+                      {course.likesCount} likes
+                    </div>
+                    {course.estimatedHours && (
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-1" />
+                        {course.estimatedHours}h
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                    <span>Created by {course.createdBy.firstName} {course.createdBy.lastName}</span>
+                    <span>{new Date(course.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  
+                  <div className="flex flex-col space-y-2">
+                    <Link href={`/courses/${course.courseId}`}>
+                      <Button className="w-full bg-orange-600 hover:bg-orange-700">
+                        View Course
+                      </Button>
+                    </Link>
+                    {!isSignedIn && (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-2">Sign in to enroll and start learning</p>
+                        <div className="flex space-x-2">
+                          <Link href="/sign-in" className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full">
+                              <LogIn className="h-3 w-3 mr-1" />
+                              Sign In
+                            </Button>
+                          </Link>
+                          <Link href="/sign-up" className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full">
+                              Sign Up
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                    {isSignedIn && !courseAccess?.hasAccess && (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-2">Upgrade to access course content</p>
+                        <Link href="/pricing">
+                          <Button variant="outline" size="sm" className="w-full">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Upgrade
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Available Courses Section */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">
             {enrolledCourses.length > 0 ? 'Available Courses' : 'All Courses'}
           </h2>
           
-          {availableCourses.length === 0 ? (
+          {allAvailableCourses.length === 0 ? (
             <Card className="p-12">
               <div className="text-center">
                 <GraduationCap className="mx-auto h-12 w-12 text-gray-400" />
@@ -403,11 +534,42 @@ function CoursesContent() {
                     <span>{new Date(course.createdAt).toLocaleDateString()}</span>
                   </div>
                   
-                  <Link href={`/courses/${course.courseId}`}>
-                    <Button className="w-full">
-                      View Course
-                    </Button>
-                  </Link>
+                  <div className="flex flex-col space-y-2">
+                    <Link href={`/courses/${course.courseId}`}>
+                      <Button className="w-full">
+                        View Course
+                      </Button>
+                    </Link>
+                    {!isSignedIn && (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-2">Sign in to enroll and start learning</p>
+                        <div className="flex space-x-2">
+                          <Link href="/sign-in" className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full">
+                              <LogIn className="h-3 w-3 mr-1" />
+                              Sign In
+                            </Button>
+                          </Link>
+                          <Link href="/sign-up" className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full">
+                              Sign Up
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                    {isSignedIn && !courseAccess?.hasAccess && (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-2">Upgrade to access course content</p>
+                        <Link href="/pricing">
+                          <Button variant="outline" size="sm" className="w-full">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Upgrade
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </Card>
               ))}
             </div>
@@ -417,22 +579,3 @@ function CoursesContent() {
   );
 }
 
-export default function CoursesPage() {
-  const { access: courseAccess, loading: accessLoading } = useFeatureAccess("access_courses");
-
-  if (accessLoading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!courseAccess?.hasAccess) {
-    return <CourseFeaturesPromotion />;
-  }
-
-  return <CoursesContent />;
-}

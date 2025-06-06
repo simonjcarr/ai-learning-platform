@@ -3,6 +3,7 @@
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import Link from 'next/link';
 import {
   GraduationCap,
@@ -23,7 +24,11 @@ import {
   FileText
 } from 'lucide-react';
 
-export function CourseFeaturesPromotion() {
+interface CourseFeaturesPromotionProps {
+  trigger?: React.ReactNode;
+}
+
+function PromotionContent() {
   const { isSignedIn, isLoaded } = useAuth();
   const isUserSignedIn = isLoaded && isSignedIn;
 
@@ -88,7 +93,7 @@ export function CourseFeaturesPromotion() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Hero Section */}
       <div className="text-center mb-16">
         <div className="mb-6">
@@ -276,4 +281,21 @@ export function CourseFeaturesPromotion() {
       </div>
     </div>
   );
+}
+
+export function CourseFeaturesPromotion({ trigger }: CourseFeaturesPromotionProps = {}) {
+  if (trigger) {
+    return (
+      <Dialog>
+        <DialogTrigger asChild>
+          {trigger}
+        </DialogTrigger>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <PromotionContent />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  
+  return <PromotionContent />;
 }

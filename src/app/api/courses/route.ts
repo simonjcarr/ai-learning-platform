@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         let certificateId = null;
 
         // If user is enrolled, calculate progress and check for certificate
-        if (course.enrollments.length > 0 && user) {
+        if (course.enrollments && course.enrollments.length > 0 && user) {
           const progress = await prisma.courseProgress.findMany({
             where: {
               enrollmentId: course.enrollments[0].enrollmentId,
@@ -148,10 +148,10 @@ export async function GET(request: NextRequest) {
           enrollmentCount: course._count.enrollments,
           certificateCount: course._count.certificates,
           likesCount: course.likesCount,
-          isEnrolled: course.enrollments.length > 0,
-          enrolledAt: course.enrollments[0]?.enrolledAt || null,
-          isCompleted: course.enrollments[0]?.completedAt !== null,
-          completedAt: course.enrollments[0]?.completedAt || null,
+          isEnrolled: course.enrollments && course.enrollments.length > 0,
+          enrolledAt: course.enrollments && course.enrollments[0]?.enrolledAt || null,
+          isCompleted: course.enrollments && course.enrollments[0]?.completedAt !== null,
+          completedAt: course.enrollments && course.enrollments[0]?.completedAt || null,
           progressPercentage,
           completedArticles,
           certificateId,
