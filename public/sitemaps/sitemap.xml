@@ -25,6 +25,12 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/understanding-and-preventing-network-stack-overflow-a-deep-dive-into-tcpip-vulnerabilities</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/securing-your-nexus-caching-proxy-in-docker-with-tlsssl</loc>
       <lastmod>2025-06-06</lastmod>
       <changefreq>weekly</changefreq>

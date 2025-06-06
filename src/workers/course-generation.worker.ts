@@ -27,6 +27,23 @@ interface CourseOutline {
   }>;
 }
 
+// Helper function to check if videos are requested in course prompts
+function checkIfVideosRequested(promptTitle?: string | null, promptDescription?: string | null): boolean {
+  if (!promptTitle && !promptDescription) {
+    return false;
+  }
+  
+  const combinedPrompt = `${promptTitle || ''} ${promptDescription || ''}`.toLowerCase();
+  
+  // Look for video-related keywords in the prompts
+  const videoKeywords = [
+    'video', 'videos', 'youtube', 'visual', 'demonstration', 'demo', 'tutorial',
+    'screencast', 'walkthrough', 'watch', 'viewing', 'multimedia', 'audiovisual'
+  ];
+  
+  return videoKeywords.some(keyword => combinedPrompt.includes(keyword));
+}
+
 async function processCourseGenerationJob(job: Job<CourseGenerationJobData>) {
   const { courseId, jobType, sectionId, articleId, context } = job.data;
   
@@ -316,27 +333,34 @@ IMPORTANT: Return ONLY the markdown content, do NOT wrap the entire response in 
 
   console.log(`✅ Article content generated successfully for article ${articleId}`);
   
-  // Queue video enhancement job after content generation
-  try {
-    const { addCourseGenerationToQueue } = await import('@/lib/bullmq');
-    await addCourseGenerationToQueue({
-      courseId,
-      jobType: 'video_enhancement',
-      articleId,
-      context: {
-        courseTitle: course.title,
-        courseDescription: course.description,
-        courseLevel: course.level,
-        sectionTitle: section.title,
-        sectionDescription: section.description,
-        articleTitle: article.title,
-        articleDescription: article.description,
-      },
-    });
-    console.log(`🎬 Queued video enhancement job for article ${articleId}`);
-  } catch (error) {
-    console.error(`⚠️ Failed to queue video enhancement: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    // Don't fail the main job if video enhancement queueing fails
+  // Only queue video enhancement if the course prompt explicitly requests videos
+  const shouldIncludeVideos = checkIfVideosRequested(course.systemPromptTitle, course.systemPromptDescription);
+  
+  if (shouldIncludeVideos) {
+    // Queue video enhancement job after content generation
+    try {
+      const { addCourseGenerationToQueue } = await import('@/lib/bullmq');
+      await addCourseGenerationToQueue({
+        courseId,
+        jobType: 'video_enhancement',
+        articleId,
+        context: {
+          courseTitle: course.title,
+          courseDescription: course.description,
+          courseLevel: course.level,
+          sectionTitle: section.title,
+          sectionDescription: section.description,
+          articleTitle: article.title,
+          articleDescription: article.description,
+        },
+      });
+      console.log(`🎬 Queued video enhancement job for article ${articleId}`);
+    } catch (error) {
+      console.error(`⚠️ Failed to queue video enhancement: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Don't fail the main job if video enhancement queueing fails
+    }
+  } else {
+    console.log(`⏭️ Skipping video enhancement for article ${articleId} - videos not requested in course prompts`);
   }
   
   return { success: true, articleId };
