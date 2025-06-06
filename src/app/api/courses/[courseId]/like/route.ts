@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 // GET /api/courses/[courseId]/like
 export async function GET(
   request: Request,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -13,11 +13,13 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { courseId } = await params;
+
     // Check if the user has liked this course
     const like = await prisma.courseLike.findUnique({
       where: {
         courseId_clerkUserId: {
-          courseId: params.courseId,
+          courseId,
           clerkUserId: userId,
         }
       }
@@ -36,7 +38,7 @@ export async function GET(
 // POST /api/courses/[courseId]/like
 export async function POST(
   request: Request,
-  { params }: { params: { courseId: string } }
+  { params }: { params: Promise<{ courseId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -44,9 +46,11 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { courseId } = await params;
+
     // Verify the course exists
     const course = await prisma.course.findUnique({
-      where: { courseId: params.courseId }
+      where: { courseId }
     });
 
     if (!course) {
@@ -57,7 +61,7 @@ export async function POST(
     const existingLike = await prisma.courseLike.findUnique({
       where: {
         courseId_clerkUserId: {
-          courseId: params.courseId,
+          courseId,
           clerkUserId: userId,
         }
       }
@@ -72,7 +76,7 @@ export async function POST(
           }
         }),
         prisma.course.update({
-          where: { courseId: params.courseId },
+          where: { courseId },
           data: { likesCount: { decrement: 1 } }
         })
       ]);
@@ -83,12 +87,12 @@ export async function POST(
       await prisma.$transaction([
         prisma.courseLike.create({
           data: {
-            courseId: params.courseId,
+            courseId,
             clerkUserId: userId,
           }
         }),
         prisma.course.update({
-          where: { courseId: params.courseId },
+          where: { courseId },
           data: { likesCount: { increment: 1 } }
         })
       ]);

@@ -7,13 +7,15 @@ import { createProviderForModel, getModelForInteraction, trackAIInteraction } fr
 // GET /api/courses/[courseId]/articles/[articleId]/comments
 export async function GET(
   request: Request,
-  { params }: { params: { courseId: string; articleId: string } }
+  { params }: { params: Promise<{ courseId: string; articleId: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { courseId, articleId } = await params;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -23,9 +25,9 @@ export async function GET(
     // Verify the article exists and belongs to the course
     const article = await prisma.courseArticle.findFirst({
       where: {
-        articleId: params.articleId,
+        articleId,
         section: {
-          courseId: params.courseId
+          courseId
         }
       }
     });
@@ -38,7 +40,7 @@ export async function GET(
     const [comments, total] = await Promise.all([
       prisma.courseComment.findMany({
         where: {
-          courseArticleId: params.articleId,
+          courseArticleId: articleId,
           parentId: null, // Only get top-level comments
         },
         include: {
@@ -74,7 +76,7 @@ export async function GET(
       }),
       prisma.courseComment.count({
         where: {
-          courseArticleId: params.articleId,
+          courseArticleId: articleId,
           parentId: null,
         }
       })
@@ -101,13 +103,15 @@ export async function GET(
 // POST /api/courses/[courseId]/articles/[articleId]/comments
 export async function POST(
   request: Request,
-  { params }: { params: { courseId: string; articleId: string } }
+  { params }: { params: Promise<{ courseId: string; articleId: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { courseId, articleId } = await params;
 
     const body = await request.json();
     const { content, parentId } = body;
@@ -119,9 +123,9 @@ export async function POST(
     // Verify the article exists and belongs to the course
     const article = await prisma.courseArticle.findFirst({
       where: {
-        articleId: params.articleId,
+        articleId,
         section: {
-          courseId: params.courseId
+          courseId
         }
       },
       include: {
@@ -142,7 +146,7 @@ export async function POST(
       const parentComment = await prisma.courseComment.findUnique({
         where: { commentId: parentId }
       });
-      if (!parentComment || parentComment.courseArticleId !== params.articleId) {
+      if (!parentComment || parentComment.courseArticleId !== articleId) {
         return NextResponse.json({ error: 'Invalid parent comment' }, { status: 400 });
       }
     }
@@ -150,7 +154,7 @@ export async function POST(
     // Create the comment
     const comment = await prisma.courseComment.create({
       data: {
-        courseArticleId: params.articleId,
+        courseArticleId: articleId,
         clerkUserId: userId,
         content,
         parentId,
@@ -179,7 +183,9 @@ export async function POST(
 
 Comment: "${content}"
 
-Determine if this is a question about understanding the course material. Respond with a JSON object:
+Determine if this is a question about understanding the course material. 
+
+IMPORTANT: Respond with ONLY a JSON object, no markdown formatting or code blocks:
 {
   "isLearningQuestion": boolean,
   "confidence": number (0-1),
@@ -190,8 +196,8 @@ Determine if this is a question about understanding the course material. Respond
         const analysisResult = await generateText({
           model: analysisModel,
           prompt: analysisPrompt,
-          temperature: 0.7,
-          maxTokens: 1000,
+          temperature: 0.3,
+          maxTokens: 200,
         });
         const endTime = new Date();
 
@@ -205,8 +211,8 @@ Determine if this is a question about understanding the course material. Respond
           startTime,
           endTime,
           {
-            courseId: params.courseId,
-            articleId: params.articleId,
+            courseId,
+            articleId,
             commentId: comment.commentId,
           },
           analysisPrompt,
@@ -215,10 +221,19 @@ Determine if this is a question about understanding the course material. Respond
 
         let isQuestion = false;
         try {
-          const analysis = JSON.parse(analysisResult.text);
+          // Clean the AI response - remove markdown code blocks if present
+          let cleanedText = analysisResult.text.trim();
+          if (cleanedText.startsWith('```json') && cleanedText.endsWith('```')) {
+            cleanedText = cleanedText.slice(7, -3).trim();
+          } else if (cleanedText.startsWith('```') && cleanedText.endsWith('```')) {
+            cleanedText = cleanedText.slice(3, -3).trim();
+          }
+          
+          const analysis = JSON.parse(cleanedText);
           isQuestion = analysis.isLearningQuestion && analysis.confidence > 0.7;
         } catch (e) {
           console.error('Failed to parse AI analysis:', e);
+          console.error('Raw AI response:', analysisResult.text);
         }
 
         // Update comment with analysis result
@@ -262,8 +277,8 @@ Provide a helpful, encouraging response that addresses their question and helps 
             replyStartTime,
             replyEndTime,
             {
-              courseId: params.courseId,
-              articleId: params.articleId,
+              courseId,
+              articleId,
               parentCommentId: comment.commentId,
             },
             replyPrompt,
@@ -273,7 +288,7 @@ Provide a helpful, encouraging response that addresses their question and helps 
           // Create AI reply comment
           const aiReply = await prisma.courseComment.create({
             data: {
-              courseArticleId: params.articleId,
+              courseArticleId: articleId,
               clerkUserId: 'ai-assistant', // Special ID for AI comments
               content: replyResult.text,
               parentId: comment.commentId,

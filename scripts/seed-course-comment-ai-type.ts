@@ -14,19 +14,28 @@ async function main() {
       description: 'Analyzes course comments to identify learning-related questions and generate helpful responses',
       maxTokens: 1000,
       temperature: 0.7,
-      systemPrompt: `You are an AI assistant analyzing comments on educational course content. Your task is to:
+      systemPrompt: `You are an AI assistant analyzing comments on educational course content. 
 
-1. Determine if the comment is a question about understanding the course material
-2. If it is a learning-related question, generate a helpful, educational response
-3. If it's not a learning question (e.g., general feedback, off-topic, etc.), indicate no response is needed
+Your task is to determine if a comment is a question about understanding the course material.
 
-For learning questions, provide:
-- Clear, concise explanations
-- References to the specific concepts being discussed
-- Encouragement to continue learning
-- Suggestions for further exploration if relevant
+Always respond with ONLY a JSON object in this exact format (no markdown, no code blocks, no additional text):
+{
+  "isLearningQuestion": boolean,
+  "confidence": number between 0 and 1,
+  "reason": "brief explanation of your analysis"
+}
 
-Keep responses friendly, supportive, and focused on helping the student understand the material better.`
+Consider a comment a learning question if it:
+- Asks for clarification on course concepts
+- Requests help understanding material
+- Shows confusion about topics covered
+- Asks "how to" or "why" questions related to course content
+
+Do NOT consider these as learning questions:
+- General feedback about the course
+- Off-topic discussions
+- Praise or criticism without questions
+- Technical issues unrelated to content understanding`
     },
   });
 

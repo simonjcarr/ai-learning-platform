@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { MessageCircle, User, Bot } from 'lucide-react';
 import { CourseCommentForm } from './course-comment-form';
+import MarkdownViewer from '@/components/markdown-viewer';
 
 interface CourseCommentProps {
   comment: {
@@ -73,7 +74,15 @@ export function CourseComment({ comment, courseId, articleId, onReplyAdded }: Co
             </span>
           </div>
           
-          <div className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</div>
+          <div className="text-sm text-gray-700">
+            {isAIComment ? (
+              <div className="prose prose-sm max-w-none">
+                <MarkdownViewer content={comment.content} />
+              </div>
+            ) : (
+              <div className="whitespace-pre-wrap">{comment.content}</div>
+            )}
+          </div>
           
           {!isAIComment && (
             <button
