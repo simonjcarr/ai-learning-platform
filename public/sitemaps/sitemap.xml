@@ -25,6 +25,12 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/how-to-update-a-nexus-caching-proxy-docker-container</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/load-balancing-donkey-stacks-a-practical-guide-using-docker-swarm</loc>
       <lastmod>2025-06-06</lastmod>
       <changefreq>weekly</changefreq>
