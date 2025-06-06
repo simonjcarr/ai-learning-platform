@@ -30,12 +30,15 @@ Consider a comment a learning question if it:
 - Requests help understanding material
 - Shows confusion about topics covered
 - Asks "how to" or "why" questions related to course content
+- Asks practical questions about tools, commands, or implementations mentioned in the course material
+- Requests help with installation, configuration, or usage of course-related software/tools
+- Asks for troubleshooting help with technologies discussed in the course
 
 Do NOT consider these as learning questions:
-- General feedback about the course
-- Off-topic discussions
-- Praise or criticism without questions
-- Technical issues unrelated to content understanding`
+- General feedback about the course quality or structure
+- Off-topic discussions unrelated to course content
+- Praise or criticism without specific questions
+- Technical issues with the learning platform itself`
     },
   });
 

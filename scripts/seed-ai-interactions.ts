@@ -84,19 +84,19 @@ async function seedAIInteractions() {
   // Google models
   if (googleKey) {
     const geminiPro = await prisma.aIModel.upsert({
-      where: { modelName: 'gemini-2.0-flash-exp' },
+      where: { modelName: "gemini-2.0-flash-exp" },
       update: {},
       create: {
-        modelName: 'gemini-2.0-flash-exp',
-        provider: 'google',
-        displayName: 'Gemini 2.0 Flash',
-        description: 'Google\'s fastest and most efficient model',
+        modelName: "gemini-2.0-flash-preview-image-generation",
+        provider: "google",
+        displayName: "Gemini 2.0 Flash",
+        description: "Google's fastest and most efficient model",
         apiKey: encryptApiKey(googleKey),
-        inputTokenCostPer1M: 0.075,  // $0.075 per 1M input tokens
-        outputTokenCostPer1M: 0.30,  // $0.30 per 1M output tokens
+        inputTokenCostPer1M: 0.1, // $0.075 per 1M input tokens
+        outputTokenCostPer1M: 0.4, // $0.30 per 1M output tokens
         isDefault: false,
         isActive: true,
-      }
+      },
     });
     models.push(geminiPro);
   }

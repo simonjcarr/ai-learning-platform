@@ -73,6 +73,12 @@ export function CourseCommentForm({
         disabled={isSubmitting}
       />
       
+      {!parentId && (
+        <p className="text-xs text-gray-500">
+          💡 AI will automatically respond to learning questions about course concepts, tools, and practical implementations mentioned in the lesson.
+        </p>
+      )}
+      
       {error && (
         <p className="text-sm text-red-600">{error}</p>
       )}

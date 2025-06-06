@@ -2,27 +2,33 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
       <loc>https://yourdomain.com</loc>
-      <lastmod>2025-06-05</lastmod>
+      <lastmod>2025-06-06</lastmod>
       <changefreq>daily</changefreq>
       <priority>1.0</priority>
     </url>
     <url>
       <loc>https://yourdomain.com/search</loc>
-      <lastmod>2025-06-05</lastmod>
+      <lastmod>2025-06-06</lastmod>
       <changefreq>daily</changefreq>
       <priority>0.8</priority>
     </url>
     <url>
       <loc>https://yourdomain.com/categories</loc>
-      <lastmod>2025-06-05</lastmod>
+      <lastmod>2025-06-06</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.8</priority>
     </url>
     <url>
       <loc>https://yourdomain.com/dashboard</loc>
-      <lastmod>2025-06-05</lastmod>
+      <lastmod>2025-06-06</lastmod>
       <changefreq>daily</changefreq>
       <priority>0.5</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/essential-linux-commands-for-system-administration-a-practical-guide</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
     </url>
     <url>
       <loc>https://yourdomain.com/articles/automating-nextjs-deployment-with-docker-and-github-actions</loc>
