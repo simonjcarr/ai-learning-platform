@@ -240,8 +240,7 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                   // Close streaming after a brief delay to show completion
                   setTimeout(() => {
                     setIsStreaming(false);
-                    // Refetch usage after successful generation
-                    window.location.reload(); // Simple way to refresh the usage data
+                    setGenerating(false); // Ensure generating is set to false so article content shows
                   }, 1500);
                   return; // Exit the while loop early when complete
                   
@@ -262,9 +261,15 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         console.log('Content was generated, treating as complete');
         setStreamingMessage('Generation completed!');
         setStreamingProgress(100);
+        // Update the article with the streamed content
+        setArticle(prev => ({
+          ...prev,
+          contentHtml: streamingContent,
+          isContentGenerated: true
+        }));
         setTimeout(() => {
           setIsStreaming(false);
-          window.location.reload();
+          setGenerating(false); // Ensure generating is set to false so article content shows
         }, 1500);
       }
     } catch (err) {
