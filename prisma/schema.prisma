@@ -49,6 +49,9 @@ model User {
   finalExamAttempts            FinalExamAttempt[]
   finalExamSessions            FinalExamSession[]
   portfolio                    Portfolio?
+  courseComments               CourseComment[]
+  flaggedCourseComments        CourseComment[]        @relation("FlaggedCourseComments")
+  courseLikes                  CourseLike[]
 
   @@map("users")
 }
@@ -689,6 +692,9 @@ model Course {
   // AI-generated course outline
   courseOutlineJson   Json?
   
+  // Social features
+  likesCount          Int                  @default(0)
+  
   createdBy           User                 @relation("CreatedCourses", fields: [createdByClerkId], references: [clerkUserId])
   sections            CourseSection[]
   enrollments         CourseEnrollment[]
@@ -698,6 +704,7 @@ model Course {
   finalExamQuestionBank FinalExamQuestionBank[]
   finalExamSessions   FinalExamSession[]
   examConfig          CourseExamConfig?
+  likes               CourseLike[]
 
   @@index([slug])
   @@index([status])
@@ -742,6 +749,7 @@ model CourseArticle {
   quizzes       CourseQuiz[]
   progress      CourseProgress[]
   changeHistory CourseArticleChangeHistory[]
+  comments      CourseComment[]
 
   @@unique([sectionId, orderIndex])
   @@index([sectionId])
@@ -1118,6 +1126,59 @@ model QuestionPointSettings {
   updatedAt              DateTime @updatedAt
 
   @@map("question_point_settings")
+}
+
+model CourseComment {
+  commentId            String          @id @default(cuid())
+  courseArticleId      String
+  clerkUserId          String
+  content              String
+  parentId             String?
+  
+  // AI analysis fields
+  isQuestion           Boolean         @default(false)
+  aiAnalyzed           Boolean         @default(false)
+  aiReplyId            String?         @unique
+  
+  // Moderation
+  flagReason           String?
+  flaggedAt            DateTime?
+  flaggedByClerkUserId String?
+  isFlagged            Boolean         @default(false)
+  
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  
+  // Relations
+  courseArticle        CourseArticle   @relation(fields: [courseArticleId], references: [articleId], onDelete: Cascade)
+  user                 User            @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  parent               CourseComment?  @relation("CourseCommentReplies", fields: [parentId], references: [commentId], onDelete: Cascade)
+  replies              CourseComment[] @relation("CourseCommentReplies")
+  aiReply              CourseComment?  @relation("AIReply", fields: [aiReplyId], references: [commentId])
+  aiReplyFor           CourseComment?  @relation("AIReply")
+  flaggedBy            User?           @relation("FlaggedCourseComments", fields: [flaggedByClerkUserId], references: [clerkUserId])
+  
+  @@index([courseArticleId])
+  @@index([clerkUserId])
+  @@index([parentId])
+  @@index([isFlagged])
+  @@index([isQuestion])
+  @@map("course_comments")
+}
+
+model CourseLike {
+  likeId       String   @id @default(cuid())
+  courseId     String
+  clerkUserId  String
+  createdAt    DateTime @default(now())
+  
+  course       Course   @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user         User     @relation(fields: [clerkUserId], references: [clerkUserId], onDelete: Cascade)
+  
+  @@unique([courseId, clerkUserId])
+  @@index([courseId])
+  @@index([clerkUserId])
+  @@map("course_likes")
 }
 
 model FinalExamQuestionBank {

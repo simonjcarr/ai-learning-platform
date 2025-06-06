@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import CourseQuiz from '@/components/course-quiz';
 import CourseArticleTracker from '@/components/course-article-tracker';
 import { CourseFloatingActionMenu } from '@/components/course-floating-action-menu';
+import { CourseCommentsSection } from '@/components/course-comments/course-comments-section';
 import { useAuth } from "@clerk/nextjs";
 
 interface CourseArticleContentProps {
@@ -116,6 +117,14 @@ export default function CourseArticleContent({ courseArticle, courseId }: Course
       {/* Course Quizzes */}
       {courseArticle.contentHtml && (
         <CourseQuiz articleId={courseArticle.articleId} />
+      )}
+
+      {/* Comments Section */}
+      {isSignedIn && courseArticle.contentHtml && (
+        <CourseCommentsSection 
+          courseId={courseId}
+          articleId={courseArticle.articleId}
+        />
       )}
 
       {/* Course Progress Tracking */}

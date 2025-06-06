@@ -72,16 +72,13 @@ export default function CourseArticleTracker({
         
         if (response.ok) {
           hasEnrolledRef.current = true;
-          console.log('✅ Auto-enrolled in course');
         } else if (response.status === 400) {
           // User is already enrolled - this is fine, don't log as error
           hasEnrolledRef.current = true;
           // Silent success - no need to log this as it's expected
         } else {
-          console.error('❌ Enrollment failed:', response.status);
         }
       } catch (error) {
-        console.error('❌ Auto-enrollment error:', error);
       }
     };
 
@@ -110,18 +107,10 @@ export default function CourseArticleTracker({
         if (response.ok) {
           lastUpdateRef.current = Date.now();
           const isCompleted = maxScrollPercentage >= 50 && timeSpent >= 10;
-          console.log('✅ Progress updated:', { 
-            timeSpent, 
-            scrollPercentage: maxScrollPercentage, 
-            isCompleted,
-            willComplete: isCompleted ? 'YES' : 'NO'
-          });
         } else {
           const errorData = await response.json();
-          console.error('❌ Progress update failed:', response.status, errorData);
         }
       } catch (error) {
-        console.error('Failed to update progress:', error);
       }
     };
 
@@ -177,7 +166,7 @@ export default function CourseArticleTracker({
             isCompleted: maxScrollPercentage >= 50 && timeSpent >= 10, // Complete if 50% scrolled and 10+ seconds (temporary for testing)
           }),
           keepalive: true, // Ensures request continues even if page unloads
-        }).catch(error => console.error('Failed final update:', error));
+        }).catch(() => {});
       }
     };
 

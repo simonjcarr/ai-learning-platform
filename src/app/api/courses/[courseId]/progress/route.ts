@@ -17,14 +17,6 @@ export async function POST(
     const body = await request.json();
     const { articleId, isCompleted, timeSpent, scrollPercentage } = body;
 
-    console.log('📊 Progress API received:', {
-      courseId,
-      articleId,
-      isCompleted,
-      timeSpent,
-      scrollPercentage,
-      userId
-    });
 
     // Calculate engagement score based on time spent and scroll percentage
     const calculateEngagementScore = (timeSpent: number, scrollPercentage: number, contentLength: number = 1000) => {
@@ -102,14 +94,6 @@ export async function POST(
       },
     });
 
-    console.log('💾 Progress saved to database:', {
-      progressId: progress.progressId,
-      isCompleted: progress.isCompleted,
-      timeSpent: progress.timeSpent,
-      scrollPercentage: progress.scrollPercentage,
-      engagementScore: progress.engagementScore,
-      completedAt: progress.completedAt
-    });
 
     // Check if course is now complete
     const allProgress = await prisma.courseProgress.findMany({

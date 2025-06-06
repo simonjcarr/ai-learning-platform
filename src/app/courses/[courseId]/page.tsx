@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FeatureGuard } from "@/components/feature-guard";
+import { CourseLikeButton } from "@/components/course-like-button";
 
 interface CourseArticle {
   articleId: string;
@@ -369,28 +370,37 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
           </div>
 
           {/* Action Buttons */}
-          <div className="flex space-x-4">
-            {!course.isEnrolled ? (
-              <Button 
-                onClick={handleEnroll} 
-                disabled={isEnrolling}
-                size="lg"
-              >
-                {isEnrolling ? 'Enrolling...' : 'Enroll in Course'}
-              </Button>
-            ) : nextArticle ? (
-              <Link href={`/courses/${courseId}/articles/${nextArticle.article.articleId}`}>
-                <Button size="lg">
-                  <Play className="h-4 w-4 mr-2" />
-                  {course.progressPercentage === 0 ? 'Start Course' : 'Continue Learning'}
+          <div className="flex items-center space-x-4">
+            <div className="flex space-x-4">
+              {!course.isEnrolled ? (
+                <Button 
+                  onClick={handleEnroll} 
+                  disabled={isEnrolling}
+                  size="lg"
+                >
+                  {isEnrolling ? 'Enrolling...' : 'Enroll in Course'}
                 </Button>
-              </Link>
-            ) : (
-              <Button size="lg" disabled>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Course Completed
-              </Button>
-            )}
+              ) : nextArticle ? (
+                <Link href={`/courses/${courseId}/articles/${nextArticle.article.articleId}`}>
+                  <Button size="lg">
+                    <Play className="h-4 w-4 mr-2" />
+                    {course.progressPercentage === 0 ? 'Start Course' : 'Continue Learning'}
+                  </Button>
+                </Link>
+              ) : (
+                <Button size="lg" disabled>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Course Completed
+                </Button>
+              )}
+            </div>
+            
+            {/* Like Button */}
+            <CourseLikeButton 
+              courseId={courseId}
+              size="lg"
+              variant="outline"
+            />
           </div>
         </div>
 

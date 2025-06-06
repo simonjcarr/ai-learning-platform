@@ -147,6 +147,7 @@ export async function GET(request: NextRequest) {
           generatedArticles,
           enrollmentCount: course._count.enrollments,
           certificateCount: course._count.certificates,
+          likesCount: course.likesCount,
           isEnrolled: course.enrollments.length > 0,
           enrolledAt: course.enrollments[0]?.enrolledAt || null,
           isCompleted: course.enrollments[0]?.completedAt !== null,

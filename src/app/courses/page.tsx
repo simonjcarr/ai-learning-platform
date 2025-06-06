@@ -15,7 +15,8 @@ import {
   TrendingUp,
   CheckCircle,
   Play,
-  GraduationCap
+  GraduationCap,
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,6 +45,7 @@ interface Course {
   generatedArticles: number;
   enrollmentCount: number;
   certificateCount: number;
+  likesCount: number;
   isEnrolled: boolean;
   enrolledAt?: string;
   isCompleted: boolean;
@@ -311,6 +313,10 @@ function CoursesContent() {
                       <Users className="h-4 w-4 mr-1" />
                       {course.enrollmentCount} enrolled
                     </div>
+                    <div className="flex items-center">
+                      <Heart className="h-4 w-4 mr-1" />
+                      {course.likesCount} likes
+                    </div>
                     {course.estimatedHours && (
                       <div className="flex items-center">
                         <Clock className="h-4 w-4 mr-1" />
@@ -379,6 +385,10 @@ function CoursesContent() {
                     <div className="flex items-center">
                       <Users className="h-4 w-4 mr-1" />
                       {course.enrollmentCount} enrolled
+                    </div>
+                    <div className="flex items-center">
+                      <Heart className="h-4 w-4 mr-1" />
+                      {course.likesCount} likes
                     </div>
                     {course.estimatedHours && (
                       <div className="flex items-center">
