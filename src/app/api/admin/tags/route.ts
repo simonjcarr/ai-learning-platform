@@ -46,6 +46,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Array of diverse, professional colors for tags
+const tagColors = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+  '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA', '#F1948A', '#85929E', '#D2B4DE', '#AED6F1',
+  '#A9DFBF', '#F9E79F', '#FADBD8', '#D5DBDB', '#FF9F43', '#6C5CE7', '#00B894', '#E17055',
+  '#0984e3', '#6c5ce7', '#a29bfe', '#fd79a8', '#fdcb6e', '#e84393',
+];
+
+function getRandomTagColor(): string {
+  return tagColors[Math.floor(Math.random() * tagColors.length)];
+}
+
 // POST /api/admin/tags
 export async function POST(request: NextRequest) {
   try {
@@ -68,11 +80,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tag name is required' }, { status: 400 });
     }
 
+    // If no color is provided, assign a random one
+    const finalColor = color?.trim() || getRandomTagColor();
+
     const tag = await prisma.tag.create({
       data: {
         tagName: tagName.trim(),
         description: description?.trim() || null,
-        color: color?.trim() || null,
+        color: finalColor,
       },
       include: {
         _count: {

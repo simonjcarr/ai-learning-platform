@@ -25,6 +25,24 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/preventing-stack-overflow-in-microservice-communication-circuit-breakers-and-rate-limiting</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/understanding-docker-layers-a-deep-dive</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/docker-networking-connecting-containers-and-services</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/how-to-update-a-nexus-caching-proxy-docker-container</loc>
       <lastmod>2025-06-06</lastmod>
       <changefreq>weekly</changefreq>
