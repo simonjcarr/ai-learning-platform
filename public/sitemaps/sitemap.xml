@@ -25,6 +25,18 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/practical-applications-of-git-worktrees-managing-multiple-features-and-hotfixes</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
+      <loc>https://yourdomain.com/articles/advanced-git-worktree-management-best-practices-and-troubleshooting</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/preventing-stack-overflow-in-microservice-communication-circuit-breakers-and-rate-limiting</loc>
       <lastmod>2025-06-06</lastmod>
       <changefreq>weekly</changefreq>
