@@ -488,69 +488,92 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                   return (
                     <div 
                       key={article.articleId} 
-                      className={`flex items-center justify-between p-4 rounded-lg border ${
+                      className={`rounded-lg border p-4 ${
                         isCompleted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="flex items-center space-x-2">
-                          {isCompleted ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          ) : isAccessible ? (
-                            <Play className="h-5 w-5 text-blue-600" />
-                          ) : (
-                            <Lock className="h-5 w-5 text-gray-400" />
-                          )}
-                          <span className="text-sm text-gray-500 w-8">
-                            {articleIndex + 1}.
-                          </span>
+                      {/* Mobile and Desktop Layout */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                        {/* Article Header with Icon and Number */}
+                        <div className="flex items-start space-x-3 flex-1">
+                          <div className="flex items-center space-x-2 flex-shrink-0">
+                            {isCompleted ? (
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                            ) : isAccessible ? (
+                              <Play className="h-5 w-5 text-blue-600" />
+                            ) : (
+                              <Lock className="h-5 w-5 text-gray-400" />
+                            )}
+                            <span className="text-sm text-gray-500 font-medium">
+                              {articleIndex + 1}.
+                            </span>
+                          </div>
+                          
+                          {/* Article Content */}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-900 text-base mb-1">{article.title}</h4>
+                            {article.description && (
+                              <p className="text-sm text-gray-600 mb-2 line-clamp-2">{article.description}</p>
+                            )}
+                            
+                            {/* Status and Quiz Info */}
+                            <div className="flex flex-col space-y-2">
+                              {!article.isGenerated && (
+                                <p className="text-xs text-yellow-600 font-medium">Content being generated...</p>
+                              )}
+                              
+                              <div className="flex flex-wrap items-center gap-2">
+                                {quizScore !== null && (
+                                  <Badge className={`text-xs ${
+                                    hasPassedQuiz 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    Quiz: {quizScore.toFixed(1)}% {hasPassedQuiz ? '(Passed)' : '(Retry needed)'}
+                                  </Badge>
+                                )}
+                                
+                                {isCompleted && (
+                                  <div className="flex items-center space-x-1 sm:hidden">
+                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                    <span className="text-sm font-medium text-green-600">Completed</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{article.title}</p>
-                          {article.description && (
-                            <p className="text-sm text-gray-600">{article.description}</p>
-                          )}
-                          {!article.isGenerated && (
-                            <p className="text-xs text-yellow-600">Content being generated...</p>
-                          )}
-                          {quizScore !== null && (
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge className={`text-xs ${
-                                hasPassedQuiz 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                Quiz: {quizScore.toFixed(1)}% {hasPassedQuiz ? '(Passed)' : '(Retry needed)'}
-                              </Badge>
+                        
+                        {/* Action Area */}
+                        <div className="flex items-center justify-between sm:justify-end sm:space-x-3 mt-3 sm:mt-0">
+                          {/* Completion Status (Desktop only) */}
+                          {isCompleted && (
+                            <div className="text-right hidden sm:block">
+                              <div className="flex items-center space-x-1">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-600">Completed</span>
+                              </div>
+                              {quizScore !== null && (
+                                <p className="text-xs text-gray-500 mt-1">Quiz: {quizScore.toFixed(1)}%</p>
+                              )}
                             </div>
                           )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-3">
-                        {isCompleted && (
-                          <div className="text-right">
-                            <div className="flex items-center space-x-1">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                              <span className="text-sm font-medium text-green-600">Completed</span>
-                            </div>
-                            {quizScore !== null && (
-                              <p className="text-xs text-gray-500">Quiz: {quizScore.toFixed(1)}%</p>
+                          
+                          {/* Action Button */}
+                          <div className="flex-shrink-0">
+                            {isAccessible ? (
+                              <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                                  {isCompleted ? 'Review' : 'Start'}
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button variant="outline" size="sm" disabled className="w-full sm:w-auto">
+                                {course.isEnrolled ? 'Generating...' : 'Enroll to Access'}
+                              </Button>
                             )}
                           </div>
-                        )}
-                        
-                        {isAccessible ? (
-                          <Link href={`/courses/${courseId}/articles/${article.articleId}`}>
-                            <Button variant="outline" size="sm">
-                              {isCompleted ? 'Review' : 'Start'}
-                            </Button>
-                          </Link>
-                        ) : (
-                          <Button variant="outline" size="sm" disabled>
-                            {course.isEnrolled ? 'Generating...' : 'Enroll to Access'}
-                          </Button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -566,44 +589,46 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                     const hasPassedQuiz = hasPassedSectionQuiz(section.sectionId);
                     
                     return (
-                      <div key={quiz.quizId} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900">{quiz.title}</p>
-                          <div className="flex items-center space-x-2">
-                            <p className="text-sm text-gray-600">
-                              {quiz._count.questions} questions
-                            </p>
-                            {course.passMarkPercentage && (
-                              <span className="text-sm text-gray-500">• Pass mark: {course.passMarkPercentage}%</span>
-                            )}
-                          </div>
-                          {sectionQuizScore && (
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge className={`text-xs ${
-                                hasPassedQuiz 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                <Award className="h-3 w-3 mr-1" />
-                                Best Score: {sectionQuizScore.score.toFixed(1)}%
-                              </Badge>
-                              {hasPassedQuiz && (
-                                <span className="text-xs text-green-600 font-medium">✓ Passed</span>
+                      <div key={quiz.quizId} className="p-3 bg-blue-50 rounded-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                          <div className="flex-1">
+                            <h5 className="font-medium text-gray-900 mb-1">{quiz.title}</h5>
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mb-2">
+                              <span>{quiz._count.questions} questions</span>
+                              {course.passMarkPercentage && (
+                                <span>• Pass mark: {course.passMarkPercentage}%</span>
                               )}
                             </div>
-                          )}
+                            {sectionQuizScore && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge className={`text-xs ${
+                                  hasPassedQuiz 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  <Award className="h-3 w-3 mr-1" />
+                                  Best Score: {sectionQuizScore.score.toFixed(1)}%
+                                </Badge>
+                                {hasPassedQuiz && (
+                                  <span className="text-xs text-green-600 font-medium">✓ Passed</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0">
+                            {course.isEnrolled ? (
+                              <Link href={`/courses/${courseId}/sections/${section.sectionId}/quizzes`}>
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                                  {sectionQuizScore ? 'Retake Quiz' : 'Take Quiz'}
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button variant="outline" size="sm" disabled className="w-full sm:w-auto">
+                                Take Quiz
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        {course.isEnrolled ? (
-                          <Link href={`/courses/${courseId}/sections/${section.sectionId}/quizzes`}>
-                            <Button variant="outline" size="sm">
-                              {sectionQuizScore ? 'Retake Quiz' : 'Take Quiz'}
-                            </Button>
-                          </Link>
-                        ) : (
-                          <Button variant="outline" size="sm" disabled>
-                            Take Quiz
-                          </Button>
-                        )}
                       </div>
                     );
                   })}
