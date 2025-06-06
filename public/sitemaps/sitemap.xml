@@ -25,6 +25,12 @@
       <priority>0.5</priority>
     </url>
     <url>
+      <loc>https://yourdomain.com/articles/automating-repository-management-tasks-with-github-api-and-webhooks</loc>
+      <lastmod>2025-06-06</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+    <url>
       <loc>https://yourdomain.com/articles/practical-applications-of-git-worktrees-managing-multiple-features-and-hotfixes</loc>
       <lastmod>2025-06-06</lastmod>
       <changefreq>weekly</changefreq>

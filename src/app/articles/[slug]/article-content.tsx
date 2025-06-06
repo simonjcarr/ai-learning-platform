@@ -195,6 +195,8 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
         throw new Error("No response stream available");
       }
 
+      let buffer = ''; // Buffer to accumulate partial data
+      
       while (true) {
         const { done, value } = await reader.read();
         
@@ -203,13 +205,23 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
           break;
         }
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        // Accumulate data in buffer
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete lines
+        const lines = buffer.split('\n');
+        // Keep the last line in buffer if it's not complete (doesn't end with \n)
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            const jsonString = line.slice(6).trim();
+            
+            // Skip empty data lines
+            if (!jsonString) continue;
+            
             try {
-              const data = JSON.parse(line.slice(6));
+              const data = JSON.parse(jsonString);
               
               switch (data.type) {
                 case 'status':
@@ -248,7 +260,12 @@ export default function ArticleContent({ article: initialArticle }: ArticleConte
                   throw new Error(data.message);
               }
             } catch (parseError) {
-              console.error('Failed to parse streaming data:', parseError);
+              console.error('Failed to parse streaming data:', {
+                error: parseError,
+                line: line,
+                jsonString: jsonString
+              });
+              // Continue processing other lines instead of breaking
             }
           }
         }
