@@ -160,24 +160,56 @@ Return ONLY the JSON object, no additional text.`;
   });
 
   let outline: CourseOutline;
+  let cleanedResponse = response.trim();
+  
   try {
     // Clean up the response by removing any markdown code block wrappers
-    let cleanedResponse = response.trim();
     
-    // Remove markdown code block wrappers if present
-    if (cleanedResponse.startsWith('```json\n') && cleanedResponse.endsWith('\n```')) {
-      cleanedResponse = cleanedResponse.slice(8, -4).trim();
-    } else if (cleanedResponse.startsWith('```\n') && cleanedResponse.endsWith('\n```')) {
-      cleanedResponse = cleanedResponse.slice(4, -4).trim();
-    } else if (cleanedResponse.startsWith('```json') && cleanedResponse.endsWith('```')) {
-      cleanedResponse = cleanedResponse.slice(7, -3).trim();
-    } else if (cleanedResponse.startsWith('```') && cleanedResponse.endsWith('```')) {
-      cleanedResponse = cleanedResponse.slice(3, -3).trim();
+    // More robust markdown code block removal
+    // Handle various patterns: ```json, ```, and also single ` characters
+    if (cleanedResponse.includes('```')) {
+      // Extract content between first ``` and last ```
+      const firstTriple = cleanedResponse.indexOf('```');
+      const lastTriple = cleanedResponse.lastIndexOf('```');
+      
+      if (firstTriple !== -1 && lastTriple !== -1 && firstTriple !== lastTriple) {
+        // Get content between the triple backticks
+        let content = cleanedResponse.substring(firstTriple + 3, lastTriple);
+        
+        // Remove 'json' or other language identifiers from the start
+        if (content.startsWith('json\n')) {
+          content = content.substring(5);
+        } else if (content.startsWith('json')) {
+          content = content.substring(4);
+        } else if (content.startsWith('\n')) {
+          content = content.substring(1);
+        }
+        
+        cleanedResponse = content.trim();
+      }
+    }
+    
+    // Remove any remaining single backticks at start/end
+    if (cleanedResponse.startsWith('`') && cleanedResponse.endsWith('`')) {
+      cleanedResponse = cleanedResponse.slice(1, -1).trim();
+    }
+    
+    // Remove any trailing content after the JSON (like <end_of_text>)
+    // Find the last closing brace and truncate there
+    const lastBrace = cleanedResponse.lastIndexOf('}');
+    if (lastBrace !== -1 && lastBrace < cleanedResponse.length - 1) {
+      // Check if there's content after the last brace that's not just whitespace
+      const afterBrace = cleanedResponse.substring(lastBrace + 1).trim();
+      if (afterBrace.length > 0) {
+        console.log(`🧹 Removing trailing content after JSON: "${afterBrace}"`);
+        cleanedResponse = cleanedResponse.substring(0, lastBrace + 1);
+      }
     }
     
     outline = JSON.parse(cleanedResponse);
   } catch (parseError) {
     console.error('Raw AI response:', response);
+    console.error('Cleaned response:', cleanedResponse);
     throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
   }
 
@@ -191,6 +223,14 @@ Return ONLY the JSON object, no additional text.`;
       generationStatus: CourseGenerationStatus.COMPLETED,
     },
   });
+
+  // Clean up existing sections and articles (for regeneration)
+  // This will cascade delete all related course articles, quizzes, progress, etc.
+  await prisma.courseSection.deleteMany({
+    where: { courseId },
+  });
+
+  console.log(`🗑️ Cleaned up existing sections for course ${courseId}`);
 
   // Create sections and articles based on the outline
   for (let sectionIndex = 0; sectionIndex < outline.sections.length; sectionIndex++) {

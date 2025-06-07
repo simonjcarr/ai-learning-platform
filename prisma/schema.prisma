@@ -733,23 +733,36 @@ model CourseSection {
 }
 
 model CourseArticle {
-  articleId     String        @id @default(cuid())
-  sectionId     String
-  title         String
-  slug          String        @unique
-  description   String?
-  orderIndex    Int
-  contentHtml   String?
-  isGenerated   Boolean       @default(false)
-  generatedAt   DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  articleId        String        @id @default(cuid())
+  sectionId        String
+  title            String
+  slug             String        @unique
+  description      String?
+  orderIndex       Int
+  contentHtml      String?
+  isGenerated      Boolean       @default(false)
+  generatedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
   
-  section       CourseSection @relation(fields: [sectionId], references: [sectionId], onDelete: Cascade)
-  quizzes       CourseQuiz[]
-  progress      CourseProgress[]
-  changeHistory CourseArticleChangeHistory[]
-  comments      CourseComment[]
+  // SEO fields
+  seoCanonicalUrl  String?
+  seoChangeFreq    SeoChangeFreq? @default(WEEKLY)
+  seoDescription   String?
+  seoImageAlt      String?
+  seoImageUrl      String?
+  seoKeywords      String[]       @default([])
+  seoLastModified  DateTime?
+  seoNoFollow      Boolean        @default(false)
+  seoNoIndex       Boolean        @default(false)
+  seoPriority      Float?         @default(0.7)
+  seoTitle         String?
+  
+  section          CourseSection @relation(fields: [sectionId], references: [sectionId], onDelete: Cascade)
+  quizzes          CourseQuiz[]
+  progress         CourseProgress[]
+  changeHistory    CourseArticleChangeHistory[]
+  comments         CourseComment[]
 
   @@unique([sectionId, orderIndex])
   @@index([sectionId])
