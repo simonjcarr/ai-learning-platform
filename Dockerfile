@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 # Copy prisma schema for postinstall script
 COPY prisma ./prisma
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
