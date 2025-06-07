@@ -512,7 +512,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ courseI
                     <div key={article.articleId} className="flex items-center p-3 bg-gray-50 rounded-lg gap-4">
                       {/* Article number */}
                       <span className="text-sm text-gray-500 w-4 flex-shrink-0">
-                        {articleIndex + 1}.
+                        {article.orderIndex + 1}.
                       </span>
                       
                       {/* Article title and description */}

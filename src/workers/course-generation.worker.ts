@@ -224,6 +224,19 @@ Return ONLY the JSON object, no additional text.`;
     },
   });
 
+  // Get existing sections to preserve the original structure
+  const existingSections = await prisma.courseSection.findMany({
+    where: { courseId },
+    include: {
+      articles: {
+        orderBy: { orderIndex: 'asc' },
+      },
+    },
+    orderBy: { orderIndex: 'asc' },
+  });
+
+  console.log(`📋 Found ${existingSections.length} existing sections for course ${courseId}`);
+
   // Clean up existing sections and articles (for regeneration)
   // This will cascade delete all related course articles, quizzes, progress, etc.
   await prisma.courseSection.deleteMany({
@@ -232,22 +245,69 @@ Return ONLY the JSON object, no additional text.`;
 
   console.log(`🗑️ Cleaned up existing sections for course ${courseId}`);
 
-  // Create sections and articles based on the outline
+  // Create a mapping to track which order indices are used to avoid duplicates
+  const usedSectionIndices = new Set<number>();
+  const usedArticleIndices = new Map<string, Set<number>>(); // sectionId -> Set of used indices
+
+  // Create sections and articles based on the outline, preserving original ordering where possible
   for (let sectionIndex = 0; sectionIndex < outline.sections.length; sectionIndex++) {
     const sectionData = outline.sections[sectionIndex];
+    
+    // Try to find a matching existing section to preserve its orderIndex
+    const existingSection = existingSections.find(s => 
+      s.title.toLowerCase().trim() === sectionData.title.toLowerCase().trim() ||
+      s.title.toLowerCase().includes(sectionData.title.toLowerCase()) ||
+      sectionData.title.toLowerCase().includes(s.title.toLowerCase())
+    );
+    
+    // Determine orderIndex: prefer existing, but avoid duplicates
+    let orderIndex = sectionIndex; // fallback to current index
+    if (existingSection && !usedSectionIndices.has(existingSection.orderIndex)) {
+      orderIndex = existingSection.orderIndex;
+    }
+    
+    // Find next available index if this one is taken
+    while (usedSectionIndices.has(orderIndex)) {
+      orderIndex++;
+    }
+    usedSectionIndices.add(orderIndex);
     
     const section = await prisma.courseSection.create({
       data: {
         courseId,
         title: sectionData.title,
         description: sectionData.description,
-        orderIndex: sectionIndex,
+        orderIndex,
       },
     });
+
+    // Initialize article index tracking for this section
+    usedArticleIndices.set(section.sectionId, new Set<number>());
 
     // Create articles for this section
     for (let articleIndex = 0; articleIndex < sectionData.articles.length; articleIndex++) {
       const articleData = sectionData.articles[articleIndex];
+      
+      // Try to find a matching existing article to preserve its orderIndex
+      const existingArticle = existingSection?.articles.find(a =>
+        a.title.toLowerCase().trim() === articleData.title.toLowerCase().trim() ||
+        a.title.toLowerCase().includes(articleData.title.toLowerCase()) ||
+        articleData.title.toLowerCase().includes(a.title.toLowerCase())
+      );
+      
+      // Determine orderIndex: prefer existing, but avoid duplicates
+      let articleOrderIndex = articleIndex; // fallback to current index
+      const sectionUsedIndices = usedArticleIndices.get(section.sectionId)!;
+      
+      if (existingArticle && !sectionUsedIndices.has(existingArticle.orderIndex)) {
+        articleOrderIndex = existingArticle.orderIndex;
+      }
+      
+      // Find next available index if this one is taken
+      while (sectionUsedIndices.has(articleOrderIndex)) {
+        articleOrderIndex++;
+      }
+      sectionUsedIndices.add(articleOrderIndex);
       
       const slugBase = articleData.title
         .toLowerCase()
@@ -262,10 +322,14 @@ Return ONLY the JSON object, no additional text.`;
           title: articleData.title,
           slug: articleSlug,
           description: articleData.description,
-          orderIndex: articleIndex,
+          orderIndex: articleOrderIndex,
         },
       });
+      
+      console.log(`📄 Created article "${articleData.title}" with orderIndex ${articleOrderIndex}`);
     }
+    
+    console.log(`📚 Created section "${sectionData.title}" with orderIndex ${orderIndex} and ${sectionData.articles.length} articles`);
   }
 
   // Update course status to published

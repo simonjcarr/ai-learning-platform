@@ -51,6 +51,9 @@ export async function GET(
                   },
                 },
               },
+              orderBy: {
+                orderIndex: 'asc',
+              },
             },
             quizzes: {
               include: {
