@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import SuggestionSettingsForm from "./settings-form";
 
+
+export const dynamic = 'force-dynamic';
 export default async function SuggestionSettingsPage() {
   const { userId } = await auth();
   

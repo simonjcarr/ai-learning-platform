@@ -21,6 +21,14 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
+# Set dummy environment variables for build process
+# Using a valid format Clerk key for build (won't be used in runtime)
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZHVtbXkuZXhhbXBsZS5jb20k \
+    CLERK_SECRET_KEY=sk_test_Y2xlcmsuZHVtbXkuZXhhbXBsZS5jb20k \
+    DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy \
+    REDIS_URL=redis://localhost:6379 \
+    SKIP_ENV_VALIDATION=true
+
 # Build the application
 RUN npm run build
 

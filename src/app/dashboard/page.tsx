@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+
+export const dynamic = 'force-dynamic';
 import { BookOpen, Trophy, Clock, TrendingUp, CheckCircle, XCircle, Heart, BookmarkIcon, GraduationCap, Award, User } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";

@@ -7,6 +7,24 @@ const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
+  lazyConnect: true,
+  retryDelayOnFailover: 100,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+});
+
+// Handle connection errors gracefully during build
+connection.on('error', (error) => {
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL) {
+    // In production, log the error but don't crash
+    console.warn('Redis connection error:', error.message);
+  } else if (process.env.CI || process.env.NODE_ENV === 'test') {
+    // During CI/build, suppress Redis errors
+    console.log('Redis connection unavailable during build/test, this is expected');
+  } else {
+    // In development, log the full error
+    console.error('Redis connection error:', error);
+  }
 });
 
 export const emailQueue = new Queue('email', {

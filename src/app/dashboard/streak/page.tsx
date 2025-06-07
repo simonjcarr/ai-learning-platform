@@ -4,6 +4,8 @@ import { Calendar, Flame, TrendingUp, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+
+export const dynamic = 'force-dynamic';
 interface StreakData {
   currentStreak: number;
   longestStreak: number;

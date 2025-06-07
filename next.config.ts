@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Skip some optimizations for better build compatibility
+  skipTrailingSlashRedirect: true,
+  skipMiddlewareUrlNormalize: true,
 };
 
 export default nextConfig;

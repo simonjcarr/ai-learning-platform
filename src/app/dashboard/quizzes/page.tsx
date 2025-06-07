@@ -4,6 +4,8 @@ import { Trophy, CheckCircle, XCircle, Calendar, ArrowLeft } from "lucide-react"
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+
+export const dynamic = 'force-dynamic';
 interface QuizResult {
   id: string;
   question: string;

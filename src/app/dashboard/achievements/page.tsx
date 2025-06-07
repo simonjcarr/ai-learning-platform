@@ -4,6 +4,8 @@ import { Trophy, TrendingUp, Target, Award, ArrowLeft, Lightbulb } from "lucide-
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+
+export const dynamic = 'force-dynamic';
 interface Achievement {
   id: string;
   title: string;
