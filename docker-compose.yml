@@ -82,8 +82,10 @@ services:
     networks:
       - app-network
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       replicas: 2
       update_config:
@@ -96,10 +98,10 @@ services:
         max_attempts: 3
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/test"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      interval: 45s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
 
   email-worker:
     image: ghcr.io/simonjcarr/ai-learning-platform:latest
@@ -120,8 +122,10 @@ services:
     networks:
       - app-network
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       replicas: 1
       restart_policy:
