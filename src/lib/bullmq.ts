@@ -9,8 +9,8 @@ const connection = new Redis(redisUrl, {
   enableReadyCheck: false,
   lazyConnect: true,
   retryDelayOnFailover: 100,
-  connectTimeout: 10000,
-  commandTimeout: 5000,
+  connectTimeout: 30000,
+  commandTimeout: 30000,
 });
 
 // Handle connection errors gracefully during build
