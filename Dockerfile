@@ -10,7 +10,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 # Copy prisma schema for postinstall script
 COPY prisma ./prisma
-RUN npm ci
+# Install all dependencies including dev dependencies (needed for tsx workers)
+RUN npm ci --include=dev
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -43,6 +44,15 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Copy package.json and node_modules for worker commands
+COPY --from=deps /app/package.json ./package.json
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source files needed for workers
+COPY --from=builder /app/src/workers ./src/workers
+COPY --from=builder /app/src/lib ./src/lib
+COPY --from=builder /app/prisma ./prisma
+
 COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache
@@ -53,6 +63,9 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Change ownership of copied files
+RUN chown -R nextjs:nodejs /app/src /app/node_modules /app/package.json /app/prisma
 
 USER nextjs
 

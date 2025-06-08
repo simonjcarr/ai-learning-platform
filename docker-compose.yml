@@ -103,7 +103,7 @@ services:
 
   email-worker:
     image: ghcr.io/your-username/it-learning-platform:latest
-    command: npm run worker:email
+    command: ["npm", "run", "worker:email"]
     environment:
       # Database
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/it_learning_platform
