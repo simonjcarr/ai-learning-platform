@@ -46,7 +46,7 @@ services:
       retries: 3
 
   app:
-    image: ghcr.io/your-username/it-learning-platform:latest
+    image: ghcr.io/simonjcarr/ai-learning-platform:latest
     environment:
       # Database
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/it_learning_platform
@@ -102,7 +102,7 @@ services:
       start_period: 60s
 
   email-worker:
-    image: ghcr.io/your-username/it-learning-platform:latest
+    image: ghcr.io/simonjcarr/ai-learning-platform:latest
     command: ["npm", "run", "worker:email"]
     environment:
       # Database

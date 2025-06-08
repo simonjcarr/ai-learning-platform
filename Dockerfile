@@ -48,10 +48,11 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=deps /app/package.json ./package.json
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy source files needed for workers
-COPY --from=builder /app/src/workers ./src/workers
-COPY --from=builder /app/src/lib ./src/lib
+# Copy source files needed for workers and development
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 COPY --from=builder /app/public ./public
 
@@ -65,7 +66,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Change ownership of copied files
-RUN chown -R nextjs:nodejs /app/src /app/node_modules /app/package.json /app/prisma
+RUN chown -R nextjs:nodejs /app/src /app/node_modules /app/package.json /app/prisma /app/next.config.ts /app/tsconfig.json
 
 USER nextjs
 
